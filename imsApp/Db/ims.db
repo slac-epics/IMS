@@ -1,0 +1,72 @@
+record(ims, "$(MOTOR)") {
+  field(PORT, "$(PORT)")
+  field(ASYN, "$(ASYN)")
+  field(DVER, "$(DVER)")
+  field(MPGM, "ims_bootup.mcode")
+  field(FLNK, "$(MOTOR):TS")
+}
+
+record(stringin, "$(MOTOR):TS") {
+  field(DESC, "Time Stamp of Last Update")
+  field(DTYP, "Soft Timestamp")
+  field(TSEL, "$(MOTOR).TIME")
+  field(INP,  "@%b %d %R:%S %Y")
+  field(FLNK, "$(MOTOR):UTCS")
+}
+
+record(stringin, "$(MOTOR):UTCS") {
+  field(DESC, "UTC String of Last Update")
+  field(DTYP, "Soft Timestamp")
+  field(TSEL, "$(MOTOR).TIME")
+  field(INP,  "@%s")
+  field(FLNK, "$(MOTOR):UTC")
+}
+
+record(scalcout, "$(MOTOR):UTC") {
+  field(DESC, "UTC Seconds of Last Update")
+  field(INAA, "$(MOTOR):UTCS")
+  field(CALC, "INT(AA)")
+}
+
+record(stringin, "$(MOTOR):STATUS") {
+  field(DESC, "Status From Controller")
+  field(DTYP, "stream")
+  field(INP,  "@report.proto STATUS  $(ASYN) 1")
+  field(SCAN, "I/O Intr")
+  field(MPST, "Always")
+  field(FLNK, "$(MOTOR):UPDATE")
+}
+
+record(stringout, "$(MOTOR):UPDATE") {
+  field(DESC, "Update Motor Status")
+  field(DOL,  "$(MOTOR):STATUS")
+  field(OUT,  "$(MOTOR).SSTR PP")
+  field(OMSL, "closed_loop")
+}
+
+record(longin, "$(MOTOR):SAVED_RAW") {
+  field(DESC, "Saved Raw Position")
+  field(DTYP, "stream")
+  field(INP,  "@report.proto SAVED_P $(ASYN) 1")
+  field(EGU,  "Steps/Counts")
+  field(SCAN, "I/O Intr")
+  field(FLNK, "$(MOTOR):SAVED_P")
+}
+
+record(calc, "$(MOTOR):SAVED_P") {
+  field(DESC, "Saved Position")
+  field(INPA, "$(MOTOR):SAVED_RAW NPP")
+  field(INPB, "$(MOTOR).RES       NPP")
+  field(INPC, "$(MOTOR).DIR       NPP")
+  field(INPD, "$(MOTOR).OFF       NPP")
+  field(CALC, "A*B*(1-2*C)+D")
+  field(FLNK, "$(MOTOR):SAVED_TS")
+}
+
+record(stringin, "$(MOTOR):SAVED_TS") {
+  field(DESC, "Time Stamp of Last Save")
+  field(DTYP, "Soft Timestamp")
+  field(TSEL, "$(MOTOR):SAVED_RAW.TIME")
+  field(INP,  "@%b %d %R:%S %Y")
+}
+

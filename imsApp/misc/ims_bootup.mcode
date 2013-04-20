@@ -1,0 +1,165 @@
+VA Ve   ' MCode version
+
+VA PU   ' Power up flag
+VA p1	' Saved position
+VA Sd	' Save deadband
+VA Hb   ' Heartbeat monitor
+VA Ns   ' Number of saves
+VA Us   ' Update status immediately
+VA X1
+VA X2
+
+Ve=3    ' Version 3
+Ne=0    ' Disable numeric cmd
+p1=P    ' Start with current position
+Sd=Db*4 ' Set save deadband
+Us=0
+
+PG 1
+  LB SU	            ' Run at power up
+
+  H 300             ' 1 second hold let motor boot-up
+
+  PU=1	            ' Set the Power-Up flag
+  P=p1         	    ' Restore last saved position
+
+  R1=0              ' Reset the moving flag
+  R2=0	            ' Reset the delay counter
+  R3=0	            ' Reset the moved/slipped flag
+  R4=0	            ' Reset the delay counter
+
+  Hb=0              ' Reset heartbeat monitor
+  Us=0
+
+  LB Lp
+    CL Ya, Mv=1	    ' Moving
+    CL Za, Mv=0	    ' Not moving
+    IC Hb
+    H  1
+    BR Lp
+
+  LB Ya
+    CL Yc, R1=1     ' Has been moving
+    CL Yb, R1=0     ' Started moving
+    RT
+
+  LB Yb
+    R1=1            ' Set the moving flag
+    R2=0            ' Reset the delay counter
+    RT
+
+  LB Yc
+    IC R2           ' Increment the delay counter
+    CL Rp, R2>49    ' Has been 0.5 second, send report
+    RT
+
+  LB Za
+    CL Zc, R1=0     ' Was not moving
+    CL Zb, R1=1     ' Just finished moving
+    RT
+
+  LB Zb
+    CL Rp
+
+    R1=0            ' Clear the moving flag
+    R3=1            ' Delay started by a move
+    R4=1            ' Start the delay counter for saving
+    RT
+
+  LB Zc
+    IC R2
+
+    CL Zd, R4>0     ' Moved or slipped, delaying for saving
+    CL Ze, R4=0     ' Check for slipping
+    CL Zg, R4>2000  ' Has delayed about 30 seconds
+
+    CL Rp, Us>0     ' Update status
+    CL Rp, R2>18000 ' Has delayed about 5 minutes
+    RT
+
+  LB Zd
+    IC R4
+    RT
+
+  LB Ze
+    X1=p1-Sd
+    X2=p1+Sd
+    CL Zf, P<X1	    ' Slipped below deadband
+    CL Zf, P>X2	    ' Slipped above deadband
+    RT
+
+  LB Zf
+    CL Rp
+
+    R3=0            ' Delay started by slipping
+    R4=1            ' Start the delay counter
+    RT
+
+  LB Zg
+    CL Zi, R3=0     ' Delay started by slipping
+    CL Zh, R3=1	    ' Delay started by a move
+    RT
+
+  LB Zh
+    p1=P            ' Assign P to P1
+    S	            ' Save to NVM
+    IC Ns           ' Increment the Save counter
+    R3=0            ' Reset the moved/slipped flag
+    R4=0            ' Reset the delay counter
+    PR "Saved ",P1
+    RT
+
+  LB Zi
+    X1=p1-Sd
+    X2=p1+Sd
+    CL Zh, P<X1	    ' Really slipped below deadband
+    CL Zh, P>X2	    ' Really slipped above deadband
+    CL Zj, P>=X1    ' Came back or not
+    RT
+
+  LB Zj
+    CL Zk, P<=X2    ' Came back
+    RT
+
+  LB Zk
+    R4=0            ' Came back, reset the delay counter
+    RT
+
+  LB Rp
+    X2=PU*32768     ' bit-16 is the power-up flag
+
+    X1=ER*  256     ' bit-9 through 15 is the error code
+    X2=X2+X1
+
+    X1=I4*  128     ' bit-8 is I4
+    X2=X2+X1
+
+    X1=I3*   64     ' bit-7 is I3
+    X2=X2+X1
+
+    X1=I2*   32     ' bit-6 is I2
+    X2=X2+X1
+
+    X1=I1*   16     ' bit-5 is I1
+    X2=X2+X1
+
+    X1=EE*    8     ' bit-4 is encoder enable
+    X2=X2+X1
+
+    X1=SM*    4     ' bit-3 is stall detection mode
+    X2=X2+X1
+
+    X1=ST*    2     ' bit-2 is stall detection
+    X2=X2+X1
+
+    X2=X2+MV        ' LSB is MV
+
+    PR "BOSStatus=", X2, ",P=", P, "EOS"
+
+    R2=0            ' Reset the delay counter
+    Us=0            ' Clear the update-status flag
+    RT
+
+E
+PG
+

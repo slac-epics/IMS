@@ -1,0 +1,14 @@
+# Schneider Electric MDrivePlus Motor Protocol
+
+InTerminator  = CR;
+OutTerminator = CR LF;
+ReplyTimeout  = 800;
+ReadTimeout   = 100;
+WriteTimeout  = 100;
+ExtraInput    = Ignore;
+
+# Reports from the controller
+STATUS  { ReplyTimeout = 50; ReadTimeout = 10; InTerminator =; in "BOS%s";    }
+
+SAVED_P { ReplyTimeout = 50; ReadTimeout = 10; InTerminator =; in "Saved %d"; }
+
