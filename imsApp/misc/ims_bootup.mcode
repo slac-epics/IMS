@@ -128,28 +128,28 @@ PG 1
   LB Rp
     X2=PU*32768     ' bit-16 is the power-up flag
 
-    X1=ER*  256     ' bit-9 through 15 is the error code
+    X1=ST*16384     ' bit-15 is stall detection
     X2=X2+X1
 
-    X1=I4*  128     ' bit-8 is I4
+    X1=ER*  128     ' bit-8 through 14 is the error code
     X2=X2+X1
 
-    X1=I3*   64     ' bit-7 is I3
+    X1=I4*   64     ' bit-7 is I4
     X2=X2+X1
 
-    X1=I2*   32     ' bit-6 is I2
+    X1=I3*   32     ' bit-6 is I3
     X2=X2+X1
 
-    X1=I1*   16     ' bit-5 is I1
+    X1=I2*   16     ' bit-5 is I2
     X2=X2+X1
 
-    X1=EE*    8     ' bit-4 is encoder enable
+    X1=I1*    8     ' bit-4 is I1
     X2=X2+X1
 
     X1=SM*    4     ' bit-3 is stall detection mode
     X2=X2+X1
 
-    X1=ST*    2     ' bit-2 is stall detection
+    X1=EE*    2     ' bit-2 is encoder enable
     X2=X2+X1
 
     X2=X2+MV        ' LSB is MV

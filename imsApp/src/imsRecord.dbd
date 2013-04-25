@@ -384,56 +384,35 @@ recordtype(ims) {
 		pp(TRUE)
 		interest(1)
 	}
-	field(TWF,DBF_SHORT) {
-		asl(ASL0)
-		prompt("Tweak motor Forward")
-		pp(TRUE)
-		interest(1)
-	}
-	field(TWR,DBF_SHORT) {
-		asl(ASL0)
-		prompt("Tweak motor Reverse")
-		pp(TRUE)
-		interest(1)
-	}
-	field(TWV,DBF_DOUBLE) {
-		asl(ASL0)
-		prompt("Tweak Step Size (EGU)")
-		promptgroup(GUI_COMMON)
-		interest(1)
-	}
 	field(VAL,DBF_DOUBLE) {
-		asl(ASL0)
-		prompt("User Desired Value (EGU")
+		prompt("User Desired Value (EGU)")
 		special(SPC_MOD)
-		pp(TRUE)
-	}
-	field(LVAL,DBF_DOUBLE) {
-		prompt("Last User Des Val (EGU)")
-		special(SPC_NOMOD)
-		interest(1)
+		asl(ASL0)
 	}
 	field(DVAL,DBF_DOUBLE) {
-		asl(ASL0)
-		prompt("Dial Desired Value (EGU")
+		prompt("Dial Desired Value (EGU)")
 		special(SPC_MOD)
-		pp(TRUE)
-	}
-	field(LDVL,DBF_DOUBLE) {
-		prompt("Last Dial Des Val (EGU)")
-		special(SPC_NOMOD)
-		interest(1)
+		asl(ASL0)
 	}
 	field(RVAL,DBF_LONG) {
-		asl(ASL0)
-		prompt("Raw Desired Value (step")
-		special(SPC_MOD)
-		pp(TRUE)
-	}
-	field(LRVL,DBF_LONG) {
-		prompt("Last Raw Des Val (steps")
+		prompt("Raw Desired Value (step)")
 		special(SPC_NOMOD)
+	}
+	field(TWV,DBF_DOUBLE) {
+		prompt("Tweak Step Size (EGU)")
+		promptgroup(GUI_COMMON)
+		asl(ASL0)
 		interest(1)
+	}
+	field(TWF,DBF_SHORT) {
+		prompt("Tweak Motor Forward")
+		special(SPC_MOD)
+		asl(ASL0)
+	}
+	field(TWR,DBF_SHORT) {
+		prompt("Tweak Motor Reverse")
+		special(SPC_MOD)
+		asl(ASL0)
 	}
 	field(RLV,DBF_DOUBLE) {
 		asl(ASL0)
@@ -468,14 +447,6 @@ recordtype(ims) {
 	}
 	field(RRBV,DBF_LONG) {
 		prompt("Raw Readback Value")
-		special(SPC_NOMOD)
-	}
-	field(RMP,DBF_LONG) {
-		prompt("Raw Motor Position")
-		special(SPC_NOMOD)
-	}
-	field(REP,DBF_LONG) {
-		prompt("Raw Encoder Position")
 		special(SPC_NOMOD)
 	}
 	field(RVEL,DBF_LONG) {
