@@ -1,12 +1,21 @@
 include "menuYesNo.dbd"
 
-menu(motorEE) {
-	choice(motorEE_Disable,   "Disable")
-	choice(motorEE_Enable,    "Enable")
+menu(motorAble) {
+	choice(motorAble_Disable,       "Disable")
+	choice(motorAble_Enable,        "Enable" )
+}
+menu(motorLM) {
+	choice(motorLM_Invalid,         "Invalid"          )
+	choice(motorLM_DecelHome,       "Decel, Home"      )
+	choice(motorLM_Decel,           "Decel"            )
+	choice(motorLM_DecelStopProg,   "Decel, StopProg"  )
+	choice(motorLM_NoDecelHome,     "NoDecel, Home"    )
+	choice(motorLM_NoDecel,         "NoDecel"          )
+	choice(motorLM_NoDecelStopProg, "NoDecel, StopProg")
 }
 menu(motorSM) {
-	choice(motorSM_Stop,      "Stop on stall")
-	choice(motorSM_NoStop,    "No stop")
+	choice(motorSM_Stop,            "Stop on stall")
+	choice(motorSM_NoStop,          "No stop")
 }
 menu(motorDIR) {
 	choice(motorDIR_Positive, "Positive")
@@ -65,6 +74,60 @@ recordtype(ims) {
 		size(61)
 		interest(1)
 	}
+	field(SN,DBF_STRING) {
+		prompt("Serial Number")
+		special(SPC_NOMOD)
+		size(61)
+		interest(1)
+	}
+	field(S1,DBF_STRING) {
+		prompt("S1 Setting")
+		promptgroup(GUI_COMMON)
+		size(61)
+		special(SPC_MOD)
+		asl(ASL0)
+		interest(1)
+	}
+	field(S2,DBF_STRING) {
+		prompt("S2 Setting")
+		promptgroup(GUI_COMMON)
+		size(61)
+		special(SPC_MOD)
+		asl(ASL0)
+		interest(1)
+	}
+	field(S3,DBF_STRING) {
+		prompt("S3 Setting")
+		promptgroup(GUI_COMMON)
+		size(61)
+		special(SPC_MOD)
+		asl(ASL0)
+		interest(1)
+	}
+	field(NE,DBF_MENU) {
+		prompt("Numeric Enable")
+		promptgroup(GUI_COMMON)
+		menu(motorAble)
+		special(SPC_MOD)
+		asl(ASL0)
+		interest(1)
+	}
+	field(EE,DBF_MENU) {
+		prompt("Encoder Enable")
+		promptgroup(GUI_COMMON)
+		menu(motorAble)
+		special(SPC_MOD)
+		asl(ASL0)
+		interest(1)
+	}
+	field(LM,DBF_MENU) {
+		prompt("Limit Stop Mode")
+		promptgroup(GUI_COMMON)
+		menu(motorLM)
+		special(SPC_MOD)
+		asl(ASL0)
+		interest(1)
+	}
 	field(SM,DBF_MENU) {
 		prompt("Stall Mode")
 		promptgroup(GUI_COMMON)
@@ -73,12 +136,20 @@ recordtype(ims) {
 		asl(ASL0)
 		interest(1)
 	}
-	field(EE,DBF_MENU) {
-		prompt("Encoder Enable")
+	field(HC,DBF_SHORT) {
+		prompt("Holding Current")
 		promptgroup(GUI_COMMON)
-		menu(motorEE)
 		special(SPC_MOD)
 		asl(ASL0)
+		initial(0)
+		interest(1)
+	}
+	field(RC,DBF_SHORT) {
+		prompt("Running Current")
+		promptgroup(GUI_COMMON)
+		special(SPC_MOD)
+		asl(ASL0)
+		initial(0)
 		interest(1)
 	}
 	field(ERES,DBF_DOUBLE) {
@@ -691,6 +762,12 @@ recordtype(ims) {
 		prompt("Original Value")
 		promptgroup(GUI_COMMON)
 		special(SPC_NOMOD)
+	}
+	field(CMAP,DBF_ULONG) {
+		prompt("Bit Map of Changed Field")
+		promptgroup(GUI_COMMON)
+		special(SPC_NOMOD)
+		initial("0")
 	}
 }
 

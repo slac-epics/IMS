@@ -28,12 +28,6 @@
 #include "misc.h"
 
 
-#define NINT(f) (long)((f)>0 ? (f)+0.5 : (f)-0.5)             // Nearest integer
-
-/*** All db_post_events() calls set both VALUE and LOG bits ***/
-#define DBE_VAL_LOG (unsigned int) (DBE_VALUE | DBE_LOG)
-
-
 /*** Forward references ***/
 
 
@@ -74,44 +68,13 @@ rset imsRSET =
 extern "C" { epicsExportAddress( rset, imsRSET ); }
 
 
-struct ims_info
-{
-    epicsMutex *cMutex;
-    asynUser   *pasynUser;
-    int         S1;                                                 // switch S1
-    int         S2;
-    int         S3;
-    int         sword;
-    long        count;
-    bool        newData;
-};
-
-typedef union
-{
-    unsigned long All;
-    struct
-    {
-        unsigned int MOVING : 1;
-        unsigned int EE     : 1; // encoder enable
-        unsigned int SM     : 1; // stall mode
-        unsigned int I1     : 1; // I1
-        unsigned int I2     : 1; // I2
-        unsigned int I3     : 1; // I3
-        unsigned int I4     : 1; // I4
-        unsigned int ERR    : 7; // error number
-        unsigned int ST     : 1; // stall detected
-        unsigned int PU     : 1; // power-cycled
-        unsigned int NA     :16; // not used
-    } Bits;
-} status_word;
-
 #define MIP_DONE     0x0000    // No motion is in progress
 #define MIP_HOMF     0x0008    // A home-forward command is in progress
 #define MIP_HOMR     0x0010    // A home-reverse command is in progress
 #define MIP_HOME     (MIP_HOMF | MIP_HOMR)
 #define MIP_MOVE     0x0020    // A move not resulting from Jog* or Hom*
 #define MIP_RETRY    0x0040    // A retry is in progress
-#define MIP_NEWM     0x0080    // Stop current move for a new move
+#define MIP_NEW      0x0080    // Stop current move for a new move
 #define MIP_BL       0x0100    // Done moving, now take out backlash
 #define MIP_STOP     0x0200    // We're trying to stop.  If a home command
                                // is issued when the motor is moving, we
@@ -127,6 +90,7 @@ static long connect_motor     ( imsRecord *precord                            );
 static long init_motor        ( imsRecord *precord                            );
 static long process_motor_info( imsRecord *precord, status_word sword,
                                                     long count                );
+static void new_move          ( imsRecord *precord                            );
 static void post_fields       ( imsRecord *precord, unsigned short alarm_mask,
                                                     unsigned short all        );
 
@@ -215,7 +179,7 @@ static long init_motor( imsRecord *prec )
 
     mInfo->cMutex->lock();
 
-    // determine the part number
+    // read the part number
     retry = 0;
     do
     {
@@ -232,7 +196,24 @@ static long init_motor( imsRecord *prec )
         goto finish_up;
     }
 
-    // determine the switch settings
+    // read the serial number
+    retry = 0;
+    do
+    {
+        send_msg( pasynUser, "PR SN" );
+        status = recv_reply( pasynUser, prec->sn, 1 );
+        epicsThreadSleep( 0.5 );
+    } while ( status <= 0 && retry++ < 3 );
+
+    if ( status <= 0 )
+    {
+        Debug( 0, "Failed to read the serial number" );
+
+        failed = 1;
+        goto finish_up;
+    }
+
+    // read the switch settings
     retry = 0;
     do
     {
@@ -278,6 +259,35 @@ static long init_motor( imsRecord *prec )
         failed = 1;
     }
 
+    // determine if numeric enabled
+    retry = 0;
+    do
+    {
+        send_msg( pasynUser, "PR \"NE=\",NE" );
+        status = recv_reply( pasynUser, buf, 1 );
+        if ( status > 0 )
+        {
+            status = sscanf( buf, "NE=%d", &rtnval );
+            if ( (status == 1) && (rtnval == 0 || rtnval ==1) )
+            {
+                prec->ne = rtnval;                        // 1 : numeric enabled
+                break;
+            }
+            else
+                status = 0;
+        }
+
+        epicsThreadSleep( 0.5 );
+    } while ( retry++ < 3 );
+
+    if ( status != 1 )
+    {
+        Debug( 0, "Failed to read the numeric status" );
+        prec->ne = 0;
+
+        failed = 1;
+    }
+
     // determine if encoder enabled
     retry = 0;
     do
@@ -307,6 +317,35 @@ static long init_motor( imsRecord *prec )
         failed = 1;
     }
 
+    // determine the limit stop mode
+    retry = 0;
+    do
+    {
+        send_msg( pasynUser, "PR \"LM=\",LM" );
+        status = recv_reply( pasynUser, buf, 1 );
+        if ( status > 0 )
+        {
+            status = sscanf( buf, "LM=%d", &rtnval );
+            if ( (status == 1) && (rtnval > 0 && rtnval < 7) )
+            {
+                prec->lm = rtnval;
+                break;
+            }
+            else
+                status = 0;
+        }
+
+        epicsThreadSleep( 0.5 );
+    } while ( retry++ < 3 );
+
+    if ( status != 1 )
+    {
+        Debug( 0, "Failed to read the limit stop mode" );
+        prec->lm = 0;
+
+        failed = 1;
+    }
+
     // determine the stall mode
     retry = 0;
     do
@@ -316,7 +355,7 @@ static long init_motor( imsRecord *prec )
         if ( status > 0 )
         {
             status = sscanf( buf, "SM=%d", &rtnval );
-            if ( (status == 1) && (rtnval == 0 || rtnval ==1) )
+            if ( (status == 1) && (rtnval == 0 || rtnval == 1) )
             {
                 prec->sm = rtnval;
                 break;
@@ -425,12 +464,14 @@ static long init_motor( imsRecord *prec )
 /******************************************************************************/
 static long process( dbCommon *precord )
 {
-    imsRecord   *prec = (imsRecord *)precord;
-    ims_info    *mInfo = (ims_info *)prec->dpvt;
-    status_word  sword;
-
-    char         msg[MAX_MSG_SIZE];
-    long         count, status = OK;
+    imsRecord      *prec = (imsRecord *)precord;
+    ims_info       *mInfo = (ims_info *)prec->dpvt;
+    char            msg[MAX_MSG_SIZE];
+    long            count, old_rval, status = OK;
+    short           old_dmov, old_rcnt, old_miss;
+    double          old_val,  old_dval, old_diff, diff;
+    unsigned short  old_mip,  alarm_mask;
+    status_word     sword;
 
     if ( prec->pact ) return( OK );
 
@@ -454,94 +495,155 @@ static long process( dbCommon *precord )
 
     if ( prec->movn )                                            // still moving
     {
-        // stalled or not?
+        if ( sword.Bits.ST )                                          // stalled
+            recGblSetSevr( (dbCommon *)prec, STATE_ALARM, MINOR_ALARM );
 
         goto finished;
     }
 
+    old_mip  = prec->mip ;
+    old_dmov = prec->dmov;
+    old_rcnt = prec->rcnt;
+    old_diff = prec->diff;
+    old_miss = prec->miss;
+    old_val  = prec->val ;
+    old_dval = prec->dval;
+    old_rval = prec->rval;
+
+//  old_msta = prec->msta;
+
     if ( sword.Bits.ST && (! sword.Bits.SM) )                          //stalled
     {
-        // msta.Bits.RA_PROBLEM = 1;
-
-        prec->dmov = 1;
         prec->mip  = MIP_DONE;
+        prec->dmov = 1;
+        prec->rcnt = 0;
+
+        // msta.Bits.RA_PROBLEM = 1;
     }
 
     if ( prec->mip == MIP_DONE ) goto finish_up;
 
-    prec->diff = prec->rbv - prec->val;
+    diff = prec->rbv - prec->val;
     if ( (prec->mip == MIP_HOME) ||
          (prec->mip  & MIP_STOP) || (prec->mip  & MIP_PAUSE) )
     {                                             // are we homing or stopping ?
-        if ( prec->mip == MIP_HOME )                    // set the at-home bit ?
+        if      ( prec->mip == MIP_HOME  )              // set the at-home bit ?
         {
+            Debug( 0, "%s -- homed",   prec->name );
         }
+        else if ( prec->mip == MIP_STOP  )
+            Debug( 0, "%s -- stopped", prec->name );
+        else
+            Debug( 0, "%s -- paused",  prec->name );
 
-        prec->dmov = 1;
-        prec->diff = 0;
         if ( (prec->mip == MIP_HOME) || (prec->mip  & MIP_STOP) )
         {
             prec->mip  = MIP_DONE;
             prec->val  = prec->rbv;
             prec->dval = prec->drbv;
+            prec->rval = prec->rrbv;
         }
+
+        prec->dmov = 1;
+        prec->rcnt = 0;
+        prec->miss = 0;
     }
-    else if ( prec->mip == MIP_NEWM )
+    else if ( prec->mip == MIP_NEW ) new_move( prec );
+    else if ( prec->mip == MIP_BL  )                              // do backlash
     {
-        Debug( 0, "%s -- move to: %f (DVAL: %f)", prec->name, prec->val,
-                                                  prec->dval );
+        Debug( 0, "%s -- move to: %f (DVAL: %f), with BACC and BVEL",
+                  prec->name, prec->val, prec->dval );
+
+        prec->mip  = MIP_MOVE;
+        prec->rval = NINT(prec->dval / prec->res);
+
+        sprintf( msg, "MA %d", prec->rval );
+        send_msg( mInfo->pasynUser, msg );
+    }
+    else if ( (fabs(prec->bdst) <= prec->res ) &&
+              (fabs(diff)       >= prec->rdbd) &&
+              (prec->rtry > 0) && (prec->rcnt < prec->rtry) )           // retry
+    {
+        Debug( 0, "%s -- desired %f, reached %f, retrying %d ...",
+                  prec->name, prec->val, prec->rbv, prec->rcnt++ );
 
         sprintf( msg, "MA %d", prec->rval );
         send_msg( mInfo->pasynUser, msg );
 
-        prec->mip  = MIP_MOVE;
-    }
-    else if ( (prec->bdst != 0.) && !(prec->mip & MIP_BL ) )      // do backlash
-    {
-        // send the move command
-        prec->mip |= MIP_BL;
-
-        Debug( 0, "%s -- take out the backlash ...", prec->name );
-    }
-    else if ( (prec->bdst == 0.) && (fabs(prec->diff) >= prec->rdbd) &&
-              (prec->rtry >  0 ) && (prec->rcnt       <  prec->rtry)    )//retry
-    {
         prec->mip |= MIP_RETRY;
-        prec->rcnt++;
-
-        Debug( 0, "%s -- desired %f, reached %f, retrying %d ...",
-                  prec->name, prec->val, prec->rbv, prec->rcnt );
     }
     else                 // finished backlash, close enough, or no retry allowed
     {
-        prec->dmov = 1;
-        prec->mip  = MIP_DONE;
-
         if ( fabs(prec->diff) < prec->rdbd )
+        {
             Debug( 0, "%s -- desired %f, reached %f",
                       prec->name, prec->val, prec->rbv             );
+            prec->miss = 0;
+        }
         else
         {
             Debug( 0, "%s -- desired %f, reached %f after %d retries",
                       prec->name, prec->val, prec->rbv, prec->rcnt );
             prec->miss = 1;
         }
+
+        prec->mip  = MIP_DONE;
+        prec->dmov = 1;
+        prec->rcnt = 0;
     }
 
     finish_up:
+    if ( prec->mip == MIP_DONE )
+    {
+        prec->diff = prec->rbv - prec->val;
+        if ( fabs(prec->diff) > prec->pdbd )
+        {
+            // msta.Bits.EA_SLIP_STALL = 1;
+        }
+
+        if ( prec->diff != old_diff ) MARK( M_DIFF );
+    }
 
     finished:
+
+    // check the alarms
+/*  if      ( pinfo->usocket < 0                            )
+        recGblSetSevr( (dbCommon *)prec, UDF_ALARM,   INVALID_ALARM );
+    else if ( msta.Bits.RA_PROBLEM  ||
+              msta.Bits.RA_MINUS_LS || msta.Bits.RA_PLUS_LS )
+        recGblSetSevr( (dbCommon *)prec, STATE_ALARM, MAJOR_ALARM   );
+    else if ( msta.Bits.EA_SLIP_STALL                       )
+        recGblSetSevr( (dbCommon *)prec, STATE_ALARM, MINOR_ALARM   );
+*/
+    recGblFwdLink( prec );                      // process the forward scan link
+
+    alarm_mask = recGblResetAlarms( prec );
+    post_fields( prec, alarm_mask, 0 );
+
+    prec->proc = 0;
     prec->pact = 0;
 
     return( status );
 }
 
-
 /******************************************************************************/
 static long process_motor_info( imsRecord *prec, status_word sword, long count )
 {
     ims_info *mInfo = (ims_info *)prec->dpvt;
+    short     old_movn, old_rlls, old_rhls, old_lls, old_hls;
+    double    old_drbv, old_rbv;
+    long      old_rrbv;
+
     int       dir = (prec->dir == motorDIR_Positive) ? 1 : -1;
+
+    old_movn   = prec->movn;
+    old_rlls   = prec->rlls;
+    old_rhls   = prec->rhls;
+    old_lls    = prec->lls ;
+    old_hls    = prec->hls ;
+    old_rrbv   = prec->rrbv;
+    old_drbv   = prec->drbv;
+    old_rbv    = prec->rbv ;
 
     prec->movn = sword.Bits.MOVING;
 
@@ -563,24 +665,79 @@ static long process_motor_info( imsRecord *prec, status_word sword, long count )
 
     prec->rbv  = dir * prec->drbv + prec->off;
 
-    prec->diff = prec->dval - prec->drbv;
-//  prec->rdif = NINT(prec->diff / prec->res);
+//  prec->diff = prec->dval - prec->drbv;
+
+    if ( old_movn != prec->movn) MARK( M_MOVN );
+    if ( old_rlls != prec->rlls) MARK( M_RLLS );
+    if ( old_rhls != prec->rhls) MARK( M_RHLS );
+    if ( old_lls  != prec->lls ) MARK( M_LLS  );
+    if ( old_hls  != prec->hls ) MARK( M_HLS  );
+    if ( old_rrbv != prec->rrbv) MARK( M_RRBV );
+    if ( old_drbv != prec->drbv) MARK( M_DRBV );
+    if ( old_rbv  != prec->rbv ) MARK( M_RBV  );
 
     Debug( 3, "%s -- rlls %d, rhls %d %d %d %d", prec->name, prec->rlls, prec->rhls, sword.Bits.I1, sword.Bits.I2, sword.Bits.I3 );
+
     return( 0 );
 }
 
+/******************************************************************************/
+static void new_move( imsRecord *prec )
+{
+    ims_info       *mInfo = (ims_info *)prec->dpvt;
+    char            msg[MAX_MSG_SIZE];
+
+    if ( fabs(prec->bdst) > prec->res )                              // backlash
+    {
+        if ( ((prec->bdst > 0.) && (prec->drbv > prec->dval)) ||
+             ((prec->bdst < 0.) && (prec->drbv < prec->dval)) ||
+             (fabs(prec->drbv - prec->dval) > prec->bdst    )    )
+        {           // opposite direction, or long move, use ACCL and VELO first
+            Debug( 0, "%s -- move to: %f (DVAL: %f), with ACCL and VELO",
+                      prec->name, prec->val, prec->dval-prec->bdst );
+
+            prec->mip  = MIP_BL  ;
+            prec->rval = NINT((prec->dval - prec->bdst) / prec->res);
+            sprintf( msg, "MA %d", prec->rval );
+        }
+        else                   // same direction, within BDST, use BACC and BVEL
+        {
+            Debug( 0, "%s -- move to: %f (DVAL: %f), with BACC and BVEL",
+                      prec->name, prec->val, prec->dval            );
+
+            prec->mip  = MIP_MOVE;
+            prec->rval = NINT(prec->dval                / prec->res);
+            sprintf( msg, "MA %d", prec->rval );
+        }
+    }
+    else                                       // no backlash, use ACCL and VELO
+    {
+        Debug( 0, "%s -- move to: %f (DVAL: %f), with ACCL and VELO",
+                  prec->name, prec->val, prec->dval );
+
+        prec->mip  = MIP_MOVE;
+        prec->rval = NINT(prec->dval / prec->res);
+        sprintf( msg, "MA %d", prec->rval );
+    }
+
+    prec->dmov = 0;
+    send_msg( mInfo->pasynUser, msg );
+
+    return;
+}
 
 /******************************************************************************/
 static long special( dbAddr *pDbAddr, int after )
 {
-    imsRecord *prec = (imsRecord *) pDbAddr->precord;
-    ims_info  *mInfo = (ims_info *)prec->dpvt;
-    long       sword, count;
-    char       msg[MAX_MSG_SIZE];
-    double     nval;
+    imsRecord      *prec = (imsRecord *) pDbAddr->precord;
+    ims_info       *mInfo = (ims_info *)prec->dpvt;
+    char            msg[MAX_MSG_SIZE];
+    long            sword, count, old_rval;
+    short           old_dmov, old_rcnt, old_lvio;
+    double          nval, old_val, old_dval;
+    unsigned short  old_mip, alarm_mask = 0;
 
-    int        fieldIndex = dbGetFieldIndex( pDbAddr ), status = OK;
+    int             fieldIndex = dbGetFieldIndex( pDbAddr ), status = OK;
 
     if ( after == 0 )
     {
@@ -594,12 +751,20 @@ static long special( dbAddr *pDbAddr, int after )
         return( OK );
     }
 
+    old_val  = prec->val ;
+    old_dval = prec->dval;
+    old_rval = prec->rval;
+    old_mip  = prec->mip ;
+    old_dmov = prec->dmov;
+    old_rcnt = prec->rcnt;
+    old_lvio = prec->lvio;
+
     switch( fieldIndex )
     {
         case imsRecordSSTR:
             Debug( 1, "%s -- %s", prec->name, prec->sstr );
 
-            status = sscanf( prec->sstr, "Status=%ld,P=%ldEOS", &sword, &count);
+            status = sscanf( prec->sstr, "Status=%ld,P=%ldEOS", &sword,&count );
             if ( status == 2 )
             {
                 Debug( 2, "%s -- sword =%d,p=%d", prec->name, sword, count );
@@ -623,74 +788,50 @@ static long special( dbAddr *pDbAddr, int after )
         case imsRecordVAL :
             if ( (prec->val < prec->llm) || (prec->val > prec->hlm) )
             {                                    // violated the software limits
-                prec->val  = prec->oval;
                 prec->lvio = 1;                     // set limit violation alarm
-
-                // MARK( M_ERR  );
-                // MARK( M_VAL  );
-                // MARK( M_LVIO );
+                prec->val  = prec->oval;
 
                 break;
             }
 
             do_move1:
             if ( prec->set == motorSET_Use )            // do it only when "Use"
-            {
                 prec->dval = (prec->val - prec->off) * (1. - 2.*prec->dir);
-                // MARK( M_DVAL );
-            }
+
             goto do_move2;
         case imsRecordDVAL:
             if ( (prec->dval < prec->dllm) || (prec->dval > prec->dhlm) )
             {                                    // violated the hardware limits
-                prec->dval = prec->oval;
                 prec->lvio = 1;                     // set limit violation alarm
-
-                // MARK( M_ERR  );
-                // MARK( M_DVAL );
-                // MARK( M_LVIO );
+                prec->dval = prec->oval;
 
                 break;
             }
 
-            prec->val = prec->dval * (1. - 2.*prec->dir) + prec->off;
-            // MARK( M_VAL  );
+            prec->val  = prec->dval * (1. - 2.*prec->dir) + prec->off;
 
             do_move2:
-            prec->rval = NINT(prec->dval / prec->res);
-            if ( (prec->set != motorSET_Use) ||               // do it only when
-                 (prec->spg != motorSPG_Go )    ) break;      // "Set" and "Go"
+            if ( prec->set == motorSET_Set )                          // no move
+            {
+                break;
+            }
 
             prec->lvio = 0;
-            prec->movn = 1;
             prec->rcnt = 0;
+
+            if ( prec->spg != motorSPG_Go ) break;
 
             if ( prec->dmov == 0 )                    // stop current move first
             {
                 Debug( 0, "%s -- stop current move", prec->name );
 
                 send_msg( mInfo->pasynUser, "SL 0" );
-                prec->mip  = MIP_NEWM;
+                prec->mip  = MIP_NEW;
 
                 break;
             }
 
-            Debug( 0, "%s -- move to: %f (DVAL: %f)", prec->name, prec->val,
-                                                      prec->dval );
-
-            sprintf( msg, "MA %d", prec->rval );
-            send_msg( mInfo->pasynUser, msg );
-
-            prec->mip  = MIP_MOVE;
-            prec->dmov = 0;
-
-            // MARK( M_LVIO );
-            // MARK( M_MIP  );
-            // MARK( M_MOVN );
-            // MARK( M_DMOV );
-            // MARK( M_RCNT );
-
-            epicsThreadSleep( 0.1 );
+            new_move( prec );
 
             break;
         case imsRecordTWF :
@@ -704,23 +845,47 @@ static long special( dbAddr *pDbAddr, int after )
             {                                    // violated the software limits
                 prec->lvio = 1;                     // set limit violation alarm
 
-                // MARK( M_ERR  );
-                // MARK( M_LVIO );
-
                 break;
             }
 
             prec->val = nval;
-            // MARK( M_VAL  );
             goto do_move1;
         case imsRecordSPG :
+            if ( (prec->spg == prec->oval) || (prec->mip == MIP_DONE) ) break;
+
+            if ( prec->spg == motorSPG_Go )
+            {
+                Debug( 0, "%s -- resume moving",                prec->name );
+                prec->mip &= !( MIP_STOP | MIP_PAUSE );
+
+                sprintf( msg, "MA %d", prec->rval );
+                send_msg( mInfo->pasynUser, msg );
+
+                break;
+            }
+            else
+            {
+                if ( prec->spg == motorSPG_Stop )
+                {
+                    Debug( 0, "%s -- stop, with deceleration",  prec->name );
+                    prec->mip |= MIP_STOP;
+                }
+                else
+                {
+                    Debug( 0, "%s -- pause, with deceleration", prec->name );
+                    prec->mip |= MIP_PAUSE;
+                }
+
+                send_msg( mInfo->pasynUser, "SL 0" );
+            }
+
             break;
         case imsRecordERES:
             if ( prec->eres <= 0. )
             {
                 prec->eres = prec->oval;
                 db_post_events( prec, &prec->eres, DBE_VAL_LOG );
-                break;  // dhz show warning
+                break;
             }
 
             goto set_res;
@@ -729,7 +894,7 @@ static long special( dbAddr *pDbAddr, int after )
             {
                 prec->srev = prec->oval;
                 db_post_events( prec, &prec->srev, DBE_VAL_LOG );
-                break;  // dhz show warning
+                break;
             }
         case imsRecordUREV:
             nval = prec->urev / prec->srev;
@@ -740,18 +905,16 @@ static long special( dbAddr *pDbAddr, int after )
             }
 
             set_res:
-            prec->oval = prec->res;
+            nval = prec->res;
             if ( prec->ee ) prec->res = prec->eres;
             else            prec->res = prec->mres;
 
-            if ( prec->res != prec->oval )
+            if ( prec->res != nval )
             {
                 prec->drbv = prec->rrbv * prec->res;
                 prec->rbv  = (1. - 2.*prec->dir) * prec->drbv + prec->off;
 
                 db_post_events( prec, &prec->res,  DBE_VAL_LOG );
-                // MARK( M_DRBV );
-                // MARK( M_RBV  );
             }
 
             break;
@@ -774,8 +937,8 @@ static long special( dbAddr *pDbAddr, int after )
             prec->hls  = nval;
             if ( prec->lls != nval )
             {
-                // MARK( M_LLS  );
-                // MARK( M_HLS  );
+                db_post_events( prec, &prec->lls,  DBE_VAL_LOG );
+                db_post_events( prec, &prec->hls,  DBE_VAL_LOG );
             }
 
             goto change_dir_off;
@@ -784,22 +947,28 @@ static long special( dbAddr *pDbAddr, int after )
             prec->hlm += prec->off - prec->oval;
 
             change_dir_off:
-            prec->val  = prec->dval * (1. - 2.*prec->dir) + prec->off;
             prec->rbv  = prec->drbv * (1. - 2.*prec->dir) + prec->off;
 
             db_post_events( prec, &prec->llm,  DBE_VAL_LOG );
             db_post_events( prec, &prec->hlm,  DBE_VAL_LOG );
-//          MARK( M_VAL  );
-//          MARK( M_RBV  );
 
 //          check_software_limits( prec );
 
             break;
     }
 
+    if ( prec->val  != old_val  ) MARK( M_VAL  );
+    if ( prec->dval != old_dval ) MARK( M_DVAL );
+    if ( prec->rval != old_rval ) MARK( M_RVAL );
+    if ( prec->mip  != old_mip  ) MARK( M_MIP  );
+    if ( prec->dmov != old_dmov ) MARK( M_DMOV );
+    if ( prec->rcnt != old_rcnt ) MARK( M_RCNT );
+    if ( prec->lvio != old_lvio ) MARK( M_LVIO );
+
+    post_fields( prec, alarm_mask, 0 );
+
     return( 0 );
 }
-
 
 /******************************************************************************/
 static long get_units( dbAddr *paddr, char *units)
@@ -866,5 +1035,107 @@ static long recv_reply( asynUser *pasynUser, char *buf, int flag )
     }
 
     return( nread );
+}
+
+/******************************************************************************/
+static void post_fields( imsRecord *prec, unsigned short alarm_mask,
+                                          unsigned short all )
+{
+    unsigned short  field_mask;
+    changed_fields  cmap;
+
+    cmap.All = prec->cmap;
+
+    if ( (field_mask = alarm_mask | (all                  ? DBE_VAL_LOG : 0)) )
+    {
+        db_post_events( prec, &prec->vers, field_mask );
+        db_post_events( prec,  prec->port, field_mask );
+        db_post_events( prec,  prec->asyn, field_mask );
+        db_post_events( prec,  prec->pn,   field_mask );
+        db_post_events( prec, &prec->ee,   field_mask );
+        db_post_events( prec, &prec->sm,   field_mask );
+        db_post_events( prec,  prec->egu,  field_mask );
+        db_post_events( prec,  prec->desc, field_mask );
+        db_post_events( prec, &prec->dllm, field_mask );
+        db_post_events( prec, &prec->dhlm, field_mask );
+        db_post_events( prec, &prec->llm,  field_mask );
+        db_post_events( prec, &prec->hlm,  field_mask );
+/*
+        db_post_events( prec, &prec->svel, field_mask );
+        db_post_events( prec, &prec->sacc, field_mask );
+        db_post_events( prec, &prec->velo, field_mask );
+        db_post_events( prec, &prec->accl, field_mask );
+        db_post_events( prec, &prec->shve, field_mask );
+        db_post_events( prec, &prec->shac, field_mask );
+        db_post_events( prec, &prec->hvel, field_mask );
+        db_post_events( prec, &prec->hacc, field_mask );
+        db_post_events( prec, &prec->bdst, field_mask );
+        db_post_events( prec, &prec->dir,  field_mask );
+        db_post_events( prec, &prec->off,  field_mask );
+        db_post_events( prec, &prec->set,  field_mask );
+        db_post_events( prec, &prec->twv,  field_mask );
+        db_post_events( prec, &prec->twf,  field_mask );
+        db_post_events( prec, &prec->twr,  field_mask );
+        db_post_events( prec, &prec->rtry, field_mask );
+        db_post_events( prec, &prec->rdbd, field_mask );
+        db_post_events( prec, &prec->pdbd, field_mask );
+        db_post_events( prec, &prec->spg,  field_mask );
+        db_post_events( prec, &prec->home, field_mask );
+        db_post_events( prec, &prec->refr, field_mask );
+        db_post_events( prec, &prec->init, field_mask );
+*/
+    }
+
+    if ( (field_mask = alarm_mask | (all | MARKED(M_VAL ) ? DBE_VAL_LOG : 0)) )
+        db_post_events( prec, &prec->val,  field_mask );
+
+    if ( (field_mask = alarm_mask | (all | MARKED(M_DVAL) ? DBE_VAL_LOG : 0)) )
+        db_post_events( prec, &prec->dval, field_mask );
+
+    if ( (field_mask = alarm_mask | (all | MARKED(M_RVAL) ? DBE_VAL_LOG : 0)) )
+        db_post_events( prec, &prec->rval, field_mask );
+
+    if ( (field_mask = alarm_mask | (all | MARKED(M_RRBV) ? DBE_VAL_LOG : 0)) )
+        db_post_events( prec, &prec->rrbv, field_mask );
+
+    if ( (field_mask = alarm_mask | (all | MARKED(M_DRBV) ? DBE_VAL_LOG : 0)) )
+        db_post_events( prec, &prec->drbv, field_mask );
+
+    if ( (field_mask = alarm_mask | (all | MARKED(M_RBV ) ? DBE_VAL_LOG : 0)) )
+        db_post_events( prec, &prec->rbv,  field_mask );
+
+    if ( (field_mask = alarm_mask | (all | MARKED(M_DIFF) ? DBE_VAL_LOG : 0)) )
+        db_post_events( prec, &prec->diff, field_mask );
+
+    if ( (field_mask = alarm_mask | (all | MARKED(M_MIP ) ? DBE_VAL_LOG : 0)) )
+        db_post_events( prec, &prec->mip,  field_mask );
+
+    if ( (field_mask = alarm_mask | (all | MARKED(M_MOVN) ? DBE_VAL_LOG : 0)) )
+        db_post_events( prec, &prec->movn, field_mask );
+
+    if ( (field_mask = alarm_mask | (all | MARKED(M_DMOV) ? DBE_VAL_LOG : 0)) )
+        db_post_events( prec, &prec->dmov, field_mask );
+
+    if ( (field_mask = alarm_mask | (all | MARKED(M_RCNT) ? DBE_VAL_LOG : 0)) )
+        db_post_events( prec, &prec->rcnt, field_mask );
+
+    if ( (field_mask = alarm_mask | (all | MARKED(M_MISS) ? DBE_VAL_LOG : 0)) )
+        db_post_events( prec, &prec->miss, field_mask );
+
+    if ( (field_mask = alarm_mask | (all | MARKED(M_LVIO) ? DBE_VAL_LOG : 0)) )
+        db_post_events( prec, &prec->lvio, field_mask );
+
+    if ( (field_mask = alarm_mask | (all | MARKED(M_HLS ) ? DBE_VAL_LOG : 0)) )
+        db_post_events( prec, &prec->hls,  field_mask );
+
+    if ( (field_mask = alarm_mask | (all | MARKED(M_LLS ) ? DBE_VAL_LOG : 0)) )
+        db_post_events( prec, &prec->lls,  field_mask );
+
+    if ( (field_mask = alarm_mask | (all | MARKED(M_MSTA) ? DBE_VAL_LOG : 0)) )
+        db_post_events( prec, &prec->msta, field_mask );
+
+    UNMARK_ALL;
+
+    return;
 }
 

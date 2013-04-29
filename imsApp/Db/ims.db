@@ -70,3 +70,15 @@ record(stringin, "$(MOTOR):SAVED_TS") {
   field(INP,  "@%b %d %R:%S %Y")
 }
 
+record(stringout, "$(MOTOR):FWD_MEANS") {
+  field(DESC, "Meaning of Forward")
+  field(VAL,  "+")
+  field(PINI, "YES")
+}
+
+record(stringout, "$(MOTOR):REV_MEANS") {
+  field(DESC, "Meaning of Reverse")
+  field(VAL,  "-")
+  field(PINI, "YES")
+}
+

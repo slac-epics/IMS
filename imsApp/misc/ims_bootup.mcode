@@ -50,7 +50,7 @@ PG 1
 
   LB Yc
     IC R2           ' Increment the delay counter
-    CL Rp, R2>49    ' Has been 0.5 second, send report
+    CL Rp, R2>29    ' Has been 0.3 second, send report
     RT
 
   LB Za
