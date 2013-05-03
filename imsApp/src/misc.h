@@ -5,6 +5,7 @@ struct ims_info
     int         S1;                                                 // switch S1
     int         S2;
     int         S3;
+    int         init;
     int         sword;
     long        count;
     bool        newData;
