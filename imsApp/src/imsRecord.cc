@@ -81,7 +81,7 @@ extern "C" { epicsExportAddress( rset, imsRSET ); }
                                // stop the motor first
 #define MIP_PAUSE    0x0400    // Move is paused
 
-#define MAX_MSG_SIZE 64
+#define MAX_MSG_SIZE 61
 #define FLUSH        -1
 
 #define OK            0
@@ -450,8 +450,15 @@ static long init_motor( imsRecord *prec )
 
     mInfo->init = 0;
 
-    prec->dmov  = 1;
-    prec->mip   = MIP_DONE;
+    if ( prec->ee == motorAble_Enable ) prec->res = prec->eres;
+    else                                prec->res = prec->mres;
+
+    // make sure the limits are consistent
+
+    // make sure the velo's are consistent
+
+    prec->dmov = 1;
+    prec->mip  = MIP_DONE;
 
     // let controller send a status update every ~5 seconds until first process
     send_msg( pasynUser, "Us=300" );
@@ -471,9 +478,10 @@ static long process( dbCommon *precord )
     status_word     sword;
     char            msg[MAX_MSG_SIZE];
     unsigned short  old_mip,  alarm_mask;
-    short           old_dmov, old_rcnt, old_miss;
+    short           init, old_dmov, old_rcnt, old_miss;
     double          old_val,  old_dval, old_diff, diff;
     long            count, old_rval, status = OK;
+    int             VI, VM, A;
 
     if ( prec->pact ) return( OK );
 
@@ -492,16 +500,17 @@ static long process( dbCommon *precord )
         goto finished;
     }
 
+    init      = mInfo->init;
+    sword.All = mInfo->sword;
+    count     = mInfo->count;
+
+    mInfo->newData = 0;
     if ( mInfo->init == 0 )                               // first status update
     {
         mInfo->init = 1;
         send_msg( mInfo->pasynUser, "Us=18000" );
     }
 
-    sword.All = mInfo->sword;
-    count     = mInfo->count;
-
-    mInfo->newData = 0;
     mInfo->cMutex->unlock();
 
     // reset communication warning bit
@@ -516,7 +525,7 @@ static long process( dbCommon *precord )
     }
 
     old_diff = prec->diff;
-    if ( prec->mip == MIP_DONE )            // done moving, check for slip_stall
+    if ( init && (prec->mip == MIP_DONE) )  // done moving, check for slip_stall
     {
         prec->diff = prec->rbv - prec->val;
         if ( fabs(prec->diff) > prec->pdbd )                          // slipped
@@ -538,7 +547,8 @@ static long process( dbCommon *precord )
     old_rval = prec->rval;
 
     diff     = prec->rbv - prec->val;
-    if ( (sword.Bits.ST && (! sword.Bits.SM)) ||                      // stalled
+    if ( (! init) ||                                      // first status update
+         (sword.Bits.ST && (! sword.Bits.SM)) ||                      // stalled
          prec->lls || prec->hls ||                         // hit a limit switch
          (prec->mip  & MIP_STOP) || (prec->mip  & MIP_PAUSE) || // stop or pause
          (prec->mip == MIP_HOME)                                ) // done homing
@@ -552,7 +562,8 @@ static long process( dbCommon *precord )
                 Debug( 0, "%s -- stalled, missed home", prec->name );
                 prec->miss = 1;
             }
-            else if ( !(prec->mip & (MIP_STOP || MIP_PAUSE)) )     // was moving
+            else if ( (prec->mip != MIP_DONE) &&
+                      !(prec->mip & (MIP_STOP || MIP_PAUSE)) )     // was moving
             {
                 if ( fabs(diff) < prec->rdbd )
                 {
@@ -567,6 +578,8 @@ static long process( dbCommon *precord )
                     prec->miss = 1;
                 }
             }
+            else if ( ! init )                            // first status update
+                Debug( 0, "%s -- initialized", prec->name );
         }
         else if ( prec->lls )
         {
@@ -575,7 +588,8 @@ static long process( dbCommon *precord )
                 Debug( 0, "%s -- hit low limit, missed home", prec->name );
                 prec->miss = 1;
             }
-            else if ( !(prec->mip & (MIP_STOP || MIP_PAUSE)) )     // was moving
+            else if ( (prec->mip != MIP_DONE) &&
+                      !(prec->mip & (MIP_STOP || MIP_PAUSE)) )     // was moving
             {
                 if ( fabs(diff) < prec->rdbd )
                 {
@@ -590,6 +604,8 @@ static long process( dbCommon *precord )
                     prec->miss = 1;
                 }
             }
+            else if ( ! init )                            // first status update
+                Debug( 0, "%s -- initialized", prec->name );
         }
         else if ( prec->hls )
         {
@@ -598,7 +614,8 @@ static long process( dbCommon *precord )
                 Debug( 0, "%s -- hit high limit, missed home", prec->name );
                 prec->miss = 1;
             }
-            else if ( !(prec->mip & (MIP_STOP || MIP_PAUSE)) )     // was moving
+            else if ( (prec->mip != MIP_DONE) &&
+                      !(prec->mip & (MIP_STOP || MIP_PAUSE)) )     // was moving
             {
                 if ( fabs(diff) < prec->rdbd )
                 {
@@ -613,22 +630,26 @@ static long process( dbCommon *precord )
                     prec->miss = 1;
                 }
             }
+            else if ( ! init )                            // first status update
+                Debug( 0, "%s -- initialized", prec->name );
         }
         else if ( prec->mip & MIP_STOP  )
         {
-            Debug( 0, "%s -- stopped", prec->name );
+            Debug( 0, "%s -- stopped",     prec->name );
             prec->miss = 0;
         }
         else if ( prec->mip & MIP_PAUSE )
         {
-            Debug( 0, "%s -- paused",  prec->name );
+            Debug( 0, "%s -- paused",      prec->name );
             newval = 0;
         }
-        else
+        else if ( prec->mip == MIP_HOME )
         {
-            Debug( 0, "%s -- homed",   prec->name );
+            Debug( 0, "%s -- homed",       prec->name );
             prec->miss = 0;
         }
+        else if ( ! init )                                // first status update
+            Debug( 0, "%s -- initialized", prec->name );
 
         if ( newval )
         {
@@ -651,7 +672,11 @@ static long process( dbCommon *precord )
         prec->mip  = MIP_MOVE;
         prec->rval = NINT(prec->dval / prec->res);
 
-        sprintf( msg, "MA %d", prec->rval );
+        VI = NINT( prec->bbas / prec->res );
+        VM = NINT( prec->bvel / prec->res );
+        A  = NINT( (prec->bvel - prec->bbas) / prec->res / prec->bacc );
+        sprintf( msg, "VI %d\r\n1VM %d\r\n1A %d\r\n1D=A\r\n1MA %d",
+                      VI, VM, A, prec->rval );
         send_msg( mInfo->pasynUser, msg    );
         send_msg( mInfo->pasynUser, "Us=0" );
     }
@@ -768,8 +793,6 @@ static long process_motor_info( imsRecord *prec, status_word sword, long count )
     if ( old_drbv != prec->drbv) MARK( M_DRBV );
     if ( old_rbv  != prec->rbv ) MARK( M_RBV  );
 
-    Debug( 3, "%s -- rlls %d, rhls %d %d %d %d", prec->name, prec->rlls, prec->rhls, sword.Bits.I1, sword.Bits.I2, sword.Bits.I3 );
-
     return( 0 );
 }
 
@@ -778,28 +801,39 @@ static void new_move( imsRecord *prec )
 {
     ims_info       *mInfo = (ims_info *)prec->dpvt;
     char            msg[MAX_MSG_SIZE];
+    int             VI, VM, A;
 
     if ( fabs(prec->bdst) > prec->res )                              // backlash
     {
-        if ( ((prec->bdst > 0.) && (prec->drbv > prec->dval)) ||
-             ((prec->bdst < 0.) && (prec->drbv < prec->dval)) ||
-             (fabs(prec->drbv - prec->dval) > prec->bdst    )    )
+        if ( ((prec->bdst > 0) && (prec->drbv > prec->dval)) ||
+             ((prec->bdst < 0) && (prec->drbv < prec->dval)) ||
+             (fabs(prec->drbv - prec->dval) > prec->bdst   )    )
         {           // opposite direction, or long move, use ACCL and VELO first
             Debug( 0, "%s -- move to: %f (DVAL: %f), with ACCL and VELO",
                       prec->name, prec->val, prec->dval-prec->bdst );
 
             prec->mip  = MIP_BL  ;
             prec->rval = NINT((prec->dval - prec->bdst) / prec->res);
-            sprintf( msg, "MA %d", prec->rval );
+
+            VI = NINT( prec->vbas / prec->res );
+            VM = NINT( prec->velo / prec->res );
+            A  = NINT( (prec->velo - prec->vbas) / prec->res / prec->accl );
+            sprintf( msg, "VI %d\r\n1VM %d\r\n1A %d\r\n1D=A\r\n1MA %d",
+                          VI, VM, A, prec->rval );
         }
-        else                   // same direction, within BDST, use BACC and BVEL
+        else                // same direction and within BDST, use BACC and BVEL
         {
             Debug( 0, "%s -- move to: %f (DVAL: %f), with BACC and BVEL",
                       prec->name, prec->val, prec->dval            );
 
             prec->mip  = MIP_MOVE;
             prec->rval = NINT(prec->dval                / prec->res);
-            sprintf( msg, "MA %d", prec->rval );
+
+            VI = NINT( prec->bbas / prec->res );
+            VM = NINT( prec->bvel / prec->res );
+            A  = NINT( (prec->bvel - prec->bbas) / prec->res / prec->bacc );
+            sprintf( msg, "VI %d\r\n1VM %d\r\n1A %d\r\n1D=A\r\n1MA %d",
+                          VI, VM, A, prec->rval );
         }
     }
     else                                       // no backlash, use ACCL and VELO
@@ -809,7 +843,11 @@ static void new_move( imsRecord *prec )
 
         prec->mip  = MIP_MOVE;
         prec->rval = NINT(prec->dval / prec->res);
-        sprintf( msg, "MA %d", prec->rval );
+
+        VI = NINT( prec->vbas / prec->res );
+        VM = NINT( prec->velo / prec->res );
+        A  = NINT( (prec->velo - prec->vbas) / prec->res / prec->accl );
+        sprintf( msg, "VI %d\r\n1VM %d\r\n1A %d\r\n1D=A\r\n1MA %d", prec->rval );
     }
 
     prec->dmov = 0;
@@ -825,14 +863,15 @@ static long special( dbAddr *pDbAddr, int after )
     imsRecord      *prec = (imsRecord *) pDbAddr->precord;
     ims_info       *mInfo = (ims_info *)prec->dpvt;
     char            MI = (prec->hmtp == motorHMTP_Switch) ? 'M' : 'I';
-    char            msg[MAX_MSG_SIZE];
+    char            msg[MAX_MSG_SIZE], rbbuf[MAX_MSG_SIZE];
+    char            fmt[MAX_MSG_SIZE], rbstr[MAX_MSG_SIZE];
     long            sword, count, old_rval, new_rval;
     short           old_dmov, old_rcnt, old_lvio;
     double          nval, old_val, old_dval, old_rbv, new_dval;
     unsigned short  old_mip, alarm_mask = 0;
 
     int             VI, VM, A, fieldIndex = dbGetFieldIndex( pDbAddr );
-    int             status = OK;
+    int             retry, status = OK;
 
     if ( after == 0 )
     {
@@ -1360,6 +1399,40 @@ static long special( dbAddr *pDbAddr, int after )
                 db_post_events( prec, &prec->hvel, DBE_VAL_LOG );
             }
 
+            break;
+        case imsRecordWRTE:
+            send_msg( mInfo->pasynUser, prec->wrte );
+
+            break;
+        case imsRecordREAD:
+            sprintf( msg, "pr \"%s=\",%s", prec->read, prec->read );
+            sprintf( fmt, "%s=%%s",        prec->read             );
+
+            retry = 0;
+            do
+            {
+                send_msg( mInfo->pasynUser, msg );
+                status = recv_reply( mInfo->pasynUser, rbbuf, 1 );
+                if ( status > 0 )
+                {
+                    status = sscanf( rbbuf, fmt, rbstr );
+                    if ( status == 1 )
+                    {
+                        strncpy( prec->read, rbstr, 61 );
+                        db_post_events( prec,  prec->read, DBE_VAL_LOG );
+
+                        break;
+                    }
+                }
+
+                epicsThreadSleep( 0.3 );
+            } while ( retry++ < 3 );
+
+            break;
+        case imsRecordRINI:
+            init_motor( prec );
+
+            prec->rini = 0;
             break;
     }
 

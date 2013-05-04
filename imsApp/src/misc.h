@@ -2,10 +2,10 @@ struct ims_info
 {
     epicsMutex *cMutex;
     asynUser   *pasynUser;
-    int         S1;                                                 // switch S1
-    int         S2;
-    int         S3;
-    int         init;
+    short       S1;                                                 // switch S1
+    short       S2;
+    short       S3;
+    short       init;
     int         sword;
     long        count;
     bool        newData;

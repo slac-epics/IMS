@@ -520,5 +520,29 @@ recordtype(ims) {
 		pp(TRUE)
 		interest(1)
 	}
+	field(WRTE,DBF_STRING) {
+		prompt("Write A String")
+		promptgroup(GUI_COMMON)
+		size(61)
+		special(SPC_MOD)
+		asl(ASL0)
+		interest(1)
+	}
+	field(READ,DBF_STRING) {
+		prompt("Read A Parameter")
+		promptgroup(GUI_COMMON)
+		size(61)
+		special(SPC_MOD)
+		asl(ASL0)
+		interest(1)
+	}
+	field(RCON,DBF_SHORT) {
+		prompt("Re-connect to the Controller")
+		special(SPC_MOD)
+	}
+	field(RINI,DBF_SHORT) {
+		prompt("Re-initialize")
+		special(SPC_MOD)
+	}
 }
 
