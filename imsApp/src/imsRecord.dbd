@@ -183,7 +183,7 @@ recordtype(ims) {
 		prompt("Steps Per Revolution")
 		promptgroup(GUI_COMMON)
 		special(SPC_MOD)
-		initial(200)
+		initial(51200)
 		interest(1)
 	}
 	field(UREV,DBF_DOUBLE) {
@@ -236,7 +236,7 @@ recordtype(ims) {
 		promptgroup(GUI_COMMON)
 		menu(motorHMTP)
 		special(SPC_NOMOD)
-		initial("Encoder")
+		initial("Switch")
 		interest(1)
 	}
 	field(HMDR,DBF_MENU) {
@@ -293,7 +293,7 @@ recordtype(ims) {
 	}
 	field(PDBD,DBF_DOUBLE) {
 		prompt("Position Tolerance (EGU)")
-		initial(1)
+		initial(5)
 		interest(1)
 	}
 	field(PREC,DBF_SHORT) {
@@ -304,7 +304,7 @@ recordtype(ims) {
 	field(ACCL,DBF_DOUBLE) {
 		prompt("Seconds to Velocity")
 		promptgroup(GUI_COMMON)
-		initial("0.2")
+		initial(1)
 		interest(1)
 	}
 	field(VBAS,DBF_DOUBLE) {
@@ -329,24 +329,27 @@ recordtype(ims) {
 		prompt("Base Speed (RPS)")
 		promptgroup(GUI_COMMON)
 		special(SPC_MOD)
+		initial(0.5)
 		interest(1)
 	}
 	field(SMAX,DBF_DOUBLE) {
 		prompt("Max. Speed (RPS)")
 		promptgroup(GUI_COMMON)
 		special(SPC_MOD)
+		initial(2.0)
 		interest(1)
 	}
 	field(S,DBF_DOUBLE) {
 		prompt("Speed (revolutions/sec)")
 		promptgroup(GUI_COMMON)
 		special(SPC_MOD)
+		initial(1.0)
 		interest(1)
 	}
 	field(BACC,DBF_DOUBLE) {
 		prompt("BL Seconds to Velocity")
 		promptgroup(GUI_COMMON)
-		initial("0.5")
+		initial(1)
 		interest(1)
 	}
 	field(BBAS,DBF_DOUBLE) {
@@ -370,7 +373,7 @@ recordtype(ims) {
 	field(HACC,DBF_DOUBLE) {
 		prompt("Home Seconds to Velocity")
 		promptgroup(GUI_COMMON)
-		initial("0.5")
+		initial(1)
 		interest(1)
 	}
 	field(HBAS,DBF_DOUBLE) {
