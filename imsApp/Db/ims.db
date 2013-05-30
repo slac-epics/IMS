@@ -31,7 +31,7 @@ record(scalcout, "$(MOTOR):UTC") {
 record(stringin, "$(MOTOR):STATUS") {
   field(DESC, "Status From Controller")
   field(DTYP, "stream")
-  field(INP,  "@report.proto STATUS  $(ASYN) 1")
+  field(INP,  "@report.proto STATUS $(ASYN) 1")
   field(SCAN, "I/O Intr")
   field(MPST, "Always")
   field(FLNK, "$(MOTOR):UPDATE")
@@ -80,5 +80,17 @@ record(stringout, "$(MOTOR):REV_MEANS") {
   field(DESC, "Meaning of Reverse")
   field(VAL,  "-")
   field(PINI, "YES")
+}
+
+record(calcout, "$(MOTOR):CheckUpdate") {
+  field(DESC, "Check Update Time")
+  field(INPA, "$(MOTOR):UTC           NPP")
+  field(INPB, "$(IOC):CheckUpdate:UTC NPP")
+  field(OUT,  "$(MOTOR).PROC"             )
+  field(CALC, "(B-A)>450 ? 1 : 0")
+  field(OOPT, "When Non-zero")
+  field(DOPT, "Use CALC")
+  field(SCAN, "Event")
+  field(EVNT, "9")
 }
 

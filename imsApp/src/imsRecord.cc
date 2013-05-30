@@ -981,7 +981,7 @@ static long special( dbAddr *pDbAddr, int after )
             status = sscanf( prec->sstr, "Status=%ld,P=%ldEOS", &sword, &count);
             if ( status == 2 )
             {
-                Debug( 2, "%s -- sword =%d, p=%d", prec->name, sword, count );
+                Debug( 2, "%s -- Status=%d,P=%d", prec->name, sword, count );
 
                 mInfo->cMutex->lock();
 

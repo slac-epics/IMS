@@ -10,6 +10,7 @@ include $(TOP)/configure/CONFIG
 #----------------------------------------------------
 # Create and install (or just install)
 # databases, templates, substitutions like this
+DB_INSTALLS += check_update.db
 DB_INSTALLS += ims.db
 
 #----------------------------------------------------
