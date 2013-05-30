@@ -3,9 +3,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <alarm.h>
 #include <dbDefs.h>
 #include <callback.h>
+#include <dbStaticLib.h>
 #include <dbAccess.h>
 #include <dbScan.h>
 #include <recGbl.h>
@@ -19,6 +21,11 @@
 #define GEN_SIZE_OFFSET
 #include "imsRecord.h"
 #undef GEN_SIZE_OFFSET
+
+#include "save_restore.h"
+extern "C" {
+#include "fGetDateStr.h"
+}
 
 #include "drvAsynIPPort.h"
 #include "asynOctetSyncIO.h"
@@ -86,6 +93,12 @@ extern "C" { epicsExportAddress( rset, imsRSET ); }
 
 #define OK            0
 
+extern char saveRestoreFilePath[];                      // path to restore files
+extern FILE *fopen_and_check( const char *fname, long *status );
+extern "C" long scalar_restore( int pass, DBENTRY *pdbentry, char *PVname, char *value_str );
+
+extern "C" int create_monitor_set( char *fname, int period, char *macro );
+
 static long connect_motor     ( imsRecord *precord                            );
 static long init_motor        ( imsRecord *precord                            );
 static long process_motor_info( imsRecord *precord, status_word sword,
@@ -94,8 +107,12 @@ static void new_move          ( imsRecord *precord                            );
 static void post_fields       ( imsRecord *precord, unsigned short alarm_mask,
                                                     unsigned short all        );
 
-static long send_msg  ( asynUser *pasynUser, char const *msg       );
-static long recv_reply( asynUser *pasynUser, char *rbbuf, int flag );
+static long send_msg          ( asynUser *pasynUser, char const *msg          );
+static long recv_reply        ( asynUser *pasynUser, char *rbbuf, int flag    );
+
+static void create_request    ( imsRecord *precord,  char const *type         );
+
+static void restore_fields    ( imsRecord *precord                            );
 
 
 /*** Debugging ***/
@@ -110,18 +127,35 @@ static long init_record( dbCommon *precord, int pass )
 {
     imsRecord *prec = (imsRecord *)precord;
     ims_info  *mInfo;
+    char       fname[256];
 
-    int        status = 0;
+    long       status = 0;
 
-    if ( pass > 0 ) return( status );
+    if ( pass > 0 )
+    {
+        sprintf( fname, "%s.req", prec->name );
+        create_monitor_set( fname, 30, "" );
+        return( status );
+    }
+
+    // create the archive req file
+    create_request( prec, "archive" );
+
+    if ( saveRestoreFilePath[0] )
+    {
+        // create the autosave req file
+        create_request( prec, "autosave" );
+
+        restore_fields( prec );
+    }
 
     mInfo = (ims_info *) malloc( sizeof(ims_info) );
     mInfo->cMutex = new epicsMutex();
 
     prec->dpvt    = mInfo;
 
-    connect_motor( prec );
-    init_motor   ( prec );
+    connect_motor ( prec );
+    init_motor    ( prec );
 
     return( status );
 }
@@ -176,7 +210,7 @@ static long init_motor( imsRecord *prec )
     char            rbbuf[MAX_MSG_SIZE];
     int             s1, s2, s3, a1, a2, a3, d1, d2, d3;
     int             rbne, rbee, rblm, rbsm, rbve, rbby;
-    int             retry, failed, status = 0;
+    int             retry, status = 0;
     epicsUInt32     old_msta;
     motor_status    msta;
     unsigned short  alarm_mask;
@@ -751,7 +785,7 @@ static long process( dbCommon *precord )
         recGblSetSevr( (dbCommon *)prec, STATE_ALARM, MINOR_ALARM   );
 
     prec->msta = msta.All;
-    Debug( 2, "%s -- MSTA =%x", prec->name, prec->msta );
+    Debug( 2, "%s -- msta =%x", prec->name, prec->msta );
 
     if ( old_msta != prec->msta ) MARK( M_MSTA );
 
@@ -830,8 +864,6 @@ static long process_motor_info( imsRecord *prec, status_word sword, long count )
     if ( old_rrbv != prec->rrbv) MARK( M_RRBV );
     if ( old_drbv != prec->drbv) MARK( M_DRBV );
     if ( old_rbv  != prec->rbv ) MARK( M_RBV  );
-
-    Debug( 2, "%s -- MSTA =%x", prec->name, prec->msta );
 
     return( 0 );
 }
@@ -1003,12 +1035,15 @@ static long special( dbAddr *pDbAddr, int after )
 
             if ( prec->spg != motorSPG_Go ) break;
 
-            if ( prec->dmov == 0 )                    // stop current move first
+            if ( prec->dmov == 0 )                               // still moving
             {
-                Debug( 0, "%s -- stop current move", prec->name );
-                prec->mip  = MIP_NEW;
+                if ( prec->mip != MIP_NEW )           // stop current move first
+                {
+                    Debug( 0, "%s -- stop current move", prec->name );
+                    prec->mip  = MIP_NEW;
 
-                send_msg( mInfo->pasynUser, "SL 0\r\n1Us=0" );
+                    send_msg( mInfo->pasynUser, "SL 0\r\n1Us=0" );
+                }
 
                 break;
             }
@@ -1662,6 +1697,172 @@ static void post_fields( imsRecord *prec, unsigned short alarm_mask,
         db_post_events( prec, &prec->hls,  field_mask );
 
     UNMARK_ALL;
+
+    return;
+}
+
+/******************************************************************************/
+static void create_request( imsRecord *prec, char const *type )
+{
+    char *ioc_data, *ioc, fname[256], tline[80], rline[80], *cp;
+    FILE *tpl, *req;
+
+    if      ( strcmp(type, "autosave") == 0 )
+    {
+        sprintf( fname, "%s/../../autosave/ims_autosave.template",
+                        getenv("PWD") );
+        tpl = fopen( fname, "r"  );
+
+        sprintf( fname, "%s/%s.req", saveRestoreFilePath, prec->name );
+        req = fopen( fname, "w+" );
+    }
+    else if ( strcmp(type, "archive" ) == 0 )
+    {
+        ioc_data = getenv( "IOC_DATA" );
+        ioc      = getenv( "IOC"      );
+
+        if ( (ioc_data == NULL) || (ioc == NULL) ) return;
+
+        sprintf( fname, "%s/../../archive/ims_archive.template",
+                        getenv("PWD") );
+        tpl = fopen( fname, "r"  );
+
+        sprintf( fname, "%s/%s/archive/%s.archive", ioc_data, ioc, prec->name );
+        req = fopen( fname, "w+" );
+    }
+
+    while ( 1 )
+    {
+        fgets( tline, 80, tpl );
+        if ( ferror(tpl) || feof(tpl) ) break;
+
+        cp = tline;
+        while ( ( strncmp(cp, "\n", 1) != 0                                ) &&
+                ((strncmp(cp, "\0", 1) == 0) || (strncmp(cp, "\t", 1) == 0))   )
+            cp++;
+
+        if ( (strncmp(cp, "\n", 1) != 0) && (strncmp(cp, "#", 1) != 0) )
+        {
+            sprintf( rline, "%s%s", prec->name, tline );
+            fputs( rline, req );
+        }
+        else
+            fputs( tline, req );
+    }
+
+    fclose( tpl );
+    fclose( req );
+
+    return;
+}
+
+/******************************************************************************/
+static void restore_fields( imsRecord *prec )
+{
+    DBENTRY  dbentry;
+    DBENTRY *pdbentry = &dbentry;
+    char     fname[PATH_SIZE+1], bu_fname[PATH_SIZE+1];
+    char     buffer[BUF_SIZE], value_str[BUF_SIZE];
+    char    *bp, sp, PVname[81], datetime[32];
+    FILE    *inp_fd;
+    int      num_errors, ns, found_field, is_scalar;
+    long     status;
+
+
+    sprintf( fname, "%s/%s.sav", saveRestoreFilePath, prec->name );
+    if ( (inp_fd = fopen_and_check(fname, &status)) == NULL )
+    {
+        Debug( 0, "Can't open save file %s", fname );
+        return;
+    }
+
+    if ( status ) Debug( 0, "Bad sav(B) files, use seq backup" );
+
+    if ( ! pdbbase )
+    {
+        // errlogPrintf("No Database Loaded\n");
+        return;
+    }
+
+    // restore from file
+    dbInitEntry( pdbbase, pdbentry );
+
+    fgets( buffer, BUF_SIZE, inp_fd );                    // discard header line
+
+    num_errors = 0;
+    while ( (bp = fgets(buffer, BUF_SIZE, inp_fd)) )
+    {
+        ns = sscanf( bp, "%80s%c%[^\n\r]", PVname, &sp, value_str );
+        if ( ns             <  3   ) *value_str = 0;
+        if ( PVname[0]      == '#' ) continue;
+        if ( strlen(PVname) >= 80  ) continue;
+        if ( isalpha((int)PVname[0]) || isdigit((int)PVname[0]) )
+        {
+            if ( strchr(PVname, '.') == 0 ) strcat( PVname, ".VAL" );
+            is_scalar = strncmp( value_str, ARRAY_MARKER, ARRAY_MARKER_LEN );
+
+            found_field = 1;
+            if ( (status = dbFindRecord(pdbentry, PVname)) != 0 )
+            {
+                num_errors++;
+                found_field = 0;
+            }
+            else if ( dbFoundField(pdbentry) == 0 )
+            {
+                num_errors++;
+                found_field = 0;
+            }
+
+            if ( found_field )
+            {
+                if ( is_scalar )
+                {
+                    status = scalar_restore  ( 0, pdbentry, PVname, value_str );
+                }
+                else
+                {
+                    status = SR_array_restore( 0, inp_fd,   PVname, value_str );
+                }
+
+                if ( status )
+                {
+                    num_errors++;
+                }
+            }
+        }
+        else if ( PVname[0] == '!' )      // an error message -- something like:
+        {    // '! 7 channel(s) not connected - or not all gets were successful'
+            if ( ! save_restoreIncompleteSetsOk )
+            {
+                fclose( inp_fd );
+                dbFinishEntry( pdbentry );
+                return;
+            }
+        }
+        else if ( PVname[0] == '<' ) break;                       // end of file
+    }
+
+    fclose( inp_fd );
+    dbFinishEntry( pdbentry );
+
+    // write backup file
+    if ( save_restoreDatedBackupFiles && (fGetDateStr(datetime) == 0) )
+        sprintf( bu_fname, "%s_%s", fname, datetime );
+    else
+        sprintf( bu_fname, "%s.bu", fname           );
+
+    if ( save_restoreDebug > 0 )
+    {
+        // errlogPrintf("dbrestore:reboot_restore: writing boot-backup file '%s'.\n", bu_filename);
+    }
+
+    status = (long)myFileCopy( fname, bu_fname );
+    if ( status )
+    {
+        // if (statusStr) strcpy(statusStr, "Can't write backup file");
+    }
+
+    // record status
 
     return;
 }

@@ -15,12 +15,12 @@ DB_INSTALLS += ims.db
 #----------------------------------------------------
 # Create and install (or just install)
 # Archive files, templates, substitutions like this
-# ARCHIVE += ims_archive.template
+ARCHIVE += ims_archive.template
 
 #----------------------------------------------------
 # Create and install (or just install)
 # Autosave request files, templates, substitutions like this
-# REQ     += ims_autosave.template
+REQ     += ims_autosave.template
 
 
 include $(TOP)/configure/RULES
