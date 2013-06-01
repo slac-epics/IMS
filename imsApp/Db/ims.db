@@ -94,3 +94,64 @@ record(calcout, "$(MOTOR):CheckUpdate") {
   field(EVNT, "9")
 }
 
+record(stringout, "$(MOTOR):EXE_PG") {
+  field(DESC, "Start The MCode Program")
+  field(OMSL, "closed_loop")
+  field(VAL,  "EX=1")
+  field(OUT,  "$(MOTOR).WRTE")
+}
+
+record(stringout, "$(MOTOR):CLEAR_PU") {
+  field(DESC, "Clear The Power-Up Flag")
+  field(OMSL, "closed_loop")
+  field(VAL,  "PU=0")
+  field(OUT,  "$(MOTOR).WRTE")
+}
+
+record(stringout, "$(MOTOR):CLEAR_ER") {
+  field(DESC, "Clear The Error Code")
+  field(OMSL, "closed_loop")
+  field(VAL,  "ER=0")
+  field(OUT,  "$(MOTOR).WRTE")
+}
+
+record(stringout, "$(MOTOR):CLEAR_ST") {
+  field(DESC, "Clear The Stall Flag")
+  field(OMSL, "closed_loop")
+  field(VAL,  "ST=0")
+  field(OUT,  "$(MOTOR).WRTE")
+}
+
+record(stringout, "$(MOTOR):UPDATE_NOW") {
+  field(DESC, "Update The Status Now")
+  field(OMSL, "closed_loop")
+  field(VAL,  "US=0")
+  field(OUT,  "$(MOTOR).WRTE")
+}
+
+record(seq, "$(MOTOR):SEQ") {
+  field(DESC, "Various Sequences")
+  field(SELM, "Mask")
+  field(DLY1, "0")
+  field(DO1,  "1")
+  field(LNK1, "$(MOTOR):EXE_PG.PROC"  )
+  field(DLY2, "3.0")
+  field(DO2,  "1")
+  field(LNK2, "$(MOTOR):CLEAR_PU.PROC")
+  field(DLY3, "0.5")
+  field(DO3,  "1")
+  field(LNK3, "$(MOTOR):CLEAR_ER.PROC")
+  field(DLY4, "0.5")
+  field(DO4,  "1")
+  field(LNK4, "$(MOTOR):CLEAR_ST.PROC")
+  field(DLY5, "0.5")
+  field(DO5,  "1")
+  field(LNK5, "$(MOTOR):UPDATE_NOW.PROC")
+}
+
+record(longout, "$(MOTOR):SEQ_SELN") {
+  field(DESC, "Sequencer SELN Mask")
+  field(OUT,  "$(MOTOR):SEQ.SELN")
+  field(FLNK, "$(MOTOR):SEQ")
+}
+
