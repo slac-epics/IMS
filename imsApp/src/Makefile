@@ -14,7 +14,7 @@ DBD          += imsSupport.dbd
 LIBRARY_IOC  += ims
 
 # The following are required for all ims record configurations.
-ims_SRCS     += imsRecord.cc misc.cc
+ims_SRCS     += imsRecord.cc
 
 ims_LIBS     += asyn
 ims_LIBS     += $(EPICS_BASE_IOC_LIBS)

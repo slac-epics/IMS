@@ -108,17 +108,17 @@ record(stringout, "$(MOTOR):CLEAR_PU") {
   field(OUT,  "$(MOTOR).WRTE")
 }
 
-record(stringout, "$(MOTOR):CLEAR_ER") {
-  field(DESC, "Clear The Error Code")
-  field(OMSL, "closed_loop")
-  field(VAL,  "ER=0")
-  field(OUT,  "$(MOTOR).WRTE")
-}
-
 record(stringout, "$(MOTOR):CLEAR_ST") {
   field(DESC, "Clear The Stall Flag")
   field(OMSL, "closed_loop")
   field(VAL,  "ST=0")
+  field(OUT,  "$(MOTOR).WRTE")
+}
+
+record(stringout, "$(MOTOR):CLEAR_ER") {
+  field(DESC, "Clear The Error Code")
+  field(OMSL, "closed_loop")
+  field(VAL,  "ER=0")
   field(OUT,  "$(MOTOR).WRTE")
 }
 
@@ -140,10 +140,10 @@ record(seq, "$(MOTOR):SEQ") {
   field(LNK2, "$(MOTOR):CLEAR_PU.PROC")
   field(DLY3, "0.5")
   field(DO3,  "1")
-  field(LNK3, "$(MOTOR):CLEAR_ER.PROC")
+  field(LNK3, "$(MOTOR):CLEAR_ST.PROC")
   field(DLY4, "0.5")
   field(DO4,  "1")
-  field(LNK4, "$(MOTOR):CLEAR_ST.PROC")
+  field(LNK4, "$(MOTOR):CLEAR_ER.PROC")
   field(DLY5, "0.5")
   field(DO5,  "1")
   field(LNK5, "$(MOTOR):UPDATE_NOW.PROC")

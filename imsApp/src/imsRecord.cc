@@ -22,11 +22,6 @@
 #include "imsRecord.h"
 #undef GEN_SIZE_OFFSET
 
-#include "save_restore.h"
-extern "C" {
-#include "fGetDateStr.h"
-}
-
 #include "drvAsynIPPort.h"
 #include "asynOctetSyncIO.h"
 
@@ -93,11 +88,6 @@ extern "C" { epicsExportAddress( rset, imsRSET ); }
 
 #define OK            0
 
-extern char saveRestoreFilePath[];                      // path to restore files
-extern FILE *fopen_and_check( const char *fname, long *status );
-extern "C" long scalar_restore( int pass, DBENTRY *pdbentry, char *PVname, char *value_str );
-
-extern "C" int create_monitor_set( char *fname, int period, char *macro );
 
 static long connect_motor     ( imsRecord *precord                            );
 static long init_motor        ( imsRecord *precord                            );
@@ -109,10 +99,6 @@ static void post_fields       ( imsRecord *precord, unsigned short alarm_mask,
 
 static long send_msg          ( asynUser *pasynUser, char const *msg          );
 static long recv_reply        ( asynUser *pasynUser, char *rbbuf, int flag    );
-
-static void create_request    ( imsRecord *precord,  char const *type         );
-
-static void restore_fields    ( imsRecord *precord                            );
 
 
 /*** Debugging ***/
@@ -131,25 +117,9 @@ static long init_record( dbCommon *precord, int pass )
 
     long       status = 0;
 
-    if ( pass > 0 )
-    {
-        sprintf( fname, "%s.req", prec->name );
-        create_monitor_set( fname, 30, "" );
-        return( status );
-    }
+    if ( pass > 0 ) return( status );
 
-    // create the archive req file
-    create_request( prec, "archive" );
-
-    if ( saveRestoreFilePath[0] )
-    {
-        // create the autosave req file
-        create_request( prec, "autosave" );
-
-        restore_fields( prec );
-    }
-
-    mInfo = (ims_info *) malloc( sizeof(ims_info) );
+    mInfo = (ims_info *)malloc( sizeof(ims_info) );
     mInfo->cMutex = new epicsMutex();
 
     prec->dpvt    = mInfo;
@@ -461,8 +431,22 @@ static long init_motor( imsRecord *prec )
     else                                prec->res = prec->mres;
 
     // make sure the limits are consistent
+    if ( prec->dir == motorDIR_Positive )
+    {
+        prec->dllm = prec->llm - prec->off;
+        prec->dhlm = prec->hlm - prec->off;
+    }
+    else
+    {
+        prec->dllm = prec->off - prec->hlm;
+        prec->dhlm = prec->off - prec->llm;
+    }
 
-    // make sure the velo's are consistent
+    // make sure the accelerations and velocities are consistent
+    if ( prec->vbas > prec->vmax ) prec->vbas = prec->vmax;
+    if ( prec->velo > prec->vmax ) prec->velo = prec->vmax;
+    if ( prec->hvel > prec->vmax ) prec->hvel = prec->vmax;
+    if ( prec->bvel > prec->vmax ) prec->bvel = prec->vmax;
 
     prec->dmov = 1;
     prec->mip  = MIP_DONE;
@@ -825,11 +809,12 @@ static long process_motor_info( imsRecord *prec, status_word sword, long count )
     msta.All   = 0;
 
     msta.Bits.RA_MOVING  = sword.Bits.MOVING;
-    msta.Bits.EA_PRESENT = sword.Bits.EE    ;
+    msta.Bits.RA_EE      = sword.Bits.EE    ;
     msta.Bits.RA_SM      = sword.Bits.SM    ;
     msta.Bits.RA_STALL   = sword.Bits.ST    ;
     msta.Bits.RA_POWERUP = sword.Bits.PU    ;
-    msta.Bits.ERR        = sword.Bits.ERR & 127 ;
+    msta.Bits.RA_NE      = sword.Bits.NE    ;
+    msta.Bits.RA_ERR     = sword.Bits.ERR & 127 ;
 
     prec->movn = msta.Bits.RA_MOVING;
 
@@ -1702,167 +1687,27 @@ static void post_fields( imsRecord *prec, unsigned short alarm_mask,
 }
 
 /******************************************************************************/
-static void create_request( imsRecord *prec, char const *type )
+void Debug( int level, const char *fmt, ... )
 {
-    char *ioc_data, *ioc, fname[256], tline[80], rline[80], *cp;
-    FILE *tpl, *req;
+    timespec  ts;
+    struct tm timeinfo;
+    char      timestamp[40], msec[4], msg[512];
 
-    if      ( strcmp(type, "autosave") == 0 )
-    {
-        sprintf( fname, "%s/../../autosave/ims_autosave.template",
-                        getenv("PWD") );
-        tpl = fopen( fname, "r"  );
+    va_list   args;
 
-        sprintf( fname, "%s/%s.req", saveRestoreFilePath, prec->name );
-        req = fopen( fname, "w+" );
-    }
-    else if ( strcmp(type, "archive" ) == 0 )
-    {
-        ioc_data = getenv( "IOC_DATA" );
-        ioc      = getenv( "IOC"      );
+    if ( level > imsRecordDebug ) return;
 
-        if ( (ioc_data == NULL) || (ioc == NULL) ) return;
+    clock_gettime( CLOCK_REALTIME, &ts );
+    localtime_r( &ts.tv_sec, &timeinfo );
 
-        sprintf( fname, "%s/../../archive/ims_archive.template",
-                        getenv("PWD") );
-        tpl = fopen( fname, "r"  );
+    strftime( timestamp, 40, "%m/%d %H:%M:%S", &timeinfo );
+    sprintf ( msec, "%03d", int(ts.tv_nsec*1.e-6 + 0.5) );
 
-        sprintf( fname, "%s/%s/archive/%s.archive", ioc_data, ioc, prec->name );
-        req = fopen( fname, "w+" );
-    }
+    va_start( args, fmt      );
+    vsprintf( msg, fmt, args );
+    va_end  ( args           );
 
-    while ( 1 )
-    {
-        fgets( tline, 80, tpl );
-        if ( ferror(tpl) || feof(tpl) ) break;
-
-        cp = tline;
-        while ( ( strncmp(cp, "\n", 1) != 0                                ) &&
-                ((strncmp(cp, "\0", 1) == 0) || (strncmp(cp, "\t", 1) == 0))   )
-            cp++;
-
-        if ( (strncmp(cp, "\n", 1) != 0) && (strncmp(cp, "#", 1) != 0) )
-        {
-            sprintf( rline, "%s%s", prec->name, tline );
-            fputs( rline, req );
-        }
-        else
-            fputs( tline, req );
-    }
-
-    fclose( tpl );
-    fclose( req );
-
-    return;
-}
-
-/******************************************************************************/
-static void restore_fields( imsRecord *prec )
-{
-    DBENTRY  dbentry;
-    DBENTRY *pdbentry = &dbentry;
-    char     fname[PATH_SIZE+1], bu_fname[PATH_SIZE+1];
-    char     buffer[BUF_SIZE], value_str[BUF_SIZE];
-    char    *bp, sp, PVname[81], datetime[32];
-    FILE    *inp_fd;
-    int      num_errors, ns, found_field, is_scalar;
-    long     status;
-
-
-    sprintf( fname, "%s/%s.sav", saveRestoreFilePath, prec->name );
-    if ( (inp_fd = fopen_and_check(fname, &status)) == NULL )
-    {
-        Debug( 0, "Can't open save file %s", fname );
-        return;
-    }
-
-    if ( status ) Debug( 0, "Bad sav(B) files, use seq backup" );
-
-    if ( ! pdbbase )
-    {
-        // errlogPrintf("No Database Loaded\n");
-        return;
-    }
-
-    // restore from file
-    dbInitEntry( pdbbase, pdbentry );
-
-    fgets( buffer, BUF_SIZE, inp_fd );                    // discard header line
-
-    num_errors = 0;
-    while ( (bp = fgets(buffer, BUF_SIZE, inp_fd)) )
-    {
-        ns = sscanf( bp, "%80s%c%[^\n\r]", PVname, &sp, value_str );
-        if ( ns             <  3   ) *value_str = 0;
-        if ( PVname[0]      == '#' ) continue;
-        if ( strlen(PVname) >= 80  ) continue;
-        if ( isalpha((int)PVname[0]) || isdigit((int)PVname[0]) )
-        {
-            if ( strchr(PVname, '.') == 0 ) strcat( PVname, ".VAL" );
-            is_scalar = strncmp( value_str, ARRAY_MARKER, ARRAY_MARKER_LEN );
-
-            found_field = 1;
-            if ( (status = dbFindRecord(pdbentry, PVname)) != 0 )
-            {
-                num_errors++;
-                found_field = 0;
-            }
-            else if ( dbFoundField(pdbentry) == 0 )
-            {
-                num_errors++;
-                found_field = 0;
-            }
-
-            if ( found_field )
-            {
-                if ( is_scalar )
-                {
-                    status = scalar_restore  ( 0, pdbentry, PVname, value_str );
-                }
-                else
-                {
-                    status = SR_array_restore( 0, inp_fd,   PVname, value_str );
-                }
-
-                if ( status )
-                {
-                    num_errors++;
-                }
-            }
-        }
-        else if ( PVname[0] == '!' )      // an error message -- something like:
-        {    // '! 7 channel(s) not connected - or not all gets were successful'
-            if ( ! save_restoreIncompleteSetsOk )
-            {
-                fclose( inp_fd );
-                dbFinishEntry( pdbentry );
-                return;
-            }
-        }
-        else if ( PVname[0] == '<' ) break;                       // end of file
-    }
-
-    fclose( inp_fd );
-    dbFinishEntry( pdbentry );
-
-    // write backup file
-    if ( save_restoreDatedBackupFiles && (fGetDateStr(datetime) == 0) )
-        sprintf( bu_fname, "%s_%s", fname, datetime );
-    else
-        sprintf( bu_fname, "%s.bu", fname           );
-
-    if ( save_restoreDebug > 0 )
-    {
-        // errlogPrintf("dbrestore:reboot_restore: writing boot-backup file '%s'.\n", bu_filename);
-    }
-
-    status = (long)myFileCopy( fname, bu_fname );
-    if ( status )
-    {
-        // if (statusStr) strcpy(statusStr, "Can't write backup file");
-    }
-
-    // record status
+    printf  ( "%s.%s %s\n", timestamp, msec, msg );
 
     return;
 }

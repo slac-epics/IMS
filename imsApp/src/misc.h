@@ -25,7 +25,8 @@ typedef union
         unsigned int ERR    : 7; // error number
         unsigned int ST     : 1; // stall detected
         unsigned int PU     : 1; // power-cycled
-        unsigned int NA     :17; // not used
+        unsigned int NE     : 1; // numeric enable
+        unsigned int NA     :16; // not used
     } Bits;
 } status_word;
 
@@ -37,23 +38,24 @@ typedef union
         unsigned int RA_DIRECTION   :1; // (last) 0=Negative, 1=Positive
         unsigned int RA_DONE        :1; // a motion is complete
         unsigned int RA_PLUS_LS     :1; // plus limit switch has been hit
-        unsigned int RA_HOME        :1; // The home signal is on
+        unsigned int RA_HOME        :1; // home signal is on
         unsigned int RA_SM          :1; // continue on stall detect
         unsigned int EA_POSITION    :1; // position maintenence enabled
         unsigned int EA_SLIP_STALL  :1; // slip/stall detected
         unsigned int EA_HOME        :1; // encoder home signal on
-        unsigned int EA_PRESENT     :1; // encoder is present
+        unsigned int RA_EE          :1; // encoder enable
         unsigned int RA_PROBLEM     :1; // driver stopped polling
         unsigned int RA_MOVING      :1; // non-zero velocity present
         unsigned int GAIN_SUPPORT   :1; // support closed-loop position control
-        unsigned int RA_COMM_ERR    :1; // Controller communication error
+        unsigned int RA_COMM_ERR    :1; // controller communication error
         unsigned int RA_MINUS_LS    :1; // minus limit switch has been hit
-        unsigned int RA_HOMED       :1; // Axis has been homed
-        unsigned int ERR            :7; // error number
-        unsigned int RA_STALL       :1; // Stall detected
+        unsigned int RA_HOMED       :1; // axis has been homed
+        unsigned int RA_ERR         :7; // error number
+        unsigned int RA_STALL       :1; // stall detected
+        unsigned int RA_POWERUP     :1; // power-cycled
+        unsigned int RA_NE          :1; // numeric enable
         unsigned int RA_BY0         :1; // MCode not running (BY = 0)
-        unsigned int RA_POWERUP     :1; // Power-cycled
-        unsigned int NA             :7; // un-used bits
+        unsigned int NA             :6; // un-used bits
     } Bits;
 } motor_status;
 
