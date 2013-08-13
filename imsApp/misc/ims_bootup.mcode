@@ -125,7 +125,10 @@ PG 1
     RT
 
   LB Rp
-    X2=PU*16384     ' bit-15 is the power-up flag
+    X2=NE*32768     ' bit-16 is the numeric enable
+
+    X1=PU*16384     ' bit-15 is the power-up flag
+    X2=X2+X1
 
     X1=ST* 8192     ' bit-14 is stall detection
     X2=X2+X1
