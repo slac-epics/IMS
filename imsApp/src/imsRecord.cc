@@ -1,5 +1,7 @@
 #define VERSION 1.0
 
+#include <algorithm>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -38,6 +40,7 @@
 static long init_record       ( dbCommon *precord, int pass                );
 static long process           ( dbCommon *precord                          );
 static long special           ( dbAddr   *pDbAddr, int after               );
+static long cvt_dbaddr        ( dbAddr   *pDbAddr                          );
 static long get_units         ( dbAddr   *pDbAddr, char *                  );
 static long get_precision     ( dbAddr   *pDbAddr, long *                  );
 static long get_graphic_double( dbAddr   *pDbAddr, struct dbr_grDouble   * );
@@ -54,7 +57,7 @@ rset imsRSET =
     (RECSUPFUN) process,
     (RECSUPFUN) special,
     NULL,
-    NULL,
+    (RECSUPFUN) cvt_dbaddr,
     NULL,
     NULL,
     (RECSUPFUN) get_units,
@@ -100,6 +103,9 @@ static void post_fields       ( imsRecord *precord, unsigned short alarm_mask,
 static long send_msg          ( asynUser *pasynUser, char const *msg          );
 static long recv_reply        ( asynUser *pasynUser, char *rbbuf, int flag    );
 
+static long log_msg  ( imsRecord *prec, int dlvl, const char *fmt, ... );
+static void post_msgs( imsRecord *prec                                 );
+
 
 /*** Debugging ***/
 
@@ -107,22 +113,38 @@ volatile int imsRecordDebug = 0;
 
 extern "C" { epicsExportAddress( int, imsRecordDebug ); }
 
+using namespace std;
+
 
 /******************************************************************************/
 static long init_record( dbCommon *precord, int pass )
 {
     imsRecord *prec = (imsRecord *)precord;
     ims_info  *mInfo;
-    char       fname[256];
 
     long       status = 0;
 
     if ( pass > 0 ) return( status );
 
     mInfo = (ims_info *)malloc( sizeof(ims_info) );
-    mInfo->cMutex = new epicsMutex();
+    mInfo->cMutex    = new epicsMutex();
 
-    prec->dpvt    = mInfo;
+    mInfo->lMutex    = new epicsMutex();
+    mInfo->nMessages = 8;
+    mInfo->mLength   = 61;
+    mInfo->cIndex    = 0;
+    mInfo->sAddr     = (char *)calloc( 8*61, sizeof(char) );
+
+    prec->loga       = mInfo->sAddr;
+    prec->logb       = mInfo->sAddr + mInfo->mLength * 1;
+    prec->logc       = mInfo->sAddr + mInfo->mLength * 2;
+    prec->logd       = mInfo->sAddr + mInfo->mLength * 3;
+    prec->loge       = mInfo->sAddr + mInfo->mLength * 4;
+    prec->logf       = mInfo->sAddr + mInfo->mLength * 5;
+    prec->logg       = mInfo->sAddr + mInfo->mLength * 6;
+    prec->logh       = mInfo->sAddr + mInfo->mLength * 7;
+
+    prec->dpvt = mInfo;
 
     connect_motor ( prec );
     init_motor    ( prec );
@@ -189,7 +211,8 @@ static long init_motor( imsRecord *prec )
 
     old_msta = prec->msta;
 
-    msta.All = 0;
+    msta.All           = 0;
+    msta.Bits.NOT_INIT = 1;
 
     // read the part number
     retry = 0;
@@ -214,7 +237,7 @@ static long init_motor( imsRecord *prec )
 
     if ( status <= 0 )
     {
-        Debug( 0, "Failed to read the part number" );
+        log_msg( prec, 0, "Failed to read the part number" );
 
         msta.Bits.RA_PROBLEM = 1;
         goto finished;
@@ -243,7 +266,7 @@ static long init_motor( imsRecord *prec )
 
     if ( status <= 0 )
     {
-        Debug( 0, "Failed to read the serial number" );
+        log_msg( prec, 0, "Failed to read the serial number" );
 
         msta.Bits.RA_PROBLEM = 1;
         goto finished;
@@ -295,7 +318,7 @@ static long init_motor( imsRecord *prec )
 
     if ( status != 9 )
     {
-        Debug( 0, "Failed to read the switch settings" );
+        log_msg( prec, 0, "Failed to read the switch settings" );
 
         msta.Bits.RA_PROBLEM = 1;
         goto finished;
@@ -334,7 +357,7 @@ static long init_motor( imsRecord *prec )
 
     if ( status != 4 )
     {
-        Debug( 0, "Failed to read the numeric enable, encoder enable, limit stop mode and stall mode" );
+        log_msg( prec, 0, "Failed to read NE, EE, LM and SM" );
 
         prec->ne = 0;
         prec->ee = 0;
@@ -362,7 +385,7 @@ static long init_motor( imsRecord *prec )
 
     if ( status != 2 )
     {
-        Debug( 0, "Failed to read the MCode version and BY" );
+        log_msg( prec, 0, "Failed to read the MCode version and BY" );
 
         msta.Bits.RA_PROBLEM = 1;
         goto finished;
@@ -457,9 +480,10 @@ static long init_motor( imsRecord *prec )
     finished:
     mInfo->cMutex->unlock();
 
-    if      ( msta.Bits.RA_PROBLEM                            )      // hardware
+    if      ( msta.Bits.RA_PROBLEM                             )     // hardware
         recGblSetSevr( (dbCommon *)prec, COMM_ALARM,  INVALID_ALARM );
-    else if ( msta.Bits.RA_BY0     || msta.Bits.RA_COMM_ERR   ) // BY=0 or wrong
+    else if ( msta.Bits.RA_BY0     || msta.Bits.RA_COMM_ERR ||  // BY=0 or wrong
+              msta.Bits.NOT_INIT                               )     // NOT_INIT
         recGblSetSevr( (dbCommon *)prec, STATE_ALARM, MAJOR_ALARM   );
 
     prec->msta = msta.All;
@@ -470,6 +494,7 @@ static long init_motor( imsRecord *prec )
 
     alarm_mask = recGblResetAlarms( prec );
     post_fields( prec, alarm_mask, 1 );
+    post_msgs  ( prec                );
 
     return( 0 );
 }
@@ -492,7 +517,7 @@ static long process( dbCommon *precord )
     if ( prec->pact ) return( OK );
 
     prec->pact = 1;
-    Debug( 1, "%s -- process", prec->name );
+    log_msg( prec, 1, "process" );
 
     old_msta = prec->msta;
 
@@ -522,40 +547,41 @@ static long process( dbCommon *precord )
         {
             if      ( rbby == 0 )                           // MCode not running
             {
-                Debug( 0, "MCode not running"   );
+                log_msg( prec, 0, "MCode not running"   );
                 msta.Bits.RA_BY0      = 1;
             }
             else if ( rbby != 1 )                              // wrong BY value
             {
-                Debug( 0, "Invalid BY readback" );
+                log_msg( prec, 0, "Invalid BY readback" );
                 msta.Bits.RA_COMM_ERR = 1;
             }
         }
         else
         {
-            Debug( 0, "Failed to read BY" );
+            log_msg( prec, 0, "Failed to read BY" );
             msta.Bits.RA_PROBLEM = 1;
         }
 
         goto finished;
     }
 
-    init      = mInfo->init;
     sword.All = mInfo->sword;
     count     = mInfo->count;
 
     mInfo->newData = 0;
-    if ( mInfo->init == 0 )                               // first status update
-    {
-        mInfo->init = 1;
-        send_msg( mInfo->pasynUser, "Us=18000" );
-    }
-
     mInfo->cMutex->unlock();
 
     process_motor_info( prec, sword, count );
 
     msta.All = prec->msta;
+
+    init = ! msta.Bits.NOT_INIT;
+    if ( msta.Bits.NOT_INIT == 1 )                        // first status update
+    {
+        send_msg( mInfo->pasynUser, "Us=18000" );
+
+        msta.Bits.NOT_INIT = 0;
+    }
 
     if ( init && (prec->mip == MIP_DONE) )  // done moving, check for slip_stall
     {
@@ -563,7 +589,7 @@ static long process( dbCommon *precord )
         prec->diff = prec->rbv - prec->val;
         if ( fabs(prec->diff) > prec->pdbd )
         {
-            Debug( 0, "%s -- slipped, diff = %f", prec->name, prec->diff );
+            log_msg( prec, 0, "slipped, diff = %f", prec->diff );
             msta.Bits.EA_SLIP_STALL = 1;
         }
 
@@ -595,7 +621,7 @@ static long process( dbCommon *precord )
         {
             if ( prec->mip == MIP_HOME )                           // was homing
             {
-                Debug( 0, "%s -- stalled, missed home", prec->name );
+                log_msg( prec, 0, "stalled, missed home" );
                 prec->miss = 1;
             }
             else if ( (prec->mip != MIP_DONE) &&
@@ -603,25 +629,25 @@ static long process( dbCommon *precord )
             {
                 if ( fabs(diff) < prec->rdbd )
                 {
-                    Debug( 0, "%s -- desired %f, reached %f",
-                              prec->name, prec->val, prec->rbv );
+                    log_msg( prec, 0, "desired %f, reached %f",
+                                      prec->val, prec->rbv );
                     prec->miss = 0;
                 }
                 else
                 {
-                    Debug( 0, "%s -- desired %f, reached %f, missed due to stall",
-                              prec->name, prec->val, prec->rbv );
+                    log_msg( prec, 0, "desired %f, reached %f, missed due to stall",
+                                      prec->val, prec->rbv );
                     prec->miss = 1;
                 }
             }
             else if ( ! init )                            // first status update
-                Debug( 0, "%s -- initialized", prec->name );
+                log_msg( prec, 0, "initialization finished" );
         }
         else if ( prec->lls )
         {
             if ( prec->mip == MIP_HOME )                           // was homing
             {
-                Debug( 0, "%s -- hit low limit, missed home", prec->name );
+                log_msg( prec, 0, "hit low limit, missed home" );
                 prec->miss = 1;
             }
             else if ( (prec->mip != MIP_DONE) &&
@@ -629,25 +655,25 @@ static long process( dbCommon *precord )
             {
                 if ( fabs(diff) < prec->rdbd )
                 {
-                    Debug( 0, "%s -- desired %f, reached %f",
-                              prec->name, prec->val, prec->rbv );
+                    log_msg( prec, 0, "desired %f, reached %f",
+                                      prec->val, prec->rbv );
                     prec->miss = 0;
                 }
                 else
                 {
-                    Debug( 0, "%s -- desired %f, reached %f, missed due to low limit",
-                              prec->name, prec->val, prec->rbv );
+                    log_msg( prec, 0, "desired %f, reached %f, missed due to low limit",
+                                      prec->val, prec->rbv );
                     prec->miss = 1;
                 }
             }
             else if ( ! init )                            // first status update
-                Debug( 0, "%s -- initialized", prec->name );
+                log_msg( prec, 0, "initialization finished" );
         }
         else if ( prec->hls )
         {
             if ( prec->mip == MIP_HOME )                           // was homing
             {
-                Debug( 0, "%s -- hit high limit, missed home", prec->name );
+                log_msg( prec, 0, "hit high limit, missed home" );
                 prec->miss = 1;
             }
             else if ( (prec->mip != MIP_DONE) &&
@@ -655,37 +681,37 @@ static long process( dbCommon *precord )
             {
                 if ( fabs(diff) < prec->rdbd )
                 {
-                    Debug( 0, "%s -- desired %f, reached %f",
-                              prec->name, prec->val, prec->rbv );
+                    log_msg( prec, 0, "desired %f, reached %f",
+                                      prec->val, prec->rbv );
                     prec->miss = 0;
                 }
                 else
                 {
-                    Debug( 0, "%s -- desired %f, reached %f, missed due to high limit",
-                              prec->name, prec->val, prec->rbv );
+                    log_msg( prec, 0, "desired %f, reached %f, missed due to high limit",
+                                      prec->val, prec->rbv );
                     prec->miss = 1;
                 }
             }
             else if ( ! init )                            // first status update
-                Debug( 0, "%s -- initialized", prec->name );
+                log_msg( prec, 0, "initialization finished" );
         }
         else if ( prec->mip & MIP_STOP  )
         {
-            Debug( 0, "%s -- stopped",     prec->name );
+            log_msg( prec, 0, "stopped" );
             prec->miss = 0;
         }
         else if ( prec->mip & MIP_PAUSE )
         {
-            Debug( 0, "%s -- paused",      prec->name );
+            log_msg( prec, 0, "paused" );
             newval = 0;
         }
         else if ( prec->mip == MIP_HOME )
         {
-            Debug( 0, "%s -- homed",       prec->name );
+            log_msg( prec, 0, "homed" );
             prec->miss = 0;
         }
         else if ( ! init )                                // first status update
-            Debug( 0, "%s -- initialized", prec->name );
+            log_msg( prec, 0, "initialization finished" );
 
         if ( newval )
         {
@@ -702,8 +728,8 @@ static long process( dbCommon *precord )
     else if ( prec->mip == MIP_NEW ) new_move( prec );
     else if ( prec->mip == MIP_BL  )                              // do backlash
     {
-        Debug( 0, "%s -- move to: %f (DVAL: %f), with BACC and BVEL",
-                  prec->name, prec->val, prec->dval );
+        log_msg( prec, 0, "move to: %f (DVAL: %f), with BACC and BVEL",
+                          prec->val, prec->dval );
 
         prec->mip  = MIP_MOVE;
         prec->rval = NINT(prec->dval / prec->res);
@@ -720,8 +746,8 @@ static long process( dbCommon *precord )
               (fabs(diff)       >= prec->rdbd) &&           // not closed enough
               (prec->rtry > 0) && (prec->rcnt < prec->rtry) )  // can retry more
     {
-        Debug( 0, "%s -- desired %f, reached %f, retrying %d ...",
-                  prec->name, prec->val, prec->rbv, prec->rcnt++ );
+        log_msg( prec, 0, "desired %f, reached %f, retrying %d ...",
+                          prec->val, prec->rbv, prec->rcnt++ );
 
         prec->mip  |= MIP_RETRY;
 
@@ -734,14 +760,14 @@ static long process( dbCommon *precord )
         prec->diff = diff;
         if ( fabs(diff) < prec->rdbd )
         {
-            Debug( 0, "%s -- desired %f, reached %f",
-                      prec->name, prec->val, prec->rbv             );
+            log_msg( prec, 0, "desired %f, reached %f",
+                              prec->val, prec->rbv             );
             prec->miss = 0;
         }
         else
         {
-            Debug( 0, "%s -- desired %f, reached %f after %d retries",
-                      prec->name, prec->val, prec->rbv, prec->rcnt );
+            log_msg( prec, 0, "desired %f, reached %f after %d retries",
+                              prec->val, prec->rbv, prec->rcnt );
             prec->miss = 1;
         }
 
@@ -759,17 +785,18 @@ static long process( dbCommon *precord )
     if ( old_rval != prec->rval ) MARK( M_RVAL );
 
     finished:
-    if      ( msta.Bits.RA_PROBLEM                            )      // hardware
+    if      ( msta.Bits.RA_PROBLEM                             )     // hardware
         recGblSetSevr( (dbCommon *)prec, COMM_ALARM,  INVALID_ALARM );
-    else if ( msta.Bits.RA_BY0     || msta.Bits.RA_COMM_ERR   ) // BY=0 or wrong
+    else if ( msta.Bits.RA_BY0     || msta.Bits.RA_COMM_ERR ||  // BY=0 or wrong
+              msta.Bits.NOT_INIT                               )     // NOT_INIT
         recGblSetSevr( (dbCommon *)prec, STATE_ALARM, MAJOR_ALARM   );
-    else if ( msta.Bits.RA_STALL   && (prec->stsv > NO_ALARM) )       // stalled
-        recGblSetSevr( (dbCommon *)prec, STATE_ALARM, prec->stsv    );
-    else if ( msta.Bits.RA_POWERUP || msta.Bits.EA_SLIP_STALL )
+    else if ( msta.Bits.RA_POWERUP || msta.Bits.EA_SLIP_STALL  )
         recGblSetSevr( (dbCommon *)prec, STATE_ALARM, MINOR_ALARM   );
+    else if ( msta.Bits.RA_STALL   && (prec->stsv > NO_ALARM)  )      // stalled
+        recGblSetSevr( (dbCommon *)prec, STATE_ALARM, prec->stsv    );
 
     prec->msta = msta.All;
-    Debug( 2, "%s -- msta =%x", prec->name, prec->msta );
+    log_msg( prec, 2, "msta =%x", prec->msta );
 
     if ( old_msta != prec->msta ) MARK( M_MSTA );
 
@@ -777,6 +804,7 @@ static long process( dbCommon *precord )
 
     alarm_mask = recGblResetAlarms( prec );
     post_fields( prec, alarm_mask, 0 );
+    post_msgs  ( prec                );
 
     recGblFwdLink     ( prec );                 // process the forward scan link
 
@@ -793,20 +821,23 @@ static long process_motor_info( imsRecord *prec, status_word sword, long count )
     short         old_movn, old_rlls, old_rhls, old_lls, old_hls;
     double        old_drbv, old_rbv;
     long          old_rrbv;
-    motor_status  msta;
+    motor_status  old_msta, msta;
 
     int           dir = (prec->dir == motorDIR_Positive) ? 1 : -1;
 
-    old_movn   = prec->movn;
-    old_rlls   = prec->rlls;
-    old_rhls   = prec->rhls;
-    old_lls    = prec->lls ;
-    old_hls    = prec->hls ;
-    old_rrbv   = prec->rrbv;
-    old_drbv   = prec->drbv;
-    old_rbv    = prec->rbv ;
+    old_movn     = prec->movn;
+    old_rlls     = prec->rlls;
+    old_rhls     = prec->rhls;
+    old_lls      = prec->lls ;
+    old_hls      = prec->hls ;
+    old_rrbv     = prec->rrbv;
+    old_drbv     = prec->drbv;
+    old_rbv      = prec->rbv ;
 
-    msta.All   = 0;
+    old_msta.All = prec->msta;
+
+    msta.All             = 0;
+    msta.Bits.NOT_INIT   = old_msta.Bits.NOT_INIT;
 
     msta.Bits.RA_MOVING  = sword.Bits.MOVING;
     msta.Bits.RA_EE      = sword.Bits.EE    ;
@@ -866,8 +897,8 @@ static void new_move( imsRecord *prec )
              ((prec->bdst < 0) && (prec->drbv < prec->dval)) ||
              (fabs(prec->drbv - prec->dval) > prec->bdst   )    )
         {           // opposite direction, or long move, use ACCL and VELO first
-            Debug( 0, "%s -- move to: %f (DVAL: %f), with ACCL and VELO",
-                      prec->name, prec->val, prec->dval-prec->bdst );
+            log_msg( prec, 0, "move to: %f (DVAL: %f), with ACCL and VELO",
+                              prec->val, prec->dval-prec->bdst );
 
             prec->mip  = MIP_BL  ;
             prec->rval = NINT((prec->dval - prec->bdst) / prec->res);
@@ -880,8 +911,8 @@ static void new_move( imsRecord *prec )
         }
         else                // same direction and within BDST, use BACC and BVEL
         {
-            Debug( 0, "%s -- move to: %f (DVAL: %f), with BACC and BVEL",
-                      prec->name, prec->val, prec->dval            );
+            log_msg( prec, 0, "move to: %f (DVAL: %f), with BACC and BVEL",
+                              prec->val, prec->dval            );
 
             prec->mip  = MIP_MOVE;
             prec->rval = NINT(prec->dval                / prec->res);
@@ -895,8 +926,8 @@ static void new_move( imsRecord *prec )
     }
     else                                       // no backlash, use ACCL and VELO
     {
-        Debug( 0, "%s -- move to: %f (DVAL: %f), with ACCL and VELO",
-                  prec->name, prec->val, prec->dval );
+        log_msg( prec, 0, "move to: %f (DVAL: %f), with ACCL and VELO",
+                          prec->val, prec->dval );
 
         prec->mip  = MIP_MOVE;
         prec->rval = NINT(prec->dval / prec->res);
@@ -961,12 +992,12 @@ static long special( dbAddr *pDbAddr, int after )
     switch( fieldIndex )
     {
         case imsRecordSSTR:
-            Debug( 1, "%s -- %s", prec->name, prec->sstr );
+            log_msg( prec, 1, "%s", prec->sstr );
 
             status = sscanf( prec->sstr, "Status=%ld,P=%ldEOS", &sword, &count);
             if ( status == 2 )
             {
-                Debug( 2, "%s -- Status=%d,P=%d", prec->name, sword, count );
+                log_msg( prec, 2, "Status=%d,P=%d", sword, count );
 
                 mInfo->cMutex->lock();
 
@@ -1024,7 +1055,7 @@ static long special( dbAddr *pDbAddr, int after )
             {
                 if ( prec->mip != MIP_NEW )           // stop current move first
                 {
-                    Debug( 0, "%s -- stop current move", prec->name );
+                    log_msg( prec, 0, "stop current move" );
                     prec->mip  = MIP_NEW;
 
                     send_msg( mInfo->pasynUser, "SL 0\r\n1Us=0" );
@@ -1057,7 +1088,7 @@ static long special( dbAddr *pDbAddr, int after )
 
             if ( prec->spg == motorSPG_Go )
             {
-                Debug( 0, "%s -- resume moving",                prec->name );
+                log_msg( prec, 0, "resume moving" );
                 prec->mip &= ~( MIP_STOP | MIP_PAUSE );
 
                 sprintf( msg, "MA %d", prec->rval );
@@ -1069,13 +1100,13 @@ static long special( dbAddr *pDbAddr, int after )
             {
                 if ( prec->spg == motorSPG_Stop )
                 {
-                    Debug( 0, "%s -- stop, with deceleration",  prec->name );
+                    log_msg( prec, 0, "stop, with deceleration" );
                     prec->mip &= ~MIP_PAUSE;
                     prec->mip |=  MIP_STOP ;
                 }
                 else
                 {
-                    Debug( 0, "%s -- pause, with deceleration", prec->name );
+                    log_msg( prec, 0, "pause, with deceleration" );
                     prec->mip |=  MIP_PAUSE;
                 }
 
@@ -1512,6 +1543,94 @@ static long special( dbAddr *pDbAddr, int after )
 }
 
 /******************************************************************************/
+static long cvt_dbaddr( dbAddr *pDbAddr )
+{
+    imsRecord *prec = (imsRecord *)pDbAddr->precord;
+    ims_info  *mInfo = (ims_info *)prec->dpvt;
+
+    int        fieldIndex = dbGetFieldIndex( pDbAddr );
+    long       status = 0;
+
+    switch ( fieldIndex )
+    {
+        case imsRecordLOGA:
+        {
+            pDbAddr->pfield         = (char *)prec->loga;
+            pDbAddr->no_elements    = mInfo->mLength;
+            pDbAddr->field_type     = DBF_CHAR;
+            pDbAddr->field_size     = sizeof(char);
+            pDbAddr->dbr_field_type = DBR_CHAR;
+            break;
+        }
+        case imsRecordLOGB:
+        {
+            pDbAddr->pfield         = (char *)prec->logb;
+            pDbAddr->no_elements    = mInfo->mLength;
+            pDbAddr->field_type     = DBF_CHAR;
+            pDbAddr->field_size     = sizeof(char);
+            pDbAddr->dbr_field_type = DBR_CHAR;
+            break;
+        }
+        case imsRecordLOGC:
+        {
+            pDbAddr->pfield         = (char *)prec->logc;
+            pDbAddr->no_elements    = mInfo->mLength;
+            pDbAddr->field_type     = DBF_CHAR;
+            pDbAddr->field_size     = sizeof(char);
+            pDbAddr->dbr_field_type = DBR_CHAR;
+            break;
+        }
+        case imsRecordLOGD:
+        {
+            pDbAddr->pfield         = (char *)prec->logd;
+            pDbAddr->no_elements    = mInfo->mLength;
+            pDbAddr->field_type     = DBF_CHAR;
+            pDbAddr->field_size     = sizeof(char);
+            pDbAddr->dbr_field_type = DBR_CHAR;
+            break;
+        }
+        case imsRecordLOGE:
+        {
+            pDbAddr->pfield         = (char *)prec->loge;
+            pDbAddr->no_elements    = mInfo->mLength;
+            pDbAddr->field_type     = DBF_CHAR;
+            pDbAddr->field_size     = sizeof(char);
+            pDbAddr->dbr_field_type = DBR_CHAR;
+            break;
+        }
+        case imsRecordLOGF:
+        {
+            pDbAddr->pfield         = (char *)prec->logf;
+            pDbAddr->no_elements    = mInfo->mLength;
+            pDbAddr->field_type     = DBF_CHAR;
+            pDbAddr->field_size     = sizeof(char);
+            pDbAddr->dbr_field_type = DBR_CHAR;
+            break;
+        }
+        case imsRecordLOGG:
+        {
+            pDbAddr->pfield         = (char *)prec->logg;
+            pDbAddr->no_elements    = mInfo->mLength;
+            pDbAddr->field_type     = DBF_CHAR;
+            pDbAddr->field_size     = sizeof(char);
+            pDbAddr->dbr_field_type = DBR_CHAR;
+            break;
+        }
+        case imsRecordLOGH:
+        {
+            pDbAddr->pfield         = (char *)prec->logh;
+            pDbAddr->no_elements    = mInfo->mLength;
+            pDbAddr->field_type     = DBF_CHAR;
+            pDbAddr->field_size     = sizeof(char);
+            pDbAddr->dbr_field_type = DBR_CHAR;
+            break;
+        }
+    }
+
+    return( status );
+}
+
+/******************************************************************************/
 static long get_units( dbAddr *paddr, char *units)
 {
     return (0);
@@ -1708,6 +1827,65 @@ void Debug( int level, const char *fmt, ... )
     va_end  ( args           );
 
     printf  ( "%s.%s %s\n", timestamp, msec, msg );
+
+    return;
+}
+
+/******************************************************************************/
+static long log_msg( imsRecord *prec, int dlvl, const char *fmt, ... )
+{
+    ims_info  *mInfo = (ims_info *)prec->dpvt;
+    timespec   ts;
+    struct tm  timeinfo;
+    char       timestamp[40], msec[4], msg[512];
+
+    va_list    args;
+
+    if ( (dlvl > prec->dlvl) && (dlvl > imsRecordDebug) ) return( 0 );
+
+    clock_gettime( CLOCK_REALTIME, &ts );
+    localtime_r( &ts.tv_sec, &timeinfo );
+
+    strftime( timestamp, 40, "%m/%d %H:%M:%S", &timeinfo );
+    sprintf ( msec, "%03d", int(ts.tv_nsec*1.e-6 + 0.5) );
+
+    va_start( args, fmt      );
+    vsprintf( msg, fmt, args );
+    va_end  ( args           );
+
+    if ( dlvl <= prec->dlvl )
+    {
+        mInfo->lMutex->lock();
+
+        if ( mInfo->cIndex > 7 )
+            memmove( mInfo->sAddr,
+                     mInfo->sAddr+mInfo->mLength, mInfo->mLength*7 );
+
+        snprintf( mInfo->sAddr+mInfo->mLength*min(mInfo->cIndex,7), 61,
+                  "%s %s", timestamp+6, msg );
+
+        if ( mInfo->cIndex <= 7 ) mInfo->cIndex++;
+
+        mInfo->lMutex->unlock();
+    }
+
+    if ( dlvl <= imsRecordDebug )
+        printf( "%s.%s %s -- %s\n", timestamp, msec, prec->name, msg );
+
+    return( 1 );
+}
+
+/******************************************************************************/
+static void post_msgs( imsRecord *prec )
+{
+    db_post_events( prec,  prec->loga, DBE_VAL_LOG );
+    db_post_events( prec,  prec->logb, DBE_VAL_LOG );
+    db_post_events( prec,  prec->logc, DBE_VAL_LOG );
+    db_post_events( prec,  prec->logd, DBE_VAL_LOG );
+    db_post_events( prec,  prec->loge, DBE_VAL_LOG );
+    db_post_events( prec,  prec->logf, DBE_VAL_LOG );
+    db_post_events( prec,  prec->logg, DBE_VAL_LOG );
+    db_post_events( prec,  prec->logh, DBE_VAL_LOG );
 
     return;
 }

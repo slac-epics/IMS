@@ -57,6 +57,52 @@ recordtype(ims) {
 		special(SPC_NOMOD)
 		interest(1)
 	}
+	field(DLVL,DBF_SHORT) {
+		prompt("Debugging Level")
+		promptgroup(GUI_COMMON)
+		interest(1)
+		initial("0")
+	}
+	field(LOGA,DBF_NOACCESS) {
+		prompt("Log Message A")
+		special(SPC_DBADDR)
+		extra("char *loga")
+	}
+	field(LOGB,DBF_NOACCESS) {
+		prompt("Log Message B")
+		special(SPC_DBADDR)
+		extra("char *logb")
+	}
+	field(LOGC,DBF_NOACCESS) {
+		prompt("Log Message C")
+		special(SPC_DBADDR)
+		extra("char *logc")
+	}
+	field(LOGD,DBF_NOACCESS) {
+		prompt("Log Message D")
+		special(SPC_DBADDR)
+		extra("char *logd")
+	}
+	field(LOGE,DBF_NOACCESS) {
+		prompt("Log Message E")
+		special(SPC_DBADDR)
+		extra("char *loge")
+	}
+	field(LOGF,DBF_NOACCESS) {
+		prompt("Log Message F")
+		special(SPC_DBADDR)
+		extra("char *logf")
+	}
+	field(LOGG,DBF_NOACCESS) {
+		prompt("Log Message G")
+		special(SPC_DBADDR)
+		extra("char *logg")
+	}
+	field(LOGH,DBF_NOACCESS) {
+		prompt("Log Message H")
+		special(SPC_DBADDR)
+		extra("char *logh")
+	}
 	field(PN,DBF_STRING) {
 		prompt("Part Number")
 		size(61)
@@ -107,6 +153,14 @@ recordtype(ims) {
 		menu(motorAble)
 		special(SPC_MOD)
 		asl(ASL0)
+		interest(1)
+	}
+	field(EL,DBF_SHORT) {
+		prompt("Encoder Lines")
+		promptgroup(GUI_COMMON)
+		special(SPC_MOD)
+		asl(ASL0)
+		initial("512")
 		interest(1)
 	}
 	field(LM,DBF_MENU) {
@@ -180,7 +234,7 @@ recordtype(ims) {
 		interest(1)
 	}
 	field(SREV,DBF_LONG) {
-		prompt("Steps Per Revolution")
+		prompt("Micro Steps Per Revolution")
 		promptgroup(GUI_COMMON)
 		special(SPC_MOD)
 		initial(51200)

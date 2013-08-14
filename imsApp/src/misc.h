@@ -9,6 +9,12 @@ struct ims_info
     long        sword;
     long        count;
     bool        newData;
+
+    epicsMutex *lMutex;
+    int         nMessages;
+    int         mLength;
+    int         cIndex;
+    char       *sAddr;
 };
 
 typedef union
@@ -55,7 +61,8 @@ typedef union
         unsigned int RA_POWERUP     :1; // power-cycled
         unsigned int RA_NE          :1; // numeric enable
         unsigned int RA_BY0         :1; // MCode not running (BY = 0)
-        unsigned int NA             :6; // un-used bits
+        unsigned int NA             :5; // un-used bits
+        unsigned int NOT_INIT       :1; // initialization not finished
     } Bits;
 } motor_status;
 
