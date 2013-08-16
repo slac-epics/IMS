@@ -164,7 +164,11 @@ static long connect_motor( imsRecord *prec )
     static const char  input_terminator[]  = "\r\n";
 
     asynStatus         asyn_rtn;
+    motor_status       msta;
+
     int                status = 0;
+
+    msta.All = 0;
 
     sprintf( serialPort, "%s TCP", prec->port );
 
@@ -175,6 +179,9 @@ static long connect_motor( imsRecord *prec )
 
     if ( asyn_rtn != asynSuccess )
     {
+        log_msg( prec, 0, "Failed to connect to the port" );
+
+        msta.Bits.RA_PROBLEM = 1;
     }
 
     pasynOctetSyncIO->setOutputEos( pasynUser, output_terminator,
@@ -199,20 +206,17 @@ static long init_motor( imsRecord *prec )
     ims_info *mInfo = (ims_info *)prec->dpvt;
 
     asynUser       *pasynUser = mInfo->pasynUser;
-    char            rbbuf[MAX_MSG_SIZE];
+    char            msg[MAX_MSG_SIZE], rbbuf[MAX_MSG_SIZE];
     int             s1, s2, s3, a1, a2, a3, d1, d2, d3;
-    int             rbne, rbee, rblm, rbsm, rbve, rbby;
+    int             rbne, rblm, rbsm, rbve, rbby;
     int             retry, status = 0;
-    epicsUInt32     old_msta;
+    epicsUInt32     old_msta = prec->msta;
     motor_status    msta;
     unsigned short  alarm_mask;
 
     mInfo->cMutex->lock();
 
-    old_msta = prec->msta;
-
-    msta.All           = 0;
-    msta.Bits.NOT_INIT = 1;
+    msta.All = 0;
 
     // read the part number
     retry = 0;
@@ -324,22 +328,18 @@ static long init_motor( imsRecord *prec )
         goto finished;
     }
 
-    // read the numeric enable, encoder enable, limit stop mode and stall mode
+    // read the numeric enable, limit stop mode and stall mode
     retry = 0;
     do
     {
-        send_msg( pasynUser, "PR \"NE=\",NE,\", EE=\",EE,\", LM=\",LM,\", SM=\",SM" );
+        send_msg( pasynUser, "PR \"NE=\",NE,\", LM=\",LM,\", SM=\",SM" );
         status = recv_reply( pasynUser, rbbuf, 1 );
         if ( status > 0 )
         {
-            status = sscanf( rbbuf, "NE=%d, EE=%d, LM=%d, SM=%d",
-                                    &rbne, &rbee, &rblm, &rbsm );
-            if ( status == 4 )
+            status = sscanf( rbbuf, "NE=%d, LM=%d, SM=%d", &rbne, &rblm, &rbsm);
+            if ( status == 3 )
             {
                 if ( rbne == 0 || rbne == 1 ) prec->ne = rbne;    // 1 : enabled
-                else                          status = 0;
-
-                if ( rbee == 0 || rbee == 1 ) prec->ee = rbee;    // 1 : enabled
                 else                          status = 0;
 
                 if ( rblm >  0 || rblm <  7 ) prec->lm = rblm;
@@ -353,14 +353,13 @@ static long init_motor( imsRecord *prec )
         }
 
         epicsThreadSleep( 0.2 );
-    } while ( (status != 4) && (retry++ < 3) );
+    } while ( (status != 3) && (retry++ < 3) );
 
-    if ( status != 4 )
+    if ( status != 3 )
     {
-        log_msg( prec, 0, "Failed to read NE, EE, LM and SM" );
+        log_msg( prec, 0, "Failed to read NE, LM and SM" );
 
         prec->ne = 0;
-        prec->ee = 0;
         prec->lm = 0;
         prec->sm = 0;
 
@@ -441,17 +440,46 @@ static long init_motor( imsRecord *prec )
         epicsThreadSleep( 1 );
     }
 
-    mInfo->init = 0;
+    // set the parameters
+    sprintf( msg, "DE=%d", prec->de );
+    send_msg( mInfo->pasynUser, msg );
 
-    if ( prec->eres <= 0 ) prec->eres = 1;
+    epicsThreadSleep( 0.1 );
 
-    if ( prec->urev <= 0 ) prec->urev = 1;
-    if ( prec->srev <= 0 ) prec->srev = 51200;
-    prec->mres = prec->urev / prec->srev;
-    prec->mres = 1;
+    sprintf( msg, "EE=%d", prec->ee );
+    send_msg( mInfo->pasynUser, msg );
 
-    if ( prec->ee == motorAble_Enable ) prec->res = prec->eres;
-    else                                prec->res = prec->mres;
+    epicsThreadSleep( 0.1 );
+
+    if ( prec->el <= 0 ) prec->el = 1;
+    if ( prec->ms <= 0 ) prec->ms = 1;
+    if ( prec->ee == motorAble_Enable ) sprintf( msg, "EL=%d", prec->el );
+    else                                sprintf( msg, "MS=%d", prec->ms );
+    send_msg( mInfo->pasynUser, msg );
+
+    epicsThreadSleep( 0.1 );
+
+    sprintf( msg, "HC=%d", prec->hc );
+    send_msg( mInfo->pasynUser, msg );
+
+    epicsThreadSleep( 0.1 );
+
+    sprintf( msg, "RC=%d", prec->rc );
+    send_msg( mInfo->pasynUser, msg );
+
+    mInfo->initialized = 0;
+    msta.Bits.NOT_INIT = 1;
+
+    if ( prec->ee == motorAble_Enable )
+    {
+        prec->elms = prec->el;
+        prec->res  = prec->urev / prec->el /   4.;
+    }
+    else
+    {
+        prec->elms = prec->ms;
+        prec->res  = prec->urev / prec->ms / 200.;
+    }
 
     // make sure the limits are consistent
     if ( prec->dir == motorDIR_Positive )
@@ -484,7 +512,11 @@ static long init_motor( imsRecord *prec )
         recGblSetSevr( (dbCommon *)prec, COMM_ALARM,  INVALID_ALARM );
     else if ( msta.Bits.RA_BY0     || msta.Bits.RA_COMM_ERR ||  // BY=0 or wrong
               msta.Bits.NOT_INIT                               )     // NOT_INIT
+    {
         recGblSetSevr( (dbCommon *)prec, STATE_ALARM, MAJOR_ALARM   );
+
+        log_msg( prec, 0, "Wait for first status update" );
+    }
 
     prec->msta = msta.All;
 
@@ -507,19 +539,18 @@ static long process( dbCommon *precord )
     ims_info       *mInfo = (ims_info *)prec->dpvt;
     char            msg[MAX_MSG_SIZE];
     unsigned short  old_mip,  alarm_mask;
-    short           init, old_dmov, old_rcnt, old_miss;
+    short           old_dmov, old_rcnt, old_miss;
     double          old_val,  old_dval, old_diff, diff;
-    long            count, old_rval, old_msta, status = OK;
+    long            count, old_rval, old_msta = prec->msta, status = OK;
     int             VI, VM, A, retry, rbby;
     status_word     sword;
     motor_status    msta;
+    bool            first;
 
     if ( prec->pact ) return( OK );
 
     prec->pact = 1;
     log_msg( prec, 1, "process" );
-
-    old_msta = prec->msta;
 
     mInfo->cMutex->lock();
     if ( ! mInfo->newData )                                // no new status data
@@ -567,23 +598,19 @@ static long process( dbCommon *precord )
 
     sword.All = mInfo->sword;
     count     = mInfo->count;
+    first     = ! mInfo->initialized;
 
+    if ( first ) mInfo->initialized = 1;
     mInfo->newData = 0;
+
     mInfo->cMutex->unlock();
 
     process_motor_info( prec, sword, count );
 
     msta.All = prec->msta;
 
-    init = ! msta.Bits.NOT_INIT;
-    if ( msta.Bits.NOT_INIT == 1 )                        // first status update
-    {
-        send_msg( mInfo->pasynUser, "Us=18000" );
-
-        msta.Bits.NOT_INIT = 0;
-    }
-
-    if ( init && (prec->mip == MIP_DONE) )  // done moving, check for slip_stall
+    if ( first ) send_msg( mInfo->pasynUser, "Us=18000" );// first status update
+    else if ( prec->mip == MIP_DONE )       // done moving, check for slip_stall
     {
         old_diff   = prec->diff;
         prec->diff = prec->rbv - prec->val;
@@ -609,7 +636,7 @@ static long process( dbCommon *precord )
     old_rval = prec->rval;
 
     diff     = prec->rbv - prec->val;
-    if ( (! init) ||                                      // first status update
+    if ( first ||                                         // first status update
          (msta.Bits.RA_STALL && (! msta.Bits.RA_SM)) ||               // stalled
          prec->lls || prec->hls ||                         // hit a limit switch
          (prec->mip  & MIP_STOP) || (prec->mip  & MIP_PAUSE) || // stop or pause
@@ -640,8 +667,8 @@ static long process( dbCommon *precord )
                     prec->miss = 1;
                 }
             }
-            else if ( ! init )                            // first status update
-                log_msg( prec, 0, "initialization finished" );
+            else if ( first )                             // first status update
+                log_msg( prec, 0, "initialization completed" );
         }
         else if ( prec->lls )
         {
@@ -666,8 +693,8 @@ static long process( dbCommon *precord )
                     prec->miss = 1;
                 }
             }
-            else if ( ! init )                            // first status update
-                log_msg( prec, 0, "initialization finished" );
+            else if ( first )                             // first status update
+                log_msg( prec, 0, "initialization completed" );
         }
         else if ( prec->hls )
         {
@@ -692,8 +719,8 @@ static long process( dbCommon *precord )
                     prec->miss = 1;
                 }
             }
-            else if ( ! init )                            // first status update
-                log_msg( prec, 0, "initialization finished" );
+            else if ( first )                             // first status update
+                log_msg( prec, 0, "initialization completed" );
         }
         else if ( prec->mip & MIP_STOP  )
         {
@@ -710,8 +737,8 @@ static long process( dbCommon *precord )
             log_msg( prec, 0, "homed" );
             prec->miss = 0;
         }
-        else if ( ! init )                                // first status update
-            log_msg( prec, 0, "initialization finished" );
+        else if ( first )                                 // first status update
+            log_msg( prec, 0, "initialization completed" );
 
         if ( newval )
         {
@@ -791,13 +818,21 @@ static long process( dbCommon *precord )
               msta.Bits.NOT_INIT                               )     // NOT_INIT
         recGblSetSevr( (dbCommon *)prec, STATE_ALARM, MAJOR_ALARM   );
     else if ( msta.Bits.RA_POWERUP || msta.Bits.EA_SLIP_STALL  )
+    {
         recGblSetSevr( (dbCommon *)prec, STATE_ALARM, MINOR_ALARM   );
-    else if ( msta.Bits.RA_STALL   && (prec->stsv > NO_ALARM)  )      // stalled
+
+        if ( msta.Bits.RA_POWERUP    ) log_msg( prec, 0, "power cycled" );
+        if ( msta.Bits.EA_SLIP_STALL ) log_msg( prec, 0, "slip_stall"   );
+    }
+    else if ( msta.Bits.RA_STALL                               )      // stalled
+    {
+        if ( prec->stsv > NO_ALARM )
         recGblSetSevr( (dbCommon *)prec, STATE_ALARM, prec->stsv    );
 
-    prec->msta = msta.All;
-    log_msg( prec, 2, "msta =%x", prec->msta );
+        log_msg( prec, 0, "stall detected" );
+    }
 
+    prec->msta = msta.All;
     if ( old_msta != prec->msta ) MARK( M_MSTA );
 
     recGblGetTimeStamp( prec );
@@ -821,7 +856,7 @@ static long process_motor_info( imsRecord *prec, status_word sword, long count )
     short         old_movn, old_rlls, old_rhls, old_lls, old_hls;
     double        old_drbv, old_rbv;
     long          old_rrbv;
-    motor_status  old_msta, msta;
+    motor_status  msta;
 
     int           dir = (prec->dir == motorDIR_Positive) ? 1 : -1;
 
@@ -834,10 +869,7 @@ static long process_motor_info( imsRecord *prec, status_word sword, long count )
     old_drbv     = prec->drbv;
     old_rbv      = prec->rbv ;
 
-    old_msta.All = prec->msta;
-
     msta.All             = 0;
-    msta.Bits.NOT_INIT   = old_msta.Bits.NOT_INIT;
 
     msta.Bits.RA_MOVING  = sword.Bits.MOVING;
     msta.Bits.RA_EE      = sword.Bits.EE    ;
@@ -970,12 +1002,14 @@ static long special( dbAddr *pDbAddr, int after )
         else if ( fieldIndex == imsRecordDIR  ) prec->oval = prec->dir ;
         else if ( fieldIndex == imsRecordOFF  ) prec->oval = prec->off ;
         else if ( fieldIndex == imsRecordSET  ) prec->oval = prec->set ;
-        else if ( fieldIndex == imsRecordERES ) prec->oval = prec->eres;
-        else if ( fieldIndex == imsRecordSREV ) prec->oval = prec->srev;
         else if ( fieldIndex == imsRecordLLM  ) prec->oval = prec->llm ;
         else if ( fieldIndex == imsRecordHLM  ) prec->oval = prec->hlm ;
         else if ( fieldIndex == imsRecordDLLM ) prec->oval = prec->dllm;
         else if ( fieldIndex == imsRecordDHLM ) prec->oval = prec->dhlm;
+        else if ( fieldIndex == imsRecordEL   ) prec->oval = prec->el  ;
+        else if ( fieldIndex == imsRecordMS   ) prec->oval = prec->ms  ;
+        else if ( fieldIndex == imsRecordELMS ) prec->oval = prec->elms;
+        else if ( fieldIndex == imsRecordUREV ) prec->oval = prec->urev;
 
         return( OK );
     }
@@ -994,7 +1028,7 @@ static long special( dbAddr *pDbAddr, int after )
         case imsRecordSSTR:
             log_msg( prec, 1, "%s", prec->sstr );
 
-            status = sscanf( prec->sstr, "Status=%ld,P=%ldEOS", &sword, &count);
+            status = sscanf( prec->sstr, "%ld,P=%ldEOS", &sword, &count );
             if ( status == 2 )
             {
                 log_msg( prec, 2, "Status=%d,P=%d", sword, count );
@@ -1007,6 +1041,8 @@ static long special( dbAddr *pDbAddr, int after )
             }
             else
             {
+                log_msg( prec, 0, "Erroneous status string" );
+
                 mInfo->cMutex->lock();
 
                 mInfo->newData = 0;
@@ -1315,34 +1351,70 @@ static long special( dbAddr *pDbAddr, int after )
             }
 
             goto check_limit_violation;
-        case imsRecordERES:
-            if ( prec->eres <= 0. )
+        case imsRecordEL  :
+            if ( prec->el   <= 0 )
             {
-                prec->eres = prec->oval;
-                db_post_events( prec, &prec->eres, DBE_VAL_LOG );
+                prec->el   = prec->oval;
+                db_post_events( prec, &prec->el  , DBE_VAL_LOG );
                 break;
             }
 
-            goto set_res;
-        case imsRecordSREV:
-            if ( prec->srev <= 0. )
+            set_el:
+            sprintf( msg, "EL=%d", prec->el );
+            send_msg( mInfo->pasynUser, msg );
+
+            if ( prec->ee == motorAble_Enable ) goto set_res;
+
+            break;
+        case imsRecordMS  :
+            if ( prec->ms   <= 0 )
             {
-                prec->srev = prec->oval;
-                db_post_events( prec, &prec->srev, DBE_VAL_LOG );
+                prec->ms   = prec->oval;
+                db_post_events( prec, &prec->ms  , DBE_VAL_LOG );
                 break;
             }
-        case imsRecordUREV:
-            nval = prec->urev / prec->srev;
-            if ( prec->mres != nval )
+
+            set_ms:
+            sprintf( msg, "MS=%d", prec->ms );
+            send_msg( mInfo->pasynUser, msg );
+
+            if ( prec->ee != motorAble_Enable ) goto set_res;
+
+            break;
+        case imsRecordELMS:
+            if ( prec->elms <= 0 )
             {
-                prec->mres = nval;
-                db_post_events( prec, &prec->mres, DBE_VAL_LOG );
+                prec->elms = prec->oval;
+                db_post_events( prec, &prec->elms, DBE_VAL_LOG );
+                break;
+            }
+
+            if ( prec->ee == motorAble_Enable )
+            {
+                prec->el   = prec->elms;
+                db_post_events( prec, &prec->el  , DBE_VAL_LOG );
+                goto set_el;
+            }
+            else
+            {
+                prec->ms   = prec->elms;
+                db_post_events( prec, &prec->ms  , DBE_VAL_LOG );
+                goto set_ms;
+            }
+        case imsRecordUREV:
+            if ( prec->urev <= 0. )
+            {
+                prec->urev = prec->oval;
+                db_post_events( prec, &prec->urev, DBE_VAL_LOG );
+                break;
             }
 
             set_res:
             nval = prec->res;
-            if ( prec->ee == motorAble_Enable ) prec->res = prec->eres;
-            else                                prec->res = prec->mres;
+            if ( prec->ee == motorAble_Enable )
+                prec->res = prec->urev / prec->el /   4.;
+            else
+                prec->res = prec->urev / prec->ms / 200.;
 
             if ( prec->res != nval )
             {

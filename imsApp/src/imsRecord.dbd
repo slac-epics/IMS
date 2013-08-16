@@ -44,7 +44,7 @@ recordtype(ims) {
 	field(VERS,DBF_FLOAT) {
 		prompt("Code Version")
 		special(SPC_NOMOD)
-		initial("1")
+		initial(1)
 	}
 	field(PORT,DBF_STRING) {
 		prompt("Serial Port")
@@ -61,7 +61,7 @@ recordtype(ims) {
 		prompt("Debugging Level")
 		promptgroup(GUI_COMMON)
 		interest(1)
-		initial("0")
+		initial(0)
 	}
 	field(LOGA,DBF_NOACCESS) {
 		prompt("Log Message A")
@@ -147,22 +147,6 @@ recordtype(ims) {
 		asl(ASL0)
 		interest(1)
 	}
-	field(EE,DBF_MENU) {
-		prompt("Encoder Enable")
-		promptgroup(GUI_COMMON)
-		menu(motorAble)
-		special(SPC_MOD)
-		asl(ASL0)
-		interest(1)
-	}
-	field(EL,DBF_SHORT) {
-		prompt("Encoder Lines")
-		promptgroup(GUI_COMMON)
-		special(SPC_MOD)
-		asl(ASL0)
-		initial("512")
-		interest(1)
-	}
 	field(LM,DBF_MENU) {
 		prompt("Limit Stop Mode")
 		promptgroup(GUI_COMMON)
@@ -199,7 +183,7 @@ recordtype(ims) {
 		promptgroup(GUI_COMMON)
 		special(SPC_MOD)
 		asl(ASL0)
-		initial(0)
+		initial(5)
 		interest(1)
 	}
 	field(DE,DBF_MENU) {
@@ -208,6 +192,39 @@ recordtype(ims) {
 		menu(motorAble)
 		special(SPC_MOD)
 		asl(ASL0)
+		initial("Enable")
+		interest(1)
+	}
+	field(EE,DBF_MENU) {
+		prompt("Encoder Enable")
+		promptgroup(GUI_COMMON)
+		menu(motorAble)
+		special(SPC_MOD)
+		asl(ASL0)
+		initial("Disable")
+		interest(1)
+	}
+	field(EL,DBF_SHORT) {
+		prompt("Encoder Lines")
+		promptgroup(GUI_COMMON)
+		special(SPC_MOD)
+		asl(ASL0)
+		initial(512)
+		interest(1)
+	}
+	field(MS,DBF_SHORT) {
+		prompt("Microstep Revolution")
+		promptgroup(GUI_COMMON)
+		special(SPC_MOD)
+		initial(256)
+		interest(1)
+	}
+	field(ELMS,DBF_SHORT) {
+		prompt("Encoder Lines/MS Resolution")
+		promptgroup(GUI_COMMON)
+		special(SPC_MOD)
+		asl(ASL0)
+		interest(1)
 	}
 	field(MPGM,DBF_STRING) {
 		prompt("Name of the MCode Program")
@@ -226,31 +243,11 @@ recordtype(ims) {
 		size(16)
 		interest(1)
 	}
-	field(ERES,DBF_DOUBLE) {
-		prompt("Encoder Step Size (EGU)")
-		promptgroup(GUI_COMMON)
-		special(SPC_MOD)
-		initial(1)
-		interest(1)
-	}
-	field(SREV,DBF_LONG) {
-		prompt("Micro Steps Per Revolution")
-		promptgroup(GUI_COMMON)
-		special(SPC_MOD)
-		initial(51200)
-		interest(1)
-	}
 	field(UREV,DBF_DOUBLE) {
 		prompt("EGU's Per Revolution")
 		promptgroup(GUI_COMMON)
 		special(SPC_MOD)
 		initial(1)
-		interest(1)
-	}
-	field(MRES,DBF_DOUBLE) {
-		prompt("Motor Step Size (EGU)")
-		promptgroup(GUI_COMMON)
- 		special(SPC_NOMOD)
 		interest(1)
 	}
 	field(RES,DBF_DOUBLE) {

@@ -153,7 +153,7 @@ PG 1
 
     X2=X2+MV        ' LSB is MV
 
-    PR "BOSStatus=", X2, ",P=", P, "EOS"
+    PR "BOS", X2, ",P=", P, "EOS"
 
     R2=0            ' Reset the delay counter
     CL Rd, Us=0     ' Reset the status update delay
