@@ -14,8 +14,9 @@ struct ims_info
     epicsMutex *lMutex;
     int         nMessages;
     int         mLength;
-    int         cIndex;
     char       *sAddr;
+    int         cIndex;
+    bool        newMsg;
 };
 
 typedef union
@@ -107,6 +108,4 @@ typedef union
 
 #define NINT(f) (long)((f)>0 ? (f)+0.5 : (f)-0.5)             // Nearest integer
 
-
-void Debug( int level, const char *fmt, ... );
 

@@ -133,6 +133,7 @@ static long init_record( dbCommon *precord, int pass )
     mInfo->nMessages = 8;
     mInfo->mLength   = 61;
     mInfo->cIndex    = 0;
+    mInfo->newMsg    = 0;
     mInfo->sAddr     = (char *)calloc( 8*61, sizeof(char) );
 
     prec->loga       = mInfo->sAddr;
@@ -411,7 +412,7 @@ static long init_motor( imsRecord *prec )
             if ( ferror(fp) || feof(fp) ) break;
 
             send_msg( pasynUser, line );
-            Debug( 3, "%s", line );
+            log_msg( prec, -1, line );
 
             epicsThreadSleep( 0.1 );
         }
@@ -616,7 +617,7 @@ static long process( dbCommon *precord )
         prec->diff = prec->rbv - prec->val;
         if ( fabs(prec->diff) > prec->pdbd )
         {
-            log_msg( prec, 0, "slipped, diff = %f", prec->diff );
+            log_msg( prec, 0, "slipped, diff = %.6g", prec->diff );
             msta.Bits.EA_SLIP_STALL = 1;
         }
 
@@ -656,13 +657,13 @@ static long process( dbCommon *precord )
             {
                 if ( fabs(diff) < prec->rdbd )
                 {
-                    log_msg( prec, 0, "desired %f, reached %f",
+                    log_msg( prec, 0, "desired %.6g, reached %.6g",
                                       prec->val, prec->rbv );
                     prec->miss = 0;
                 }
                 else
                 {
-                    log_msg( prec, 0, "desired %f, reached %f, missed due to stall",
+                    log_msg( prec, 0, "desired %.6g, reached %.6g, missed due to stall",
                                       prec->val, prec->rbv );
                     prec->miss = 1;
                 }
@@ -682,13 +683,13 @@ static long process( dbCommon *precord )
             {
                 if ( fabs(diff) < prec->rdbd )
                 {
-                    log_msg( prec, 0, "desired %f, reached %f",
+                    log_msg( prec, 0, "desired %.6g, reached %.6g",
                                       prec->val, prec->rbv );
                     prec->miss = 0;
                 }
                 else
                 {
-                    log_msg( prec, 0, "desired %f, reached %f, missed due to low limit",
+                    log_msg( prec, 0, "desired %.6g, reached %.6g, missed due to low limit",
                                       prec->val, prec->rbv );
                     prec->miss = 1;
                 }
@@ -708,13 +709,13 @@ static long process( dbCommon *precord )
             {
                 if ( fabs(diff) < prec->rdbd )
                 {
-                    log_msg( prec, 0, "desired %f, reached %f",
+                    log_msg( prec, 0, "desired %.6g, reached %.6g",
                                       prec->val, prec->rbv );
                     prec->miss = 0;
                 }
                 else
                 {
-                    log_msg( prec, 0, "desired %f, reached %f, missed due to high limit",
+                    log_msg( prec, 0, "desired %.6g, reached %.6g, missed due to high limit",
                                       prec->val, prec->rbv );
                     prec->miss = 1;
                 }
@@ -755,7 +756,7 @@ static long process( dbCommon *precord )
     else if ( prec->mip == MIP_NEW ) new_move( prec );
     else if ( prec->mip == MIP_BL  )                              // do backlash
     {
-        log_msg( prec, 0, "move to: %f (DVAL: %f), with BACC and BVEL",
+        log_msg( prec, 0, "move to %.6g (DVAL: %.6g), with BACC & BVEL",
                           prec->val, prec->dval );
 
         prec->mip  = MIP_MOVE;
@@ -773,7 +774,7 @@ static long process( dbCommon *precord )
               (fabs(diff)       >= prec->rdbd) &&           // not closed enough
               (prec->rtry > 0) && (prec->rcnt < prec->rtry) )  // can retry more
     {
-        log_msg( prec, 0, "desired %f, reached %f, retrying %d ...",
+        log_msg( prec, 0, "desired %.6g, reached %.6g, retrying %d ...",
                           prec->val, prec->rbv, prec->rcnt++ );
 
         prec->mip  |= MIP_RETRY;
@@ -787,13 +788,13 @@ static long process( dbCommon *precord )
         prec->diff = diff;
         if ( fabs(diff) < prec->rdbd )
         {
-            log_msg( prec, 0, "desired %f, reached %f",
+            log_msg( prec, 0, "desired %.6g, reached %.6g",
                               prec->val, prec->rbv             );
             prec->miss = 0;
         }
         else
         {
-            log_msg( prec, 0, "desired %f, reached %f after %d retries",
+            log_msg( prec, 0, "desired %.6g, reached %.6g after %d retries",
                               prec->val, prec->rbv, prec->rcnt );
             prec->miss = 1;
         }
@@ -821,8 +822,7 @@ static long process( dbCommon *precord )
     {
         recGblSetSevr( (dbCommon *)prec, STATE_ALARM, MINOR_ALARM   );
 
-        if ( msta.Bits.RA_POWERUP    ) log_msg( prec, 0, "power cycled" );
-        if ( msta.Bits.EA_SLIP_STALL ) log_msg( prec, 0, "slip_stall"   );
+        if ( msta.Bits.RA_POWERUP ) log_msg( prec, 0, "power cycled" );
     }
     else if ( msta.Bits.RA_STALL                               )      // stalled
     {
@@ -929,7 +929,7 @@ static void new_move( imsRecord *prec )
              ((prec->bdst < 0) && (prec->drbv < prec->dval)) ||
              (fabs(prec->drbv - prec->dval) > prec->bdst   )    )
         {           // opposite direction, or long move, use ACCL and VELO first
-            log_msg( prec, 0, "move to: %f (DVAL: %f), with ACCL and VELO",
+            log_msg( prec, 0, "move to %.6g (DVAL: %.6g), with ACCL & VELO",
                               prec->val, prec->dval-prec->bdst );
 
             prec->mip  = MIP_BL  ;
@@ -943,7 +943,7 @@ static void new_move( imsRecord *prec )
         }
         else                // same direction and within BDST, use BACC and BVEL
         {
-            log_msg( prec, 0, "move to: %f (DVAL: %f), with BACC and BVEL",
+            log_msg( prec, 0, "move to %.6g (DVAL: %.6g), with BACC & BVEL",
                               prec->val, prec->dval            );
 
             prec->mip  = MIP_MOVE;
@@ -958,7 +958,7 @@ static void new_move( imsRecord *prec )
     }
     else                                       // no backlash, use ACCL and VELO
     {
-        log_msg( prec, 0, "move to: %f (DVAL: %f), with ACCL and VELO",
+        log_msg( prec, 0, "move to %.6g (DVAL: %.6g), with ACCL & VELO",
                           prec->val, prec->dval );
 
         prec->mip  = MIP_MOVE;
@@ -1878,32 +1878,6 @@ static void post_fields( imsRecord *prec, unsigned short alarm_mask,
 }
 
 /******************************************************************************/
-void Debug( int level, const char *fmt, ... )
-{
-    timespec  ts;
-    struct tm timeinfo;
-    char      timestamp[40], msec[4], msg[512];
-
-    va_list   args;
-
-    if ( level > imsRecordDebug ) return;
-
-    clock_gettime( CLOCK_REALTIME, &ts );
-    localtime_r( &ts.tv_sec, &timeinfo );
-
-    strftime( timestamp, 40, "%m/%d %H:%M:%S", &timeinfo );
-    sprintf ( msec, "%03d", int(ts.tv_nsec*1.e-6 + 0.5) );
-
-    va_start( args, fmt      );
-    vsprintf( msg, fmt, args );
-    va_end  ( args           );
-
-    printf  ( "%s.%s %s\n", timestamp, msec, msg );
-
-    return;
-}
-
-/******************************************************************************/
 static long log_msg( imsRecord *prec, int dlvl, const char *fmt, ... )
 {
     ims_info  *mInfo = (ims_info *)prec->dpvt;
@@ -1925,7 +1899,7 @@ static long log_msg( imsRecord *prec, int dlvl, const char *fmt, ... )
     vsprintf( msg, fmt, args );
     va_end  ( args           );
 
-    if ( dlvl <= prec->dlvl )
+    if ( (dlvl <= prec->dlvl) && (dlvl >= 0) )
     {
         mInfo->lMutex->lock();
 
@@ -1937,6 +1911,8 @@ static long log_msg( imsRecord *prec, int dlvl, const char *fmt, ... )
                   "%s %s", timestamp+6, msg );
 
         if ( mInfo->cIndex <= 7 ) mInfo->cIndex++;
+
+        mInfo->newMsg = 1;
 
         mInfo->lMutex->unlock();
     }
@@ -1950,6 +1926,16 @@ static long log_msg( imsRecord *prec, int dlvl, const char *fmt, ... )
 /******************************************************************************/
 static void post_msgs( imsRecord *prec )
 {
+    ims_info  *mInfo = (ims_info *)prec->dpvt;
+
+    mInfo->lMutex->lock();
+
+    if ( mInfo->newMsg == 0 )
+    {
+        mInfo->lMutex->unlock();
+        return;
+    }
+
     db_post_events( prec,  prec->loga, DBE_VAL_LOG );
     db_post_events( prec,  prec->logb, DBE_VAL_LOG );
     db_post_events( prec,  prec->logc, DBE_VAL_LOG );
@@ -1958,6 +1944,9 @@ static void post_msgs( imsRecord *prec )
     db_post_events( prec,  prec->logf, DBE_VAL_LOG );
     db_post_events( prec,  prec->logg, DBE_VAL_LOG );
     db_post_events( prec,  prec->logh, DBE_VAL_LOG );
+
+    mInfo->newMsg = 0;
+    mInfo->lMutex->unlock();
 
     return;
 }
