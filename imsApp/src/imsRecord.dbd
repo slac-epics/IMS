@@ -57,52 +57,6 @@ recordtype(ims) {
 		special(SPC_NOMOD)
 		interest(1)
 	}
-	field(DLVL,DBF_SHORT) {
-		prompt("Debugging Level")
-		promptgroup(GUI_COMMON)
-		interest(1)
-		initial(0)
-	}
-	field(LOGA,DBF_NOACCESS) {
-		prompt("Log Message A")
-		special(SPC_DBADDR)
-		extra("char *loga")
-	}
-	field(LOGB,DBF_NOACCESS) {
-		prompt("Log Message B")
-		special(SPC_DBADDR)
-		extra("char *logb")
-	}
-	field(LOGC,DBF_NOACCESS) {
-		prompt("Log Message C")
-		special(SPC_DBADDR)
-		extra("char *logc")
-	}
-	field(LOGD,DBF_NOACCESS) {
-		prompt("Log Message D")
-		special(SPC_DBADDR)
-		extra("char *logd")
-	}
-	field(LOGE,DBF_NOACCESS) {
-		prompt("Log Message E")
-		special(SPC_DBADDR)
-		extra("char *loge")
-	}
-	field(LOGF,DBF_NOACCESS) {
-		prompt("Log Message F")
-		special(SPC_DBADDR)
-		extra("char *logf")
-	}
-	field(LOGG,DBF_NOACCESS) {
-		prompt("Log Message G")
-		special(SPC_DBADDR)
-		extra("char *logg")
-	}
-	field(LOGH,DBF_NOACCESS) {
-		prompt("Log Message H")
-		special(SPC_DBADDR)
-		extra("char *logh")
-	}
 	field(PN,DBF_STRING) {
 		prompt("Part Number")
 		size(61)
@@ -302,14 +256,6 @@ recordtype(ims) {
 		promptgroup(GUI_COMMON)
 		interest(1)
 	}
-	field(LLM,DBF_DOUBLE) {
-		prompt("User Low Limit (EGU)")
-		special(SPC_MOD)
-	}
-	field(HLM,DBF_DOUBLE) {
-		prompt("User High Limit (EGU)")
-		special(SPC_MOD)
-	}
 	field(DLLM,DBF_DOUBLE) {
 		prompt("Dial Low Limit (EGU)")
 		promptgroup(GUI_COMMON)
@@ -318,6 +264,14 @@ recordtype(ims) {
 	field(DHLM,DBF_DOUBLE) {
 		prompt("Dial High Limit (EGU)")
 		promptgroup(GUI_COMMON)
+		special(SPC_MOD)
+	}
+	field(LLM,DBF_DOUBLE) {
+		prompt("User Low Limit (EGU)")
+		special(SPC_MOD)
+	}
+	field(HLM,DBF_DOUBLE) {
+		prompt("User High Limit (EGU)")
 		special(SPC_MOD)
 	}
 	field(RDBD,DBF_DOUBLE) {
@@ -358,24 +312,6 @@ recordtype(ims) {
 		initial(1)
 		interest(1)
 	}
-	field(VBAS,DBF_DOUBLE) {
-		prompt("Base Velocity (EGU/s)")
-		promptgroup(GUI_COMMON)
-		special(SPC_MOD)
-		interest(1)
-	}
-	field(VMAX,DBF_DOUBLE) {
-		prompt("Max. Velocity (EGU/s)")
-		promptgroup(GUI_COMMON)
-		special(SPC_MOD)
-		interest(1)
-	}
-	field(VELO,DBF_DOUBLE) {
-		prompt("Velocity (EGU/s)")
-		promptgroup(GUI_COMMON)
-		special(SPC_MOD)
-		interest(1)
-	}
 	field(SBAS,DBF_DOUBLE) {
 		prompt("Base Speed (RPS)")
 		promptgroup(GUI_COMMON)
@@ -397,26 +333,39 @@ recordtype(ims) {
 		initial(1.0)
 		interest(1)
 	}
+	field(VBAS,DBF_DOUBLE) {
+		prompt("Base Velocity (EGU/s)")
+		promptgroup(GUI_COMMON)
+		special(SPC_MOD)
+		interest(1)
+	}
+	field(VMAX,DBF_DOUBLE) {
+		prompt("Max. Velocity (EGU/s)")
+		promptgroup(GUI_COMMON)
+		special(SPC_MOD)
+		interest(1)
+	}
+	field(VELO,DBF_DOUBLE) {
+		prompt("Velocity (EGU/s)")
+		promptgroup(GUI_COMMON)
+		special(SPC_MOD)
+		interest(1)
+	}
 	field(BACC,DBF_DOUBLE) {
 		prompt("BL Seconds to Velocity")
 		promptgroup(GUI_COMMON)
 		initial(1)
 		interest(1)
 	}
-	field(BBAS,DBF_DOUBLE) {
-		prompt("BL Base Velocity (EGU/s)")
+	field(BS,DBF_DOUBLE) {
+		prompt("BL Speed (RPS)")
 		promptgroup(GUI_COMMON)
 		special(SPC_MOD)
+		initial(1.0)
 		interest(1)
 	}
 	field(BVEL,DBF_DOUBLE) {
 		prompt("BL Velocity (EGU/s)")
-		promptgroup(GUI_COMMON)
-		special(SPC_MOD)
-		interest(1)
-	}
-	field(BS,DBF_DOUBLE) {
-		prompt("BL Speed (RPS)")
 		promptgroup(GUI_COMMON)
 		special(SPC_MOD)
 		interest(1)
@@ -427,10 +376,11 @@ recordtype(ims) {
 		initial(1)
 		interest(1)
 	}
-	field(HBAS,DBF_DOUBLE) {
-		prompt("Home Base Velocity (EGU/s)")
+	field(HS,DBF_DOUBLE) {
+		prompt("Home Speed (RPS)")
 		promptgroup(GUI_COMMON)
 		special(SPC_MOD)
+		initial(1.0)
 		interest(1)
 	}
 	field(HVEL,DBF_DOUBLE) {
@@ -473,14 +423,6 @@ recordtype(ims) {
 		special(SPC_MOD)
 		asl(ASL0)
 	}
-	field(SPG,DBF_MENU) {
-		prompt("Stop/Pause/Go")
-		menu(motorSPG)
-		special(SPC_MOD)
-		asl(ASL0)
-		initial(2)
-		interest(1)
-	}
 	field(HOMF,DBF_SHORT) {
 		prompt("Home Forward")
 		special(SPC_MOD)
@@ -489,6 +431,19 @@ recordtype(ims) {
 	field(HOMR,DBF_SHORT) {
 		prompt("Home Reverse")
 		special(SPC_MOD)
+		interest(1)
+	}
+	field(LVIO,DBF_SHORT) {
+		prompt("Limit Violation")
+		special(SPC_NOMOD)
+		initial(1)
+	}
+	field(SPG,DBF_MENU) {
+		prompt("Stop/Pause/Go")
+		menu(motorSPG)
+		special(SPC_MOD)
+		asl(ASL0)
+		initial(2)
 		interest(1)
 	}
 	field(MIP,DBF_USHORT) {
@@ -506,33 +461,20 @@ recordtype(ims) {
 		special(SPC_NOMOD)
 		initial(1)
 	}
-	field(RBV,DBF_DOUBLE) {
-		prompt("User Readback Value")
+	field(RRBV,DBF_LONG) {
+		prompt("Raw Readback Value")
 		special(SPC_NOMOD)
 	}
 	field(DRBV,DBF_DOUBLE) {
 		prompt("Dial Readback Value")
 		special(SPC_NOMOD)
 	}
-	field(RRBV,DBF_LONG) {
-		prompt("Raw Readback Value")
+	field(RBV,DBF_DOUBLE) {
+		prompt("User Readback Value")
 		special(SPC_NOMOD)
 	}
 	field(DIFF,DBF_DOUBLE) {
 		prompt("Difference rbv-val")
-		special(SPC_NOMOD)
-	}
-	field(LVIO,DBF_SHORT) {
-		prompt("Limit Violation")
-		special(SPC_NOMOD)
-		initial(1)
-	}
-	field(LLS,DBF_SHORT) {
-		prompt("User Low Limit Switch")
-		special(SPC_NOMOD)
-	}
-	field(HLS,DBF_SHORT) {
-		prompt("User High Limit Switch")
 		special(SPC_NOMOD)
 	}
 	field(RLLS,DBF_SHORT) {
@@ -541,6 +483,14 @@ recordtype(ims) {
 	}
 	field(RHLS,DBF_SHORT) {
 		prompt("Raw High Limit Switch")
+		special(SPC_NOMOD)
+	}
+	field(LLS,DBF_SHORT) {
+		prompt("User Low Limit Switch")
+		special(SPC_NOMOD)
+	}
+	field(HLS,DBF_SHORT) {
+		prompt("User High Limit Switch")
 		special(SPC_NOMOD)
 	}
 	field(HLSV,DBF_MENU) {
@@ -597,6 +547,52 @@ recordtype(ims) {
 	field(RINI,DBF_SHORT) {
 		prompt("Re-initialize")
 		special(SPC_MOD)
+	}
+	field(DLVL,DBF_SHORT) {
+		prompt("Debugging Level")
+		promptgroup(GUI_COMMON)
+		interest(1)
+		initial(0)
+	}
+	field(LOGA,DBF_NOACCESS) {
+		prompt("Log Message A")
+		special(SPC_DBADDR)
+		extra("char *loga")
+	}
+	field(LOGB,DBF_NOACCESS) {
+		prompt("Log Message B")
+		special(SPC_DBADDR)
+		extra("char *logb")
+	}
+	field(LOGC,DBF_NOACCESS) {
+		prompt("Log Message C")
+		special(SPC_DBADDR)
+		extra("char *logc")
+	}
+	field(LOGD,DBF_NOACCESS) {
+		prompt("Log Message D")
+		special(SPC_DBADDR)
+		extra("char *logd")
+	}
+	field(LOGE,DBF_NOACCESS) {
+		prompt("Log Message E")
+		special(SPC_DBADDR)
+		extra("char *loge")
+	}
+	field(LOGF,DBF_NOACCESS) {
+		prompt("Log Message F")
+		special(SPC_DBADDR)
+		extra("char *logf")
+	}
+	field(LOGG,DBF_NOACCESS) {
+		prompt("Log Message G")
+		special(SPC_DBADDR)
+		extra("char *logg")
+	}
+	field(LOGH,DBF_NOACCESS) {
+		prompt("Log Message H")
+		special(SPC_DBADDR)
+		extra("char *logh")
 	}
 }
 

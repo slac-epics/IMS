@@ -25,6 +25,8 @@
 #undef GEN_SIZE_OFFSET
 
 #include "drvAsynIPPort.h"
+#include "asynDriver.h"
+#include "asynOctet.h"
 #include "asynOctetSyncIO.h"
 
 #include "epicsExport.h"
@@ -100,8 +102,15 @@ static void new_move          ( imsRecord *precord                            );
 static void post_fields       ( imsRecord *precord, unsigned short alarm_mask,
                                                     unsigned short all        );
 
+static void enforce_S         ( imsRecord *precord                            );
+static void enforce_BS        ( imsRecord *precord                            );
+static void enforce_HS        ( imsRecord *precord                            );
+
 static long send_msg          ( asynUser *pasynUser, char const *msg          );
 static long recv_reply        ( asynUser *pasynUser, char *rbbuf, int flag    );
+
+static void motor_callback    ( struct ims_info *mInfo                        );
+static void listen_to_motor   ( struct ims_info *mInfo                        );
 
 static long log_msg  ( imsRecord *prec, int dlvl, const char *fmt, ... );
 static void post_msgs( imsRecord *prec                                 );
@@ -127,6 +136,7 @@ static long init_record( dbCommon *precord, int pass )
     if ( pass > 0 ) return( status );
 
     mInfo = (ims_info *)malloc( sizeof(ims_info) );
+    mInfo->precord   = prec;
     mInfo->cMutex    = new epicsMutex();
 
     mInfo->lMutex    = new epicsMutex();
@@ -149,6 +159,19 @@ static long init_record( dbCommon *precord, int pass )
 
     connect_motor ( prec );
     init_motor    ( prec );
+
+    if ( (prec->smax > 0.) && (prec->smax < prec->sbas) )
+    {
+        prec->sbas = prec->smax;
+        db_post_events( prec, &prec->sbas, DBE_VAL_LOG );
+    }
+
+    prec->vbas = prec->urev * prec->sbas;
+    prec->vmax = prec->urev * prec->smax;
+
+    enforce_S ( prec );
+    enforce_BS( prec );
+    enforce_HS( prec );
 
     return( status );
 }
@@ -196,6 +219,14 @@ static long connect_motor( imsRecord *prec )
     mInfo->pasynUser = pasynUser;
 
     mInfo->cMutex->unlock();
+
+    callbackSetCallback( (void (*)(struct callbackPvt *)) motor_callback,
+                         &(mInfo->callback) );
+    callbackSetPriority( priorityMedium, &(mInfo->callback) );
+
+    epicsThreadCreate  ( prec->name, epicsThreadPriorityMedium,
+                         epicsThreadGetStackSize(epicsThreadStackMedium),
+                         (EPICSTHREADFUNC)listen_to_motor, (void *)mInfo );
 
     return( status );
 }
@@ -762,9 +793,9 @@ static long process( dbCommon *precord )
         prec->mip  = MIP_MOVE;
         prec->rval = NINT(prec->dval / prec->res);
 
-        VI = NINT( prec->bbas / prec->res );
+        VI = NINT( prec->vbas / prec->res );
         VM = NINT( prec->bvel / prec->res );
-        A  = NINT( (prec->bvel - prec->bbas) / prec->res / prec->bacc );
+        A  = NINT( (prec->bvel - prec->vbas) / prec->res / prec->bacc );
         sprintf( msg, "VI %d\r\n1VM %d\r\n1A %d\r\n1D=A\r\n1MA %d",
                       VI, VM, A, prec->rval );
         send_msg( mInfo->pasynUser, msg    );
@@ -949,9 +980,9 @@ static void new_move( imsRecord *prec )
             prec->mip  = MIP_MOVE;
             prec->rval = NINT(prec->dval                / prec->res);
 
-            VI = NINT( prec->bbas / prec->res );
+            VI = NINT( prec->vbas / prec->res );
             VM = NINT( prec->bvel / prec->res );
-            A  = NINT( (prec->bvel - prec->bbas) / prec->res / prec->bacc );
+            A  = NINT( (prec->bvel - prec->vbas) / prec->res / prec->bacc );
             sprintf( msg, "VI %d\r\n1VM %d\r\n1A %d\r\n1D=A\r\n1MA %d",
                           VI, VM, A, prec->rval );
         }
@@ -1216,9 +1247,9 @@ static long special( dbAddr *pDbAddr, int after )
         case imsRecordHOMF:
             if ( prec->spg != motorSPG_Go ) break;
 
-            VI = NINT( prec->hbas / prec->res );
+            VI = NINT( prec->vbas / prec->res );
             VM = NINT( prec->hvel / prec->res );
-            A  = NINT( (prec->hvel - prec->hbas) / prec->res / prec->hacc );
+            A  = NINT( (prec->hvel - prec->vbas) / prec->res / prec->hacc );
             if      ( (prec->dir  == motorDIR_Positive) &&
                       (prec->hmdr == motorDIR_Positive)    )
                 sprintf( msg, "VI %d\r\n1VM %d\r\n1A %d\r\n1D=A\r\n1H%c 4\r\n1Us=0",
@@ -1243,9 +1274,9 @@ static long special( dbAddr *pDbAddr, int after )
         case imsRecordHOMR:
             if ( prec->spg != motorSPG_Go ) break;
 
-            VI = NINT( prec->hbas / prec->res );
+            VI = NINT( prec->vbas / prec->res );
             VM = NINT( prec->hvel / prec->res );
-            A  = NINT( (prec->hvel - prec->hbas) / prec->res / prec->hacc );
+            A  = NINT( (prec->hvel - prec->vbas) / prec->res / prec->hacc );
             if      ( (prec->dir  == motorDIR_Positive) &&
                       (prec->hmdr == motorDIR_Positive)    )
                 sprintf( msg, "VI %d\r\n1VM %d\r\n1A %d\r\n1D=A\r\n1H%c 1\r\n1Us=0",
@@ -1425,9 +1456,33 @@ static long special( dbAddr *pDbAddr, int after )
             }
 
             break;
+        case imsRecordSBAS:
+            if ( (prec->smax > 0.) && (prec->sbas > prec->smax) )
+            {
+                prec->smax = prec->sbas;
+                db_post_events( prec, &prec->smax, DBE_VAL_LOG );
+            }
+        case imsRecordSMAX:
+            if ( (prec->smax > 0.) && (prec->smax < prec->sbas) )
+            {
+                prec->sbas = prec->smax;
+                db_post_events( prec, &prec->sbas, DBE_VAL_LOG );
+            }
+
+            prec->vbas = prec->urev * prec->sbas;
+            prec->vmax = prec->urev * prec->smax;
+            db_post_events( prec, &prec->vbas, DBE_VAL_LOG );
+            db_post_events( prec, &prec->vmax, DBE_VAL_LOG );
+
+            goto enforce_Ss;
         case imsRecordVBAS:
+            if ( (prec->vmax > 0.) && (prec->vbas > prec->vmax) )
+            {
+                prec->vmax = prec->vbas;
+                db_post_events( prec, &prec->vmax, DBE_VAL_LOG );
+            }
         case imsRecordVMAX:
-            if ( prec->vbas > prec->vmax )
+            if ( (prec->vmax > 0.) && (prec->vmax < prec->vbas) )
             {
                 prec->vbas = prec->vmax;
                 db_post_events( prec, &prec->vbas, DBE_VAL_LOG );
@@ -1437,131 +1492,71 @@ static long special( dbAddr *pDbAddr, int after )
             prec->smax = prec->vmax / prec->urev;
             db_post_events( prec, &prec->sbas, DBE_VAL_LOG );
             db_post_events( prec, &prec->smax, DBE_VAL_LOG );
+
+            enforce_Ss:
+            enforce_S ( prec );
+            enforce_BS( prec );
+            enforce_HS( prec );
+
+            break;
+        case imsRecordS   :
+            enforce_S ( prec );
+
+            break;
         case imsRecordVELO:
-            force_velo_in_range:
-            if ( prec->velo < prec->vbas )
+            if      ( (prec->velo > prec->vmax) && (prec->vmax > 0.) )
+            {
+                prec->velo = prec->vmax;
+                db_post_events( prec, &prec->velo, DBE_VAL_LOG );
+            }
+            else if ( prec->velo < prec->vbas )
             {
                 prec->velo = prec->vbas;
                 db_post_events( prec, &prec->velo, DBE_VAL_LOG );
             }
 
-            if ( prec->velo > prec->vmax )
-            {
-                prec->velo = prec->vmax;
-                db_post_events( prec, &prec->velo, DBE_VAL_LOG );
-            }
-
             prec->s    = prec->velo / prec->urev;
-            db_post_events( prec, &prec->s,    DBE_VAL_LOG );
-
-            if ( prec->bbas > prec->vmax )
-            {
-                prec->bbas = prec->vmax;
-                db_post_events( prec, &prec->bbas, DBE_VAL_LOG );
-            }
-
-            if ( prec->bvel > prec->vmax )
-            {
-                prec->bvel = prec->vmax;
-                db_post_events( prec, &prec->bvel, DBE_VAL_LOG );
-            }
-
-            if ( prec->bvel < prec->bbas )
-            {
-                prec->bvel = prec->bbas;
-                db_post_events( prec, &prec->bvel, DBE_VAL_LOG );
-            }
-
-            if ( prec->hbas > prec->vmax )
-            {
-                prec->hbas = prec->vmax;
-                db_post_events( prec, &prec->hbas, DBE_VAL_LOG );
-            }
-
-            if ( prec->hvel > prec->vmax )
-            {
-                prec->hvel = prec->vmax;
-                db_post_events( prec, &prec->hvel, DBE_VAL_LOG );
-            }
-
-            if ( prec->hvel < prec->hbas )
-            {
-                prec->hvel = prec->hbas;
-                db_post_events( prec, &prec->hvel, DBE_VAL_LOG );
-            }
+            db_post_events( prec, &prec->s   , DBE_VAL_LOG );
 
             break;
-        case imsRecordSBAS:
-        case imsRecordSMAX:
-            if ( prec->sbas > prec->smax )
-            {
-                prec->sbas = prec->smax;
-                db_post_events( prec, &prec->sbas, DBE_VAL_LOG );
-            }
-
-            prec->vbas = prec->sbas * prec->urev;
-            prec->vmax = prec->smax * prec->urev;
-            db_post_events( prec, &prec->vbas, DBE_VAL_LOG );
-            db_post_events( prec, &prec->vmax, DBE_VAL_LOG );
-
-            goto force_velo_in_range;
-        case imsRecordS   :
-            if ( prec->s    < prec->sbas )
-            {
-                prec->s    = prec->sbas;
-                db_post_events( prec, &prec->s,    DBE_VAL_LOG );
-            }
-
-            if ( prec->s    > prec->smax )
-            {
-                prec->s    = prec->smax;
-                db_post_events( prec, &prec->s,    DBE_VAL_LOG );
-            }
-
-            prec->velo = prec->s    * prec->urev;
-            db_post_events( prec, &prec->velo, DBE_VAL_LOG );
+        case imsRecordBS  :
+            enforce_BS( prec );
 
             break;
-        case imsRecordBBAS:
         case imsRecordBVEL:
-            if ( prec->bbas > prec->vmax )
-            {
-                prec->bbas = prec->vmax;
-                db_post_events( prec, &prec->bbas, DBE_VAL_LOG );
-            }
-
-            if ( prec->bvel > prec->vmax )
+            if      ( (prec->bvel > prec->vmax) && (prec->vmax > 0.) )
             {
                 prec->bvel = prec->vmax;
                 db_post_events( prec, &prec->bvel, DBE_VAL_LOG );
             }
-
-            if ( prec->bvel < prec->bbas )
+            else if ( prec->bvel < prec->vbas )
             {
-                prec->bvel = prec->bbas;
+                prec->bvel = prec->vbas;
                 db_post_events( prec, &prec->bvel, DBE_VAL_LOG );
             }
 
-            break;
-        case imsRecordHBAS:
-        case imsRecordHVEL:
-            if ( prec->hbas > prec->vmax )
-            {
-                prec->hbas = prec->vmax;
-                db_post_events( prec, &prec->hbas, DBE_VAL_LOG );
-            }
+            prec->bs   = prec->bvel / prec->urev;
+            db_post_events( prec, &prec->bs  , DBE_VAL_LOG );
 
-            if ( prec->hvel > prec->vmax )
+            break;
+        case imsRecordHS  :
+            enforce_HS( prec );
+
+            break;
+        case imsRecordHVEL:
+            if      ( (prec->hvel > prec->vmax) && (prec->vmax > 0.) )
             {
                 prec->hvel = prec->vmax;
                 db_post_events( prec, &prec->hvel, DBE_VAL_LOG );
             }
-
-            if ( prec->hvel < prec->hbas )
+            else if ( prec->hvel < prec->vbas )
             {
-                prec->hvel = prec->hbas;
+                prec->hvel = prec->vbas;
                 db_post_events( prec, &prec->hvel, DBE_VAL_LOG );
             }
+
+            prec->hs   = prec->hvel / prec->urev;
+            db_post_events( prec, &prec->hs  , DBE_VAL_LOG );
 
             break;
         case imsRecordWRTE:
@@ -1878,6 +1873,61 @@ static void post_fields( imsRecord *prec, unsigned short alarm_mask,
 }
 
 /******************************************************************************/
+static void motor_callback( struct ims_info *mInfo )
+{
+    scanOnce( (struct dbCommon *)mInfo->precord );
+}
+
+/******************************************************************************/
+static void listen_to_motor( struct ims_info *mInfo )
+{
+    imsRecord         *prec = mInfo->precord;
+
+    static const char  output_terminator[] = "\n";
+    static const char  input_terminator[]  = "\r\n";
+
+    char               rdbuf[256];
+    size_t received;
+    long bytesToRead=64, readMore;
+    int eomReason;
+
+    asynStatus         asyn_rtn;
+
+    asynUser *pasynListener = pasynManager->createAsynUser( 0, 0 );
+    asyn_rtn = pasynManager->connectDevice( pasynListener, prec->asyn, 1 );
+
+    // find the asynOctet interface
+    asynInterface* pasynInterface = pasynManager->findInterface( pasynListener,
+                                                                 asynOctetType,
+                                                                 true );
+//  if(!pasynInterface)
+//  {
+//      error("%s: bus %s does not support asynOctet interface\n",
+//          clientName(), busname);
+//      return false;
+//  }
+
+    asynOctet *pasynOctet = static_cast<asynOctet*>(pasynInterface->pinterface);
+    void *pvtOctet = pasynInterface->drvPvt;
+
+    while ( ! interruptAccept ) epicsThreadSleep( 1 );
+
+    printf( "%s -- waiting for messages ...\n", prec->name );
+    pasynListener->timeout = 0.01;
+    while( 1 )
+    {
+        received  = 0;
+        readMore  = 0;
+        eomReason = 0;
+
+        asyn_rtn = pasynOctet->read( pvtOctet, pasynListener, rdbuf,
+                                     bytesToRead, &received, &eomReason );
+
+        if ( received > 0 ) printf( "Got msg: %d, %s\n", received, rdbuf );
+    }
+}
+
+/******************************************************************************/
 static long log_msg( imsRecord *prec, int dlvl, const char *fmt, ... )
 {
     ims_info  *mInfo = (ims_info *)prec->dpvt;
@@ -1947,6 +1997,66 @@ static void post_msgs( imsRecord *prec )
 
     mInfo->newMsg = 0;
     mInfo->lMutex->unlock();
+
+    return;
+}
+
+/******************************************************************************/
+static void enforce_S ( imsRecord *prec )
+{
+    if      ( (prec->s    > prec->smax) && (prec->smax > 0.) )
+    {
+        prec->s    = prec->smax;
+        db_post_events( prec, &prec->s,    DBE_VAL_LOG );
+    }
+    else if ( prec->s    < prec->sbas )
+    {
+        prec->s    = prec->sbas;
+        db_post_events( prec, &prec->s,    DBE_VAL_LOG );
+    }
+
+    prec->velo = prec->urev * prec->s   ;
+    db_post_events( prec, &prec->velo, DBE_VAL_LOG );
+
+    return;
+}
+
+/******************************************************************************/
+static void enforce_BS( imsRecord *prec )
+{
+    if      ( (prec->bs   > prec->smax) && (prec->smax > 0.) )
+    {
+        prec->bs   = prec->smax;
+        db_post_events( prec, &prec->bs  , DBE_VAL_LOG );
+    }
+    else if ( prec->bs   < prec->sbas )
+    {
+        prec->bs   = prec->sbas;
+        db_post_events( prec, &prec->bs  , DBE_VAL_LOG );
+    }
+
+    prec->bvel = prec->urev * prec->bs  ;
+    db_post_events( prec, &prec->bvel, DBE_VAL_LOG );
+
+    return;
+}
+
+/******************************************************************************/
+static void enforce_HS( imsRecord *prec )
+{
+    if      ( (prec->hs   > prec->smax) && (prec->smax > 0.) )
+    {
+        prec->hs   = prec->smax;
+        db_post_events( prec, &prec->hs  , DBE_VAL_LOG );
+    }
+    else if ( prec->hs   < prec->sbas )
+    {
+        prec->hs   = prec->sbas;
+        db_post_events( prec, &prec->hs  , DBE_VAL_LOG );
+    }
+
+    prec->hvel = prec->urev * prec->hs  ;
+    db_post_events( prec, &prec->hvel, DBE_VAL_LOG );
 
     return;
 }

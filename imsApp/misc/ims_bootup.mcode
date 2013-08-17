@@ -1,11 +1,11 @@
 VA Ve     ' MCode version
 
 VA PU     ' Power up flag
-VA p1	  ' Saved position
-VA Sd	  ' Save deadband
-VA Hb     ' Heartbeat monitor
+VA p1     ' Saved position
+VA Sd     ' Save deadband
 VA Ns     ' Number of saves
 VA Us     ' Delay for status update
+VA Ak     ' Acknowledged
 VA X1
 VA X2
 
@@ -14,6 +14,7 @@ Ne=0      ' Disable numeric cmd
 p1=P      ' Start with current position
 Sd=Db*4   ' Set save deadband
 Us=18000
+Ak=1
 
 PG 1
   LB SU	            ' Run at power up
@@ -28,13 +29,12 @@ PG 1
   R3=0	            ' Reset the moved/slipped flag
   R4=0	            ' Reset the delay counter
 
-  Hb=0              ' Reset heartbeat monitor
   Us=18000
+  Ak=1
 
   LB Lp
     CL Ya, Mv=1	    ' Moving
     CL Za, Mv=0	    ' Not moving
-    IC Hb
     H  1
     BR Lp
 
@@ -46,6 +46,7 @@ PG 1
   LB Yb
     R1=1            ' Set the moving flag
     R2=0            ' Reset the delay counter
+    Ak=0
     RT
 
   LB Yc

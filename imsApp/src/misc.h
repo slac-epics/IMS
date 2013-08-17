@@ -1,22 +1,25 @@
 struct ims_info
 {
-    epicsMutex *cMutex;
-    asynUser   *pasynUser;
-    short       S1;                                                 // switch S1
-    short       S2;
-    short       S3;
-    bool        initialized;
+    CALLBACK          callback;
+    struct imsRecord *precord;
 
-    long        sword;
-    long        count;
-    bool        newData;
+    epicsMutex       *cMutex;
+    asynUser         *pasynUser;
+    short             S1;                                           // switch S1
+    short             S2;
+    short             S3;
+    bool              initialized;
 
-    epicsMutex *lMutex;
-    int         nMessages;
-    int         mLength;
-    char       *sAddr;
-    int         cIndex;
-    bool        newMsg;
+    long              sword;
+    long              count;
+    bool              newData;
+
+    epicsMutex       *lMutex;
+    int               nMessages;
+    int               mLength;
+    char             *sAddr;
+    int               cIndex;
+    bool              newMsg;
 };
 
 typedef union
