@@ -5,7 +5,7 @@ VA p1     ' Saved position
 VA Sd     ' Save deadband
 VA Ns     ' Number of saves
 VA Us     ' Delay for status update
-VA Ak     ' Acknowledged
+VA Sk     ' Scan or not
 VA X1
 VA X2
 
@@ -14,7 +14,7 @@ Ne=0      ' Disable numeric cmd
 p1=P      ' Start with current position
 Sd=Db*4   ' Set save deadband
 Us=18000
-Ak=1
+Sk=0
 
 PG 1
   LB SU	            ' Run at power up
@@ -30,7 +30,7 @@ PG 1
   R4=0	            ' Reset the delay counter
 
   Us=18000
-  Ak=1
+  Sk=0
 
   LB Lp
     CL Ya, Mv=1	    ' Moving
@@ -39,19 +39,19 @@ PG 1
     BR Lp
 
   LB Ya
-    CL Yc, R1=1     ' Has been moving
-    CL Yb, R1=0     ' Started moving
+    CL Yb, R1=1     ' Has been moving
+    CL Yc, R1=0     ' Started moving
     RT
 
   LB Yb
-    R1=1            ' Set the moving flag
-    R2=0            ' Reset the delay counter
-    Ak=0
+    IC R2           ' Increment the delay counter
+    CL Rp, R2>30    ' Has been 0.3 second, send report
     RT
 
   LB Yc
-    IC R2           ' Increment the delay counter
-    CL Rp, R2>29    ' Has been 0.3 second, send report
+    R1=1            ' Set the moving flag
+    R2=0            ' Reset the delay counter
+    Us=30
     RT
 
   LB Za
@@ -126,6 +126,14 @@ PG 1
     RT
 
   LB Rp
+    CL Ra, Sk=0
+    CL Rb, Sk=1
+
+    R2=0            ' Reset the delay counter
+    CL Rd, Us=0     ' Reset the status update delay
+    RT
+
+  LB Ra
     X2=NE*32768     ' bit-16 is the numeric enable
 
     X1=PU*16384     ' bit-15 is the power-up flag
@@ -155,9 +163,13 @@ PG 1
     X2=X2+MV        ' LSB is MV
 
     PR "BOS", X2, ",P=", P, "EOS"
+    RT
 
-    R2=0            ' Reset the delay counter
-    CL Rd, Us=0     ' Reset the status update delay
+  LB Rb
+    X2=ST* 8192     ' bit-14 is stall detection
+    X2=X2+MV        ' LSB is MV
+
+    PR "BOS", X2, ",P=", P, "EOS"
     RT
 
   LB Rd
