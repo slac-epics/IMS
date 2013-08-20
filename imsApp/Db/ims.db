@@ -67,7 +67,7 @@ record(stringin, "$(MOTOR):SAVED_TS") {
   field(DESC, "Time Stamp of Last Save")
   field(DTYP, "Soft Timestamp")
   field(TSEL, "$(MOTOR):SAVED_RAW.TIME")
-  field(INP,  "@%b %d %R:%S %Y")
+  field(INP,  "@%R:%S %b %d %Y")
 }
 
 record(stringout, "$(MOTOR):FWD_MEANS") {

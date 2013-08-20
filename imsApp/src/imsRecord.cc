@@ -577,7 +577,7 @@ static long process( dbCommon *precord )
     int             VI, VM, A, retry, rbby;
     status_word     sword;
     motor_status    msta;
-    bool            first;
+    bool            first, reset_us=FALSE;
 
     if ( prec->pact ) return( OK );
 
@@ -641,8 +641,7 @@ static long process( dbCommon *precord )
 
     msta.All = prec->msta;
 
-    if ( first ) send_msg( mInfo->pasynUser, "Us=18000" );// first status update
-    else if ( prec->mip == MIP_DONE )       // done moving, check for slip_stall
+    if ( (! first) && (prec->mip == MIP_DONE) ) // done moving, check slip_stall
     {
         old_diff   = prec->diff;
         prec->diff = prec->rbv - prec->val;
@@ -783,6 +782,8 @@ static long process( dbCommon *precord )
         }
 
         prec->rcnt = 0;
+
+        reset_us   = TRUE;
     }
     else if ( prec->mip == MIP_NEW ) new_move( prec );
     else if ( prec->mip == MIP_BL  )                              // do backlash
@@ -833,6 +834,8 @@ static long process( dbCommon *precord )
         prec->mip  = MIP_DONE;
         prec->dmov = 1;
         prec->rcnt = 0;
+
+        reset_us   = TRUE;
     }
 
     if ( old_mip  != prec->mip  ) MARK( M_MIP  );
@@ -844,6 +847,8 @@ static long process( dbCommon *precord )
     if ( old_rval != prec->rval ) MARK( M_RVAL );
 
     finished:
+    if ( reset_us ) send_msg( mInfo->pasynUser, "Us=18000" );
+
     if      ( msta.Bits.RA_PROBLEM                             )     // hardware
         recGblSetSevr( (dbCommon *)prec, COMM_ALARM,  INVALID_ALARM );
     else if ( msta.Bits.RA_BY0     || msta.Bits.RA_COMM_ERR ||  // BY=0 or wrong
