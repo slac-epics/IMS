@@ -693,7 +693,7 @@ static long process( dbCommon *precord )
                 }
                 else
                 {
-                    log_msg( prec, 0, "desired %.6g, reached %.6g, missed due to stall",
+                    log_msg( prec, 0, "desired %.6g, reached %.6g, missed due to ST",
                                       prec->val, prec->rbv );
                     prec->miss = 1;
                 }
@@ -719,7 +719,7 @@ static long process( dbCommon *precord )
                 }
                 else
                 {
-                    log_msg( prec, 0, "desired %.6g, reached %.6g, missed due to low limit",
+                    log_msg( prec, 0, "desired %.6g, reached %.6g, missed due to LLS",
                                       prec->val, prec->rbv );
                     prec->miss = 1;
                 }
@@ -745,7 +745,7 @@ static long process( dbCommon *precord )
                 }
                 else
                 {
-                    log_msg( prec, 0, "desired %.6g, reached %.6g, missed due to high limit",
+                    log_msg( prec, 0, "desired %.6g, reached %.6g, missed due to HLS",
                                       prec->val, prec->rbv );
                     prec->miss = 1;
                 }
@@ -913,7 +913,7 @@ static long process_motor_info( imsRecord *prec, status_word sword, long count )
     msta.Bits.RA_STALL   = sword.Bits.ST    ;
     msta.Bits.RA_POWERUP = sword.Bits.PU    ;
     msta.Bits.RA_NE      = sword.Bits.NE    ;
-    msta.Bits.RA_ERR     = sword.Bits.ERR & 127 ;
+    msta.Bits.RA_ERR     = sword.Bits.ERR & 127;
 
     prec->movn = msta.Bits.RA_MOVING;
 
@@ -1046,6 +1046,7 @@ static long special( dbAddr *pDbAddr, int after )
         else if ( fieldIndex == imsRecordMS   ) prec->oval = prec->ms  ;
         else if ( fieldIndex == imsRecordELMS ) prec->oval = prec->elms;
         else if ( fieldIndex == imsRecordUREV ) prec->oval = prec->urev;
+        else if ( fieldIndex == imsRecordMODE ) prec->oval = prec->mode;
 
         return( OK );
     }
@@ -1088,7 +1089,12 @@ static long special( dbAddr *pDbAddr, int after )
 
             break;
         case imsRecordVAL :
-            if ( (prec->val < prec->llm) || (prec->val > prec->hlm) )
+            if ( prec->spg != motorSPG_Go )
+            {
+                prec->val  = prec->oval;
+                break;
+            }
+            else if ( (prec->val < prec->llm) || (prec->val > prec->hlm) )
             {                                    // violated the software limits
                 prec->lvio = 1;                     // set limit violation alarm
                 prec->val  = prec->oval;
@@ -1102,7 +1108,12 @@ static long special( dbAddr *pDbAddr, int after )
 
             goto do_move2;
         case imsRecordDVAL:
-            if ( (prec->dval < prec->dllm) || (prec->dval > prec->dhlm) )
+            if ( prec->spg != motorSPG_Go )
+            {
+                prec->dval = prec->oval;
+                break;
+            }
+            else if ( (prec->dval < prec->dllm) || (prec->dval > prec->dhlm) )
             {                                    // violated the hardware limits
                 prec->lvio = 1;                     // set limit violation alarm
                 prec->dval = prec->oval;
@@ -1146,6 +1157,8 @@ static long special( dbAddr *pDbAddr, int after )
             nval = prec->val - prec->twv;
 
             tweak:
+            if ( prec->spg != motorSPG_Go ) break;
+
             if ( (nval < prec->llm) || (nval > prec->hlm) )
             {                                    // violated the software limits
                 prec->lvio = 1;                     // set limit violation alarm
@@ -1562,6 +1575,13 @@ static long special( dbAddr *pDbAddr, int after )
 
             prec->hs   = prec->hvel / prec->urev;
             db_post_events( prec, &prec->hs  , DBE_VAL_LOG );
+
+            break;
+        case imsRecordMODE:
+            if ( prec->mode == prec->oval ) break;
+
+            sprintf( msg, "Sk=%d", prec->mode );
+            send_msg( mInfo->pasynUser, msg );
 
             break;
         case imsRecordWRTE:

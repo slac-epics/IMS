@@ -38,6 +38,10 @@ menu(motorHMTP) {
         choice(motorHMTP_Encoder,       "Encoder"          )
         choice(motorHMTP_Switch,        "Switch"           )
 }
+menu(motorMode) {
+        choice(motorMode_Normal,        "Normal"           )
+        choice(motorMode_Scan,          "Scan"             )
+}
 
 recordtype(ims) {
 	include "dbCommon.dbd" 
@@ -189,6 +193,14 @@ recordtype(ims) {
 	field(DVER,DBF_USHORT) {
 		prompt("Desired MCode Version")
 		special(SPC_NOMOD)
+		interest(1)
+	}
+	field(MODE,DBF_MENU) {
+		prompt("Running Mode")
+		promptgroup(GUI_COMMON)
+		menu(motorMode)
+		special(SPC_MOD)
+		initial("Normal")
 		interest(1)
 	}
 	field(EGU,DBF_STRING) {

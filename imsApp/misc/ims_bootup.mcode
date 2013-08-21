@@ -63,44 +63,47 @@ PG 1
     CL Rp
 
     R1=0            ' Clear the moving flag
-    R3=1            ' Delay started by a move
-    R4=1            ' Start the delay counter for saving
+    R3=Sk           ' Delay started by a move
+    R4=Sk           ' Start the delay counter for saving
     RT
 
   LB Zc
     IC R2
 
-    CL Zd, R4>0     ' Moved or slipped, delaying for saving
-    CL Ze, R4=0     ' Check for slipping
-    CL Zg, R4>2000  ' Has delayed about 30 seconds
-
+    CL Zd, Sk=0     ' not scanning
     CL Rp, R2>=Us   ' Update status
     RT
 
   LB Zd
-    IC R4
+    CL Ze, R4>0     ' Moved or slipped, delaying for saving
+    CL Zf, R4=0     ' Check for slipping
+    CL Zh, R4>2000  ' Has delayed about 30 seconds
     RT
 
   LB Ze
-    X1=p1-Sd
-    X2=p1+Sd
-    CL Zf, P<X1	    ' Slipped below deadband
-    CL Zf, P>X2	    ' Slipped above deadband
+    IC R4
     RT
 
   LB Zf
+    X1=p1-Sd
+    X2=p1+Sd
+    CL Zg, P<X1	    ' Slipped below deadband
+    CL Zg, P>X2	    ' Slipped above deadband
+    RT
+
+  LB Zg
     CL Rp
 
     R3=0            ' Delay started by slipping
     R4=1            ' Start the delay counter
     RT
 
-  LB Zg
-    CL Zi, R3=0     ' Delay started by slipping
-    CL Zh, R3=1	    ' Delay started by a move
+  LB Zh
+    CL Zj, R3=0     ' Delay started by slipping
+    CL Zi, R3=1	    ' Delay started by a move
     RT
 
-  LB Zh
+  LB Zi
     p1=P            ' Assign P to P1
     S	            ' Save to NVM
     IC Ns           ' Increment the Save counter
@@ -109,19 +112,19 @@ PG 1
     PR "Saved ",P1
     RT
 
-  LB Zi
+  LB Zj
     X1=p1-Sd
     X2=p1+Sd
-    CL Zh, P<X1	    ' Really slipped below deadband
-    CL Zh, P>X2	    ' Really slipped above deadband
-    CL Zj, P>=X1    ' Came back or not
-    RT
-
-  LB Zj
-    CL Zk, P<=X2    ' Came back
+    CL Zi, P<X1	    ' Really slipped below deadband
+    CL Zi, P>X2	    ' Really slipped above deadband
+    CL Zk, P>=X1    ' Came back or not
     RT
 
   LB Zk
+    CL Zl, P<=X2    ' Came back
+    RT
+
+  LB Zl
     R4=0            ' Came back, reset the delay counter
     RT
 
