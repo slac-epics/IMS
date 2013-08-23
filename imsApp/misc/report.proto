@@ -8,7 +8,7 @@ WriteTimeout  = 100;
 ExtraInput    = Ignore;
 
 # Reports from the controller
-STATUS  { ReplyTimeout = 50; ReadTimeout = 10; InTerminator =; in "BOS%s";    }
+STATUS  { ReplyTimeout = 50; ReadTimeout = 10; InTerminator =; in "%.1/BOS([0-9,P=]*EOS)\r\n$/"; }
 
 SAVED_P { ReplyTimeout = 50; ReadTimeout = 10; InTerminator =; in "Saved %d"; }
 

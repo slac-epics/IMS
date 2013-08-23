@@ -89,7 +89,6 @@ extern "C" { epicsExportAddress( rset, imsRSET ); }
 #define MIP_PAUSE    0x0400    // Move is paused
 
 #define MAX_MSG_SIZE 61
-#define FLUSH        -1
 
 #define OK            0
 
@@ -106,8 +105,9 @@ static void enforce_S         ( imsRecord *precord                            );
 static void enforce_BS        ( imsRecord *precord                            );
 static void enforce_HS        ( imsRecord *precord                            );
 
+static void flush_asyn        ( asynUser *pasynUser                           );
 static long send_msg          ( asynUser *pasynUser, char const *msg          );
-static long recv_reply        ( asynUser *pasynUser, char *rbbuf, int flag    );
+static long recv_reply        ( asynUser *pasynUser, char *rbbuf              );
 
 static void motor_callback    ( struct ims_info *mInfo                        );
 static void listen_to_motor   ( struct ims_info *mInfo                        );
@@ -250,12 +250,14 @@ static long init_motor( imsRecord *prec )
 
     msta.All = 0;
 
+    flush_asyn( pasynUser );
+
     // read the part number
     retry = 0;
     do
     {
         send_msg( pasynUser, "PR \"PN=\",PN" );
-        status = recv_reply( pasynUser, rbbuf, 1 );
+        status = recv_reply( pasynUser, rbbuf );
         if ( (status > 0) && (strlen(rbbuf) > 3) )
         {
             if      ( strncmp(rbbuf,                   "PN=", 3) == 0 )
@@ -284,7 +286,7 @@ static long init_motor( imsRecord *prec )
     do
     {
         send_msg( pasynUser, "PR \"SN=\",SN" );
-        status = recv_reply( pasynUser, rbbuf, 1 );
+        status = recv_reply( pasynUser, rbbuf );
         if ( (status > 0) && (strlen(rbbuf) > 3) )
         {
             if      ( strncmp(rbbuf,                   "SN=", 3) == 0 )
@@ -313,7 +315,7 @@ static long init_motor( imsRecord *prec )
     do
     {
         send_msg( pasynUser, "PR \"S1=\",S1,\", S2=\",S2,\", S3=\",S3" );
-        status = recv_reply( pasynUser, rbbuf, 1 );
+        status = recv_reply( pasynUser, rbbuf );
         if ( status > 0 )
         {
             status = sscanf( rbbuf, "S1=%d, %d, %d, S2=%d, %d, %d, S3=%d, %d, %d",
@@ -365,7 +367,7 @@ static long init_motor( imsRecord *prec )
     do
     {
         send_msg( pasynUser, "PR \"NE=\",NE,\", LM=\",LM,\", SM=\",SM" );
-        status = recv_reply( pasynUser, rbbuf, 1 );
+        status = recv_reply( pasynUser, rbbuf );
         if ( status > 0 )
         {
             status = sscanf( rbbuf, "NE=%d, LM=%d, SM=%d", &rbne, &rblm, &rbsm);
@@ -404,7 +406,7 @@ static long init_motor( imsRecord *prec )
     do
     {
         send_msg( pasynUser, "PR \"VE=\",VE,\", BY=\",BY" );
-        status = recv_reply( pasynUser, rbbuf, 1 );
+        status = recv_reply( pasynUser, rbbuf );
         if ( status > 0 )
         {
             status = sscanf( rbbuf, "VE=%d, BY=%d", &rbve, &rbby );
@@ -591,15 +593,19 @@ static long process( dbCommon *precord )
 
         msta.All = prec->msta;
 
+        flush_asyn( mInfo->pasynUser );
+
         // check the MCode running status
         retry = 0;
         do
         {
             send_msg( mInfo->pasynUser, "PR \"BY=\",BY" );
-            status = recv_reply( mInfo->pasynUser, msg, 1 );
+            status = recv_reply( mInfo->pasynUser, msg );
+            printf( "status = %d\n", status );
             if ( status > 0 )
             {
                 status = sscanf( msg, "BY=%d", &rbby );
+                printf( "status = %d, rbby = %d\n", status, rbby );
                 if ( status == 1 ) break;
             }
 
@@ -641,6 +647,8 @@ static long process( dbCommon *precord )
 
     msta.All = prec->msta;
 
+    if ( prec->movn ) goto finished;                                   // moving
+
     if ( (! first) && (prec->mip == MIP_DONE) ) // done moving, check slip_stall
     {
         old_diff   = prec->diff;
@@ -655,8 +663,6 @@ static long process( dbCommon *precord )
 
         goto finished;
     }
-
-    if ( prec->movn ) goto finished;                                   // moving
 
     old_mip  = prec->mip ;
     old_dmov = prec->dmov;
@@ -802,7 +808,8 @@ static long process( dbCommon *precord )
         send_msg( mInfo->pasynUser, msg    );
         send_msg( mInfo->pasynUser, "Us=0" );
     }
-    else if ( (fabs(prec->bdst) <= prec->res ) &&      // no backlash, can retry
+    else if ( (motorMode_Normal == prec->mode) &&       // normal mode, not scan
+              (fabs(prec->bdst) <= prec->res ) &&      // no backlash, can retry
               (fabs(diff)       >= prec->rdbd) &&           // not closed enough
               (prec->rtry > 0) && (prec->rcnt < prec->rtry) )  // can retry more
     {
@@ -1019,7 +1026,7 @@ static long special( dbAddr *pDbAddr, int after )
 {
     imsRecord      *prec = (imsRecord *) pDbAddr->precord;
     ims_info       *mInfo = (ims_info *)prec->dpvt;
-    char            MI = (prec->hmtp == motorHMTP_Switch) ? 'M' : 'I';
+    char            MI = (prec->htyp == motorHTYP_Switch) ? 'M' : 'I';
     char            msg[MAX_MSG_SIZE], rbbuf[MAX_MSG_SIZE];
     char            fmt[MAX_MSG_SIZE], rbstr[MAX_MSG_SIZE];
     long            sword, count, old_rval, new_rval;
@@ -1046,6 +1053,7 @@ static long special( dbAddr *pDbAddr, int after )
         else if ( fieldIndex == imsRecordMS   ) prec->oval = prec->ms  ;
         else if ( fieldIndex == imsRecordELMS ) prec->oval = prec->elms;
         else if ( fieldIndex == imsRecordUREV ) prec->oval = prec->urev;
+        else if ( fieldIndex == imsRecordEE   ) prec->oval = prec->ee  ;
         else if ( fieldIndex == imsRecordMODE ) prec->oval = prec->mode;
 
         return( OK );
@@ -1269,19 +1277,19 @@ static long special( dbAddr *pDbAddr, int after )
             VM = NINT( prec->hvel / prec->res );
             A  = NINT( (prec->hvel - prec->vbas) / prec->res / prec->hacc );
             if      ( (prec->dir  == motorDIR_Positive) &&
-                      (prec->hmdr == motorDIR_Positive)    )
+                      (prec->hdir == motorDIR_Positive)    )
                 sprintf( msg, "VI %d\r\n1VM %d\r\n1A %d\r\n1D=A\r\n1H%c 4\r\n1Us=0",
                               VI, VM, A, MI );
             else if ( (prec->dir  == motorDIR_Positive) &&
-                      (prec->hmdr == motorDIR_Negative)    )
+                      (prec->hdir == motorDIR_Negative)    )
                 sprintf( msg, "VI %d\r\n1VM %d\r\n1A %d\r\n1D=A\r\n1H%c 3\r\n1Us=0",
                               VI, VM, A, MI );
             else if ( (prec->dir  == motorDIR_Negative) &&
-                      (prec->hmdr == motorDIR_Positive)    )
+                      (prec->hdir == motorDIR_Positive)    )
                 sprintf( msg, "VI %d\r\n1VM %d\r\n1A %d\r\n1D=A\r\n1H%c 2\r\n1Us=0",
                               VI, VM, A, MI );
             else if ( (prec->dir  == motorDIR_Negative) &&
-                      (prec->hmdr == motorDIR_Negative)    )
+                      (prec->hdir == motorDIR_Negative)    )
                 sprintf( msg, "VI %d\r\n1VM %d\r\n1A %d\r\n1D=A\r\n1H%c 1\r\n1Us=0",
                               VI, VM, A, MI );
  
@@ -1296,19 +1304,19 @@ static long special( dbAddr *pDbAddr, int after )
             VM = NINT( prec->hvel / prec->res );
             A  = NINT( (prec->hvel - prec->vbas) / prec->res / prec->hacc );
             if      ( (prec->dir  == motorDIR_Positive) &&
-                      (prec->hmdr == motorDIR_Positive)    )
+                      (prec->hdir == motorDIR_Positive)    )
                 sprintf( msg, "VI %d\r\n1VM %d\r\n1A %d\r\n1D=A\r\n1H%c 1\r\n1Us=0",
                               VI, VM, A, MI );
             else if ( (prec->dir  == motorDIR_Positive) &&
-                      (prec->hmdr == motorDIR_Negative)    )
+                      (prec->hdir == motorDIR_Negative)    )
                 sprintf( msg, "VI %d\r\n1VM %d\r\n1A %d\r\n1D=A\r\n1H%c 2\r\n1Us=0",
                               VI, VM, A, MI );
             else if ( (prec->dir  == motorDIR_Negative) &&
-                      (prec->hmdr == motorDIR_Positive)    )
+                      (prec->hdir == motorDIR_Positive)    )
                 sprintf( msg, "VI %d\r\n1VM %d\r\n1A %d\r\n1D=A\r\n1H%c 3\r\n1Us=0",
                               VI, VM, A, MI );
             else if ( (prec->dir  == motorDIR_Negative) &&
-                      (prec->hmdr == motorDIR_Negative)    )
+                      (prec->hdir == motorDIR_Negative)    )
                 sprintf( msg, "VI %d\r\n1VM %d\r\n1A %d\r\n1D=A\r\n1H%c 4\r\n1Us=0",
                               VI, VM, A, MI );
  
@@ -1467,8 +1475,12 @@ static long special( dbAddr *pDbAddr, int after )
 
             if ( prec->res != nval )
             {
-                prec->drbv = prec->rrbv * prec->res;
-                prec->rbv  = (1. - 2.*prec->dir) * prec->drbv + prec->off;
+                if ( prec->set == motorSET_Use )
+                {
+                    prec->drbv = prec->rrbv * prec->res;
+                    prec->rbv  = (1. - 2.*prec->dir) * prec->drbv + prec->off;
+                    prec->val  = prec->rbv;
+                }
 
                 db_post_events( prec, &prec->res,  DBE_VAL_LOG );
             }
@@ -1577,10 +1589,26 @@ static long special( dbAddr *pDbAddr, int after )
             db_post_events( prec, &prec->hs  , DBE_VAL_LOG );
 
             break;
+        case imsRecordEE  :
+            if ( prec->ee   == prec->oval ) break;
+
+            sprintf( msg, "EE=%d", prec->ee );
+            send_msg( mInfo->pasynUser, msg );
+
+            nval = prec->res;
+            if ( prec->ee   == motorAble_Enable )
+                prec->res = prec->urev / prec->el /   4.;
+            else
+                prec->res = prec->urev / prec->ms / 200.;
+
+            if ( prec->res  != nval )
+                db_post_events( prec, &prec->res,  DBE_VAL_LOG );
+
+            break;
         case imsRecordMODE:
             if ( prec->mode == prec->oval ) break;
 
-            sprintf( msg, "Sk=%d", prec->mode );
+            sprintf( msg, "Sk=%d\r\n1Us=0", prec->mode );
             send_msg( mInfo->pasynUser, msg );
 
             break;
@@ -1596,7 +1624,7 @@ static long special( dbAddr *pDbAddr, int after )
             do
             {
                 send_msg( mInfo->pasynUser, msg );
-                status = recv_reply( mInfo->pasynUser, rbbuf, 1 );
+                status = recv_reply( mInfo->pasynUser, rbbuf );
                 if ( status > 0 )
                 {
                     status = sscanf( rbbuf, fmt, rbstr );
@@ -1753,6 +1781,13 @@ static long get_alarm_double( dbAddr  *paddr, struct dbr_alDouble * pad)
 }
 
 /******************************************************************************/
+static void flush_asyn( asynUser *pasynUser )
+{
+    pasynOctetSyncIO->flush( pasynUser );
+    return;
+}
+
+/******************************************************************************/
 static long send_msg( asynUser *pasynUser, char const *msg )
 {
     char         local_buf[MAX_MSG_SIZE];
@@ -1767,18 +1802,15 @@ static long send_msg( asynUser *pasynUser, char const *msg )
 }
 
 /******************************************************************************/
-static long recv_reply( asynUser *pasynUser, char *rbbuf, int flag )
+static long recv_reply( asynUser *pasynUser, char *rbbuf )
 {
     const double timeout  = 1.0;
     size_t       nread    = 0;
     asynStatus   asyn_rtn = asynError;
     int          eomReason;
 
-    if ( flag == FLUSH )
-        pasynOctetSyncIO->flush( pasynUser );
-    else
-        asyn_rtn = pasynOctetSyncIO->read( pasynUser, rbbuf, MAX_MSG_SIZE,
-                                           timeout, &nread, &eomReason );
+    asyn_rtn = pasynOctetSyncIO->read( pasynUser, rbbuf, MAX_MSG_SIZE,
+                                       timeout, &nread, &eomReason );
 
     if ( (asyn_rtn != asynSuccess) || (nread <= 0) )
     {

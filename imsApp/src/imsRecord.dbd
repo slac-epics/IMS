@@ -34,9 +34,9 @@ menu(motorSPG) {
 	choice(motorSPG_Pause,          "Pause"            )
 	choice(motorSPG_Go,             "Go"               )
 }
-menu(motorHMTP) {
-        choice(motorHMTP_Encoder,       "Encoder"          )
-        choice(motorHMTP_Switch,        "Switch"           )
+menu(motorHTYP) {
+        choice(motorHTYP_Encoder,       "Encoder"          )
+        choice(motorHTYP_Switch,        "Switch"           )
 }
 menu(motorMode) {
         choice(motorMode_Normal,        "Normal"           )
@@ -248,15 +248,14 @@ recordtype(ims) {
 		asl(ASL0)
 		interest(1)
 	}
-	field(HMTP,DBF_MENU) {
+	field(HTYP,DBF_MENU) {
 		prompt("Homing Type")
 		promptgroup(GUI_COMMON)
-		menu(motorHMTP)
-		special(SPC_NOMOD)
+		menu(motorHTYP)
 		initial("Switch")
 		interest(1)
 	}
-	field(HMDR,DBF_MENU) {
+	field(HDIR,DBF_MENU) {
 		prompt("Homing Direction")
 		promptgroup(GUI_COMMON)
 		menu(motorDIR)
