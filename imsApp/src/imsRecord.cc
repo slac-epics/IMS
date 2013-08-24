@@ -220,13 +220,13 @@ static long connect_motor( imsRecord *prec )
 
     mInfo->cMutex->unlock();
 
-    callbackSetCallback( (void (*)(struct callbackPvt *)) motor_callback,
-                         &(mInfo->callback) );
-    callbackSetPriority( priorityMedium, &(mInfo->callback) );
+//  callbackSetCallback( (void (*)(struct callbackPvt *)) motor_callback,
+//                       &(mInfo->callback) );
+//  callbackSetPriority( priorityMedium, &(mInfo->callback) );
 
-    epicsThreadCreate  ( prec->name, epicsThreadPriorityMedium,
-                         epicsThreadGetStackSize(epicsThreadStackMedium),
-                         (EPICSTHREADFUNC)listen_to_motor, (void *)mInfo );
+//  epicsThreadCreate  ( prec->name, epicsThreadPriorityMedium,
+//                       epicsThreadGetStackSize(epicsThreadStackMedium),
+//                       (EPICSTHREADFUNC)listen_to_motor, (void *)mInfo );
 
     return( status );
 }
@@ -240,7 +240,7 @@ static long init_motor( imsRecord *prec )
     asynUser       *pasynUser = mInfo->pasynUser;
     char            msg[MAX_MSG_SIZE], rbbuf[MAX_MSG_SIZE];
     int             s1, s2, s3, a1, a2, a3, d1, d2, d3;
-    int             rbne, rblm, rbsm, rbve, rbby;
+    int             rbne, rblm, rbsm, rbms, rbve, rbby;
     int             retry, status = 0;
     epicsUInt32     old_msta = prec->msta;
     motor_status    msta;
@@ -362,16 +362,17 @@ static long init_motor( imsRecord *prec )
         goto finished;
     }
 
-    // read the numeric enable, limit stop mode and stall mode
+    // read the numeric enable, limit stop mode, stall mode and MS
     retry = 0;
     do
     {
-        send_msg( pasynUser, "PR \"NE=\",NE,\", LM=\",LM,\", SM=\",SM" );
+        send_msg( pasynUser, "PR \"NE=\",NE,\", LM=\",LM,\", SM=\",SM,\", MS=\",MS" );
         status = recv_reply( pasynUser, rbbuf );
         if ( status > 0 )
         {
-            status = sscanf( rbbuf, "NE=%d, LM=%d, SM=%d", &rbne, &rblm, &rbsm);
-            if ( status == 3 )
+            status = sscanf( rbbuf, "NE=%d, LM=%d, SM=%d, MS=%d",
+                                    &rbne, &rblm, &rbsm, &rbms );
+            if ( status == 4 )
             {
                 if ( rbne == 0 || rbne == 1 ) prec->ne = rbne;    // 1 : enabled
                 else                          status = 0;
@@ -381,21 +382,25 @@ static long init_motor( imsRecord *prec )
 
                 if ( rbsm == 0 || rbsm == 1 ) prec->sm = rbsm;    // 1 : no stop
                 else                          status = 0;
+
+                if ( rbms  > 0              ) prec->ms = rbms;
+                else                          status = 0;
             }
             else
                 status = 0;
         }
 
         epicsThreadSleep( 0.2 );
-    } while ( (status != 3) && (retry++ < 3) );
+    } while ( (status != 4) && (retry++ < 3) );
 
-    if ( status != 3 )
+    if ( status != 4 )
     {
-        log_msg( prec, 0, "Failed to read NE, LM and SM" );
+        log_msg( prec, 0, "Failed to read NE, LM, SM and MS" );
 
         prec->ne = 0;
         prec->lm = 0;
         prec->sm = 0;
+        prec->ms = 0;
 
         msta.Bits.RA_PROBLEM = 1;
         goto finished;
@@ -451,7 +456,7 @@ static long init_motor( imsRecord *prec )
         }
 
         fclose(fp);
-        epicsThreadSleep( 3 );
+        epicsThreadSleep( 2 );
 
         send_msg( pasynUser, "EX=1" );
         epicsThreadSleep( 1 );
@@ -486,10 +491,11 @@ static long init_motor( imsRecord *prec )
     epicsThreadSleep( 0.1 );
 
     if ( prec->el <= 0 ) prec->el = 1;
-    if ( prec->ms <= 0 ) prec->ms = 1;
-    if ( prec->ee == motorAble_Enable ) sprintf( msg, "EL=%d", prec->el );
-    else                                sprintf( msg, "MS=%d", prec->ms );
-    send_msg( mInfo->pasynUser, msg );
+    if ( prec->ee == motorAble_Enable )
+    {
+        sprintf( msg, "EL=%d", prec->el );
+        send_msg( mInfo->pasynUser, msg );
+    }
 
     epicsThreadSleep( 0.1 );
 

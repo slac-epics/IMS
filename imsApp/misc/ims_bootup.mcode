@@ -63,15 +63,15 @@ PG 1
     CL Rp
 
     R1=0            ' Clear the moving flag
-    R3=Sk           ' Delay started by a move
-    R4=Sk           ' Start the delay counter for saving
+    R3=1            ' Delay started by a move
+    R4=1            ' Start the delay counter for saving
     RT
 
   LB Zc
     IC R2
 
     CL Zd, Sk=0     ' not scanning
-    CL Rp, R2>=Us   ' Update status
+    CL Rp, R2>Us    ' Update status
     RT
 
   LB Zd
