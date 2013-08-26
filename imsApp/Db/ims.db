@@ -97,35 +97,35 @@ record(calcout, "$(MOTOR):CheckUpdate") {
 record(stringout, "$(MOTOR):EXE_PG") {
   field(DESC, "Start The MCode Program")
   field(OMSL, "closed_loop")
-  field(VAL,  "EX=1")
+  field(VAL,  "EX 1")
   field(OUT,  "$(MOTOR).WRTE")
 }
 
 record(stringout, "$(MOTOR):CLEAR_PU") {
   field(DESC, "Clear The Power-Up Flag")
   field(OMSL, "closed_loop")
-  field(VAL,  "PU=0")
+  field(VAL,  "PU 0")
   field(OUT,  "$(MOTOR).WRTE")
 }
 
 record(stringout, "$(MOTOR):CLEAR_ST") {
   field(DESC, "Clear The Stall Flag")
   field(OMSL, "closed_loop")
-  field(VAL,  "ST=0")
+  field(VAL,  "ST 0")
   field(OUT,  "$(MOTOR).WRTE")
 }
 
 record(stringout, "$(MOTOR):CLEAR_ER") {
   field(DESC, "Clear The Error Code")
   field(OMSL, "closed_loop")
-  field(VAL,  "ER=0")
+  field(VAL,  "ER 0")
   field(OUT,  "$(MOTOR).WRTE")
 }
 
 record(stringout, "$(MOTOR):UPDATE_NOW") {
   field(DESC, "Update The Status Now")
   field(OMSL, "closed_loop")
-  field(VAL,  "US=0")
+  field(VAL,  "US 0")
   field(OUT,  "$(MOTOR).WRTE")
 }
 
