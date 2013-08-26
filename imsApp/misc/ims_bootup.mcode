@@ -9,28 +9,28 @@ VA Sk     ' Scan or not
 VA X1
 VA X2
 
-Ve=3      ' Version 3
-Ne=0      ' Disable numeric cmd
-p1=P      ' Start with current position
-Sd=Db*4   ' Set save deadband
-Us=18000
-Sk=0
+Ve 3      ' Version 3
+Ne 0      ' Disable numeric cmd
+p1 P      ' Start with current position
+Sd Db*4   ' Set save deadband
+Us 18000
+Sk 0
 
 PG 1
   LB SU	            ' Run at power up
 
   H 1000            ' 1 second hold let motor boot-up
 
-  PU=1	            ' Set the Power-Up flag
-  P=p1         	    ' Restore last saved position
+  PU 1	            ' Set the Power-Up flag
+  P p1         	    ' Restore last saved position
 
-  R1=0              ' Reset the moving flag
-  R2=0	            ' Reset the delay counter
-  R3=0	            ' Reset the moved/slipped flag
-  R4=0	            ' Reset the delay counter
+  R1 0              ' Reset the moving flag
+  R2 0	            ' Reset the delay counter
+  R3 0	            ' Reset the moved/slipped flag
+  R4 0	            ' Reset the delay counter
 
-  Us=18000
-  Sk=0
+  Us 18000
+  Sk 0
 
   LB Lp
     CL Ya, Mv=1	    ' Moving
@@ -49,9 +49,9 @@ PG 1
     RT
 
   LB Yc
-    R1=1            ' Set the moving flag
-    R2=0            ' Reset the delay counter
-    Us=30
+    R1 1            ' Set the moving flag
+    R2 0            ' Reset the delay counter
+    Us 30
     RT
 
   LB Za
@@ -62,9 +62,9 @@ PG 1
   LB Zb
     CL Rp
 
-    R1=0            ' Clear the moving flag
-    R3=1            ' Delay started by a move
-    R4=1            ' Start the delay counter for saving
+    R1 0            ' Clear the moving flag
+    R3 1            ' Delay started by a move
+    R4 1            ' Start the delay counter for saving
     RT
 
   LB Zc
@@ -85,8 +85,8 @@ PG 1
     RT
 
   LB Zf
-    X1=p1-Sd
-    X2=p1+Sd
+    X1 p1-Sd
+    X2 p1+Sd
     CL Zg, P<X1	    ' Slipped below deadband
     CL Zg, P>X2	    ' Slipped above deadband
     RT
@@ -94,8 +94,8 @@ PG 1
   LB Zg
     CL Rp
 
-    R3=0            ' Delay started by slipping
-    R4=1            ' Start the delay counter
+    R3 0            ' Delay started by slipping
+    R4 1            ' Start the delay counter
     RT
 
   LB Zh
@@ -104,17 +104,17 @@ PG 1
     RT
 
   LB Zi
-    p1=P            ' Assign P to P1
+    p1 P            ' Assign P to P1
     S	            ' Save to NVM
     IC Ns           ' Increment the Save counter
-    R3=0            ' Reset the moved/slipped flag
-    R4=0            ' Reset the delay counter
+    R3 0            ' Reset the moved/slipped flag
+    R4 0            ' Reset the delay counter
     PR "Saved ",P1
     RT
 
   LB Zj
-    X1=p1-Sd
-    X2=p1+Sd
+    X1 p1-Sd
+    X2 p1+Sd
     CL Zi, P<X1	    ' Really slipped below deadband
     CL Zi, P>X2	    ' Really slipped above deadband
     CL Zk, P>=X1    ' Came back or not
@@ -125,58 +125,58 @@ PG 1
     RT
 
   LB Zl
-    R4=0            ' Came back, reset the delay counter
+    R4 0            ' Came back, reset the delay counter
     RT
 
   LB Rp
     CL Ra, Sk=0
     CL Rb, Sk=1
 
-    R2=0            ' Reset the delay counter
+    R2 0            ' Reset the delay counter
     CL Rd, Us=0     ' Reset the status update delay
     RT
 
   LB Ra
-    X2=NE*32768     ' bit-16 is the numeric enable
+    X2 NE*32768     ' bit-16 is the numeric enable
 
-    X1=PU*16384     ' bit-15 is the power-up flag
-    X2=X2+X1
+    X1 PU*16384     ' bit-15 is the power-up flag
+    X2 X2+X1
 
-    X1=ST* 8192     ' bit-14 is stall detection
-    X2=X2+X1
+    X1 ST* 8192     ' bit-14 is stall detection
+    X2 X2+X1
 
-    X1=ER*   64     ' bit-7 through 13 is the error code
-    X2=X2+X1
+    X1 ER*   64     ' bit-7 through 13 is the error code
+    X2 X2+X1
 
-    X1=I3*   32     ' bit-6 is I3
-    X2=X2+X1
+    X1 I3*   32     ' bit-6 is I3
+    X2 X2+X1
 
-    X1=I2*   16     ' bit-5 is I2
-    X2=X2+X1
+    X1 I2*   16     ' bit-5 is I2
+    X2 X2+X1
 
-    X1=I1*    8     ' bit-4 is I1
-    X2=X2+X1
+    X1 I1*    8     ' bit-4 is I1
+    X2 X2+X1
 
-    X1=SM*    4     ' bit-3 is stall detection mode
-    X2=X2+X1
+    X1 SM*    4     ' bit-3 is stall detection mode
+    X2 X2+X1
 
-    X1=EE*    2     ' bit-2 is encoder enable
-    X2=X2+X1
+    X1 EE*    2     ' bit-2 is encoder enable
+    X2 X2+X1
 
-    X2=X2+MV        ' LSB is MV
+    X2 X2+MV        ' LSB is MV
 
     PR "BOS", X2, ",P=", P, "EOS"
     RT
 
   LB Rb
-    X2=ST* 8192     ' bit-14 is stall detection
-    X2=X2+MV        ' LSB is MV
+    X2 ST* 8192     ' bit-14 is stall detection
+    X2 X2+MV        ' LSB is MV
 
     PR "BOS", X2, ",P=", P, "EOS"
     RT
 
   LB Rd
-    Us=18000
+    Us 18000
     RT
 
 E

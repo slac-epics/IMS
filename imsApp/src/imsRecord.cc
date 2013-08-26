@@ -425,8 +425,7 @@ static long init_motor( imsRecord *prec )
     {
         log_msg( prec, 0, "Failed to read the MCode version and BY" );
 
-        msta.Bits.RA_PROBLEM = 1;
-        goto finished;
+        rbve = -999;
     }
 
     if ( rbve != prec->dver )
@@ -458,10 +457,10 @@ static long init_motor( imsRecord *prec )
         fclose(fp);
         epicsThreadSleep( 2 );
 
-        send_msg( pasynUser, "EX=1" );
+        send_msg( pasynUser, "EX 1" );
         epicsThreadSleep( 1 );
 
-        send_msg( pasynUser, "PU=0" );
+        send_msg( pasynUser, "PU 0" );
         epicsThreadSleep( 1 );
 
         send_msg( pasynUser, "S"    );
@@ -469,10 +468,10 @@ static long init_motor( imsRecord *prec )
     }
     else if ( rbby == 0 )
     {
-        send_msg( pasynUser, "EX=1" );
+        send_msg( pasynUser, "EX 1" );
         epicsThreadSleep( 1 );
 
-        send_msg( pasynUser, "PU=0" );
+        send_msg( pasynUser, "PU 0" );
         epicsThreadSleep( 1 );
 
         send_msg( pasynUser, "S"    );
@@ -480,12 +479,12 @@ static long init_motor( imsRecord *prec )
     }
 
     // set the parameters
-    sprintf( msg, "DE=%d", prec->de );
+    sprintf( msg, "DE %d", prec->de );
     send_msg( mInfo->pasynUser, msg );
 
     epicsThreadSleep( 0.1 );
 
-    sprintf( msg, "EE=%d", prec->ee );
+    sprintf( msg, "EE %d", prec->ee );
     send_msg( mInfo->pasynUser, msg );
 
     epicsThreadSleep( 0.1 );
@@ -493,18 +492,18 @@ static long init_motor( imsRecord *prec )
     if ( prec->el <= 0 ) prec->el = 1;
     if ( prec->ee == motorAble_Enable )
     {
-        sprintf( msg, "EL=%d", prec->el );
+        sprintf( msg, "EL %d", prec->el );
         send_msg( mInfo->pasynUser, msg );
     }
 
     epicsThreadSleep( 0.1 );
 
-    sprintf( msg, "HC=%d", prec->hc );
+    sprintf( msg, "HC %d", prec->hc );
     send_msg( mInfo->pasynUser, msg );
 
     epicsThreadSleep( 0.1 );
 
-    sprintf( msg, "RC=%d", prec->rc );
+    sprintf( msg, "RC %d", prec->rc );
     send_msg( mInfo->pasynUser, msg );
 
     mInfo->initialized = 0;
@@ -543,7 +542,7 @@ static long init_motor( imsRecord *prec )
     prec->mip  = MIP_DONE;
 
     // let controller send a status update every ~5 seconds until first process
-    send_msg( pasynUser, "Us=300" );
+    send_msg( pasynUser, "Us 300" );
 
     finished:
     mInfo->cMutex->unlock();
@@ -809,10 +808,10 @@ static long process( dbCommon *precord )
         VI = NINT( prec->vbas / prec->res );
         VM = NINT( prec->bvel / prec->res );
         A  = NINT( (prec->bvel - prec->vbas) / prec->res / prec->bacc );
-        sprintf( msg, "VI %d\r\n1VM %d\r\n1A %d\r\n1D=A\r\n1MA %d",
+        sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMA %d",
                       VI, VM, A, prec->rval );
         send_msg( mInfo->pasynUser, msg    );
-        send_msg( mInfo->pasynUser, "Us=0" );
+        send_msg( mInfo->pasynUser, "Us 0" );
     }
     else if ( (motorMode_Normal == prec->mode) &&       // normal mode, not scan
               (fabs(prec->bdst) <= prec->res ) &&      // no backlash, can retry
@@ -826,7 +825,7 @@ static long process( dbCommon *precord )
 
         sprintf( msg, "MA %d", prec->rval );
         send_msg( mInfo->pasynUser, msg    );
-        send_msg( mInfo->pasynUser, "Us=0" );
+        send_msg( mInfo->pasynUser, "Us 0" );
     }
     else          // finished backlash, close enough, or no (more) retry allowed
     {
@@ -860,7 +859,7 @@ static long process( dbCommon *precord )
     if ( old_rval != prec->rval ) MARK( M_RVAL );
 
     finished:
-    if ( reset_us ) send_msg( mInfo->pasynUser, "Us=18000" );
+    if ( reset_us ) send_msg( mInfo->pasynUser, "Us 18000" );
 
     if      ( msta.Bits.RA_PROBLEM                             )     // hardware
         recGblSetSevr( (dbCommon *)prec, COMM_ALARM,  INVALID_ALARM );
@@ -987,7 +986,7 @@ static void new_move( imsRecord *prec )
             VI = NINT( prec->vbas / prec->res );
             VM = NINT( prec->velo / prec->res );
             A  = NINT( (prec->velo - prec->vbas) / prec->res / prec->accl );
-            sprintf( msg, "VI %d\r\n1VM %d\r\n1A %d\r\n1D=A\r\n1MA %d",
+            sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMA %d",
                           VI, VM, A, prec->rval );
         }
         else                // same direction and within BDST, use BACC and BVEL
@@ -1001,7 +1000,7 @@ static void new_move( imsRecord *prec )
             VI = NINT( prec->vbas / prec->res );
             VM = NINT( prec->bvel / prec->res );
             A  = NINT( (prec->bvel - prec->vbas) / prec->res / prec->bacc );
-            sprintf( msg, "VI %d\r\n1VM %d\r\n1A %d\r\n1D=A\r\n1MA %d",
+            sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMA %d",
                           VI, VM, A, prec->rval );
         }
     }
@@ -1016,13 +1015,13 @@ static void new_move( imsRecord *prec )
         VI = NINT( prec->vbas / prec->res );
         VM = NINT( prec->velo / prec->res );
         A  = NINT( (prec->velo - prec->vbas) / prec->res / prec->accl );
-        sprintf( msg, "VI %d\r\n1VM %d\r\n1A %d\r\n1D=A\r\n1MA %d",
+        sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMA %d",
                       VI, VM, A, prec->rval );
     }
 
     prec->dmov = 0;
     send_msg( mInfo->pasynUser, msg    );
-    send_msg( mInfo->pasynUser, "Us=0" );
+    send_msg( mInfo->pasynUser, "Us 0" );
 
     return;
 }
@@ -1155,7 +1154,7 @@ static long special( dbAddr *pDbAddr, int after )
                     log_msg( prec, 0, "stop current move" );
                     prec->mip  = MIP_NEW;
 
-                    send_msg( mInfo->pasynUser, "SL 0\r\n1Us=0" );
+                    send_msg( mInfo->pasynUser, "SL 0\r\nUs 0" );
                 }
 
                 break;
@@ -1209,7 +1208,7 @@ static long special( dbAddr *pDbAddr, int after )
                     prec->mip |=  MIP_PAUSE;
                 }
 
-                send_msg( mInfo->pasynUser, "SL 0\r\n1Us=0" );
+                send_msg( mInfo->pasynUser, "SL 0\r\nUs 0" );
             }
 
             break;
@@ -1267,10 +1266,10 @@ static long special( dbAddr *pDbAddr, int after )
                 new_rval = NINT(new_dval / prec->res);
 
                 if ( prec->ee == motorAble_Enable )
-                    sprintf( msg, "P=%ld\r\n1C2=%ld\r\n1Us=0", new_rval,
-                                                               new_rval );
+                    sprintf( msg, "P %ld\r\nC2 %ld\r\nUs 0", new_rval,
+                                                             new_rval );
                 else
-                    sprintf( msg, "P=%ld\r\n1Us=0",            new_rval );
+                    sprintf( msg, "P %ld\r\nUs 0",           new_rval );
 
                 send_msg( mInfo->pasynUser, msg );
             }
@@ -1284,19 +1283,19 @@ static long special( dbAddr *pDbAddr, int after )
             A  = NINT( (prec->hvel - prec->vbas) / prec->res / prec->hacc );
             if      ( (prec->dir  == motorDIR_Positive) &&
                       (prec->hdir == motorDIR_Positive)    )
-                sprintf( msg, "VI %d\r\n1VM %d\r\n1A %d\r\n1D=A\r\n1H%c 4\r\n1Us=0",
+                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 4\r\nUs 0",
                               VI, VM, A, MI );
             else if ( (prec->dir  == motorDIR_Positive) &&
                       (prec->hdir == motorDIR_Negative)    )
-                sprintf( msg, "VI %d\r\n1VM %d\r\n1A %d\r\n1D=A\r\n1H%c 3\r\n1Us=0",
+                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 3\r\nUs 0",
                               VI, VM, A, MI );
             else if ( (prec->dir  == motorDIR_Negative) &&
                       (prec->hdir == motorDIR_Positive)    )
-                sprintf( msg, "VI %d\r\n1VM %d\r\n1A %d\r\n1D=A\r\n1H%c 2\r\n1Us=0",
+                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 2\r\nUs 0",
                               VI, VM, A, MI );
             else if ( (prec->dir  == motorDIR_Negative) &&
                       (prec->hdir == motorDIR_Negative)    )
-                sprintf( msg, "VI %d\r\n1VM %d\r\n1A %d\r\n1D=A\r\n1H%c 1\r\n1Us=0",
+                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 1\r\nUs 0",
                               VI, VM, A, MI );
  
             prec->mip  = MIP_HOMF;
@@ -1311,19 +1310,19 @@ static long special( dbAddr *pDbAddr, int after )
             A  = NINT( (prec->hvel - prec->vbas) / prec->res / prec->hacc );
             if      ( (prec->dir  == motorDIR_Positive) &&
                       (prec->hdir == motorDIR_Positive)    )
-                sprintf( msg, "VI %d\r\n1VM %d\r\n1A %d\r\n1D=A\r\n1H%c 1\r\n1Us=0",
+                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 1\r\nUs 0",
                               VI, VM, A, MI );
             else if ( (prec->dir  == motorDIR_Positive) &&
                       (prec->hdir == motorDIR_Negative)    )
-                sprintf( msg, "VI %d\r\n1VM %d\r\n1A %d\r\n1D=A\r\n1H%c 2\r\n1Us=0",
+                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 2\r\nUs 0",
                               VI, VM, A, MI );
             else if ( (prec->dir  == motorDIR_Negative) &&
                       (prec->hdir == motorDIR_Positive)    )
-                sprintf( msg, "VI %d\r\n1VM %d\r\n1A %d\r\n1D=A\r\n1H%c 3\r\n1Us=0",
+                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 3\r\nUs 0",
                               VI, VM, A, MI );
             else if ( (prec->dir  == motorDIR_Negative) &&
                       (prec->hdir == motorDIR_Negative)    )
-                sprintf( msg, "VI %d\r\n1VM %d\r\n1A %d\r\n1D=A\r\n1H%c 4\r\n1Us=0",
+                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 4\r\nUs 0",
                               VI, VM, A, MI );
  
             prec->mip  = MIP_HOMR;
@@ -1423,7 +1422,7 @@ static long special( dbAddr *pDbAddr, int after )
             }
 
             set_el:
-            sprintf( msg, "EL=%d", prec->el );
+            sprintf( msg, "EL %d", prec->el );
             send_msg( mInfo->pasynUser, msg );
 
             if ( prec->ee == motorAble_Enable ) goto set_res;
@@ -1438,7 +1437,7 @@ static long special( dbAddr *pDbAddr, int after )
             }
 
             set_ms:
-            sprintf( msg, "MS=%d", prec->ms );
+            sprintf( msg, "MS %d", prec->ms );
             send_msg( mInfo->pasynUser, msg );
 
             if ( prec->ee != motorAble_Enable ) goto set_res;
@@ -1598,7 +1597,7 @@ static long special( dbAddr *pDbAddr, int after )
         case imsRecordEE  :
             if ( prec->ee   == prec->oval ) break;
 
-            sprintf( msg, "EE=%d", prec->ee );
+            sprintf( msg, "EE %d", prec->ee );
             send_msg( mInfo->pasynUser, msg );
 
             nval = prec->res;
@@ -1614,7 +1613,7 @@ static long special( dbAddr *pDbAddr, int after )
         case imsRecordMODE:
             if ( prec->mode == prec->oval ) break;
 
-            sprintf( msg, "Sk=%d\r\n1Us=0", prec->mode );
+            sprintf( msg, "Sk %d\r\nUs 0", prec->mode );
             send_msg( mInfo->pasynUser, msg );
 
             break;
@@ -1800,7 +1799,7 @@ static long send_msg( asynUser *pasynUser, char const *msg )
     const double timeout = 1.0;
     size_t       nwrite;
 
-    sprintf( local_buf, "1%s", msg );
+    sprintf( local_buf, "%s\r", msg );
     pasynOctetSyncIO->write( pasynUser, local_buf, strlen(local_buf),
                              timeout, &nwrite );
 
