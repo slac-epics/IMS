@@ -3,6 +3,7 @@ VA Ve     ' MCode version
 VA PU     ' Power up flag
 VA p1     ' Saved position
 VA Sd     ' Save deadband
+VA Sv     ' Save flag
 VA Ns     ' Number of saves
 VA Us     ' Delay for status update
 VA Sk     ' Scan or not
@@ -13,6 +14,7 @@ Ve 3      ' Version 3
 Ne 0      ' Disable numeric cmd
 p1 P      ' Start with current position
 Sd Db*4   ' Set save deadband
+Sv 0
 Us 18000
 Sk 0
 
@@ -68,55 +70,58 @@ PG 1
     RT
 
   LB Zc
-    IC R2
+    CL Zd, Sv=1     ' Save now
 
-    CL Zd, Sk=0     ' not scanning
+    CL Ze, Sk=0     ' Not scanning
+
+    IC R2
     CL Rp, R2>Us    ' Update status
     RT
 
   LB Zd
-    CL Ze, R4>0     ' Moved or slipped, delaying for saving
-    CL Zf, R4=0     ' Check for slipping
-    CL Zh, R4>2000  ' Has delayed about 30 seconds
+    p1 P            ' Assign P to P1
+    S	            ' Save to NVM
+    IC Ns           ' Increment the Save counter
+    R3 0            ' Reset the moved/slipped flag
+    R4 0            ' Reset the delay counter
+    Sv 0            ' Reset the save flag
+    PR "Saved ",P1
     RT
 
   LB Ze
-    IC R4
+    CL Zf, R4>0     ' Moved or slipped, delaying for saving
+    CL Zg, R4=0     ' Check for slipping
+    CL Zi, R4>2000  ' Has delayed about 30 seconds
     RT
 
   LB Zf
-    X1 p1-Sd
-    X2 p1+Sd
-    CL Zg, P<X1	    ' Slipped below deadband
-    CL Zg, P>X2	    ' Slipped above deadband
+    IC R4
     RT
 
   LB Zg
+    X1 p1-Sd
+    X2 p1+Sd
+    CL Zh, P<X1	    ' Slipped below deadband
+    CL Zh, P>X2	    ' Slipped above deadband
+    RT
+
+  LB Zh
     CL Rp
 
     R3 0            ' Delay started by slipping
     R4 1            ' Start the delay counter
     RT
 
-  LB Zh
-    CL Zj, R3=0     ' Delay started by slipping
-    CL Zi, R3=1	    ' Delay started by a move
-    RT
-
   LB Zi
-    p1 P            ' Assign P to P1
-    S	            ' Save to NVM
-    IC Ns           ' Increment the Save counter
-    R3 0            ' Reset the moved/slipped flag
-    R4 0            ' Reset the delay counter
-    PR "Saved ",P1
+    CL Zj, R3=0     ' Delay started by slipping
+    CL Zd, R3=1	    ' Delay started by a move
     RT
 
   LB Zj
     X1 p1-Sd
     X2 p1+Sd
-    CL Zi, P<X1	    ' Really slipped below deadband
-    CL Zi, P>X2	    ' Really slipped above deadband
+    CL Zd, P<X1	    ' Really slipped below deadband
+    CL Zd, P>X2	    ' Really slipped above deadband
     CL Zk, P>=X1    ' Came back or not
     RT
 

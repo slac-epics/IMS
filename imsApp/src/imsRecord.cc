@@ -253,7 +253,7 @@ static long init_motor( imsRecord *prec )
     flush_asyn( pasynUser );
 
     // read the part number
-    retry = 0;
+    retry = 1;
     do
     {
         send_msg( pasynUser, "PR \"PN=\",PN" );
@@ -282,7 +282,7 @@ static long init_motor( imsRecord *prec )
     }
 
     // read the serial number
-    retry = 0;
+    retry = 1;
     do
     {
         send_msg( pasynUser, "PR \"SN=\",SN" );
@@ -311,7 +311,7 @@ static long init_motor( imsRecord *prec )
     }
 
     // read the switch settings
-    retry = 0;
+    retry = 1;
     do
     {
         send_msg( pasynUser, "PR \"S1=\",S1,\", S2=\",S2,\", S3=\",S3" );
@@ -363,7 +363,7 @@ static long init_motor( imsRecord *prec )
     }
 
     // read the numeric enable, limit stop mode, stall mode and MS
-    retry = 0;
+    retry = 1;
     do
     {
         send_msg( pasynUser, "PR \"NE=\",NE,\", LM=\",LM,\", SM=\",SM,\", MS=\",MS" );
@@ -406,8 +406,8 @@ static long init_motor( imsRecord *prec )
         goto finished;
     }
 
-    // read the MCode version and running status
-    retry = 0;
+    // check the MCode version and running status
+    retry = 1;
     do
     {
         send_msg( pasynUser, "PR \"VE=\",VE,\", BY=\",BY" );
@@ -426,11 +426,14 @@ static long init_motor( imsRecord *prec )
         log_msg( prec, 0, "Failed to read the MCode version and BY" );
 
         rbve = -999;
+        rbby =    0;
     }
 
     if ( rbve != prec->dver )
     {
         char line[256];
+
+        log_msg( prec, 0, "Load MCode ..." );
 
         send_msg( pasynUser, "E"  );
         epicsThreadSleep( 1 );
@@ -457,25 +460,46 @@ static long init_motor( imsRecord *prec )
         fclose(fp);
         epicsThreadSleep( 2 );
 
-        send_msg( pasynUser, "EX 1" );
-        epicsThreadSleep( 1 );
-
-        send_msg( pasynUser, "PU 0" );
-        epicsThreadSleep( 1 );
-
-        send_msg( pasynUser, "S"    );
-        epicsThreadSleep( 1 );
+        rbby = 0;
     }
-    else if ( rbby == 0 )
+
+    if ( rbby == 0 )
     {
-        send_msg( pasynUser, "EX 1" );
-        epicsThreadSleep( 1 );
+        retry = 1;
+        do
+        {
+            log_msg( prec, 0, "MCode not running, start it ..." );
 
-        send_msg( pasynUser, "PU 0" );
-        epicsThreadSleep( 1 );
+            send_msg( pasynUser, "EX 1" );
+            epicsThreadSleep( 1 );
 
-        send_msg( pasynUser, "S"    );
-        epicsThreadSleep( 1 );
+            send_msg( pasynUser, "PR \"BY=\",BY" );
+            status = recv_reply( pasynUser, rbbuf );
+            if ( status > 0 )
+            {
+                status = sscanf( rbbuf, "BY=%d", &rbby );
+                if ( (status == 1) && (rbby == 1) ) break;
+            }
+
+            epicsThreadSleep( 0.2 );
+        } while ( retry++ < 3 );
+
+        if ( (status == 1) && (rbby == 1) )
+        {
+            send_msg( pasynUser, "PU 0" );
+            epicsThreadSleep( 1 );
+
+            send_msg( pasynUser, "S"    );
+            epicsThreadSleep( 1 );
+        }
+        else
+        {
+            log_msg( prec, 0, "Failed to start MCode" );
+
+            msta.Bits.RA_PROBLEM = 1;
+            goto finished;
+        }
+
     }
 
     // set the parameters
@@ -498,13 +522,26 @@ static long init_motor( imsRecord *prec )
 
     epicsThreadSleep( 0.1 );
 
-    sprintf( msg, "HC %d", prec->hc );
+    sprintf( msg, "RC %d", prec->rc );
     send_msg( mInfo->pasynUser, msg );
 
     epicsThreadSleep( 0.1 );
 
-    sprintf( msg, "RC %d", prec->rc );
+    sprintf( msg, "HC %d", prec->hc );
     send_msg( mInfo->pasynUser, msg );
+
+    if ( prec->hc > 0 )
+    {
+        prec->hcsv = prec->hc;
+        prec->hctg = motorHC_Restore;
+        db_post_events( prec, &prec->hcsv, DBE_VAL_LOG );
+        db_post_events( prec, &prec->hctg, DBE_VAL_LOG );
+    }
+    else
+    {
+        prec->hctg = motorHC_Zero;
+        db_post_events( prec, &prec->hctg, DBE_VAL_LOG );
+    }
 
     mInfo->initialized = 0;
     msta.Bits.NOT_INIT = 1;
@@ -601,16 +638,14 @@ static long process( dbCommon *precord )
         flush_asyn( mInfo->pasynUser );
 
         // check the MCode running status
-        retry = 0;
+        retry = 1;
         do
         {
             send_msg( mInfo->pasynUser, "PR \"BY=\",BY" );
             status = recv_reply( mInfo->pasynUser, msg );
-            printf( "status = %d\n", status );
             if ( status > 0 )
             {
                 status = sscanf( msg, "BY=%d", &rbby );
-                printf( "status = %d, rbby = %d\n", status, rbby );
                 if ( status == 1 ) break;
             }
 
@@ -1033,14 +1068,13 @@ static long special( dbAddr *pDbAddr, int after )
     ims_info       *mInfo = (ims_info *)prec->dpvt;
     char            MI = (prec->htyp == motorHTYP_Switch) ? 'M' : 'I';
     char            msg[MAX_MSG_SIZE], rbbuf[MAX_MSG_SIZE];
-    char            fmt[MAX_MSG_SIZE], rbstr[MAX_MSG_SIZE];
     long            sword, count, old_rval, new_rval;
     short           old_dmov, old_rcnt, old_lvio;
     double          nval, old_val, old_dval, old_rbv, new_dval;
     unsigned short  old_mip, alarm_mask = 0;
 
     int             VI, VM, A, fieldIndex = dbGetFieldIndex( pDbAddr );
-    int             retry, status = OK;
+    int             status = OK;
 
     if ( after == 0 )
     {
@@ -1610,6 +1644,47 @@ static long special( dbAddr *pDbAddr, int after )
                 db_post_events( prec, &prec->res,  DBE_VAL_LOG );
 
             break;
+        case imsRecordRC  :
+            sprintf( msg, "RC %d",         prec->rc   );
+            send_msg( mInfo->pasynUser, msg );
+
+            break;
+        case imsRecordHC  :
+            sprintf( msg, "HC %d",         prec->hc   );
+            send_msg( mInfo->pasynUser, msg );
+
+            if ( prec->hc > 0 )
+            {
+                prec->hcsv = prec->hc;
+                prec->hctg = motorHC_Restore;
+                db_post_events( prec, &prec->hcsv, DBE_VAL_LOG );
+                db_post_events( prec, &prec->hctg, DBE_VAL_LOG );
+            }
+            else
+            {
+                prec->hctg = motorHC_Zero;
+                db_post_events( prec, &prec->hctg, DBE_VAL_LOG );
+            }
+
+            break;
+        case imsRecordHCTG:
+            if ( prec->hctg == motorHC_Zero )
+            {
+                send_msg( mInfo->pasynUser, "HC 0" );
+
+                prec->hc   = 0;
+                db_post_events( prec, &prec->hc  , DBE_VAL_LOG );
+            }
+            else
+            {
+                sprintf( msg, "HC %d", prec->hcsv );
+                send_msg( mInfo->pasynUser, msg    );
+
+                prec->hc   = prec->hcsv;
+                db_post_events( prec, &prec->hc  , DBE_VAL_LOG );
+            }
+
+            break;
         case imsRecordMODE:
             if ( prec->mode == prec->oval ) break;
 
@@ -1617,34 +1692,19 @@ static long special( dbAddr *pDbAddr, int after )
             send_msg( mInfo->pasynUser, msg );
 
             break;
-        case imsRecordWRTE:
-            send_msg( mInfo->pasynUser, prec->wrte );
+        case imsRecordCMD :
+            send_msg( mInfo->pasynUser, prec->cmd );
 
-            break;
-        case imsRecordREAD:
-            sprintf( msg, "PR \"%s=\",%s", prec->read, prec->read );
-            sprintf( fmt, "%s=%%s",        prec->read             );
-
-            retry = 0;
-            do
+            if ( strstr(prec->cmd, "PR ") || strstr(prec->cmd, "pr ") ||
+                 strstr(prec->cmd, "Pr ") || strstr(prec->cmd, "pR ")    )
             {
-                send_msg( mInfo->pasynUser, msg );
                 status = recv_reply( mInfo->pasynUser, rbbuf );
-                if ( status > 0 )
-                {
-                    status = sscanf( rbbuf, fmt, rbstr );
-                    if ( status == 1 )
-                    {
-                        strncpy( prec->read, rbstr, 61 );
-                        db_post_events( prec,  prec->read, DBE_VAL_LOG );
+                if ( status > 0 ) strncpy( prec->resp, rbbuf, 61 );
+                else              strncpy( prec->resp, "",    61 );
+            }
+            else strncpy( prec->resp, "", 61 );
 
-                        break;
-                    }
-                }
-
-                epicsThreadSleep( 0.3 );
-            } while ( retry++ < 3 );
-
+            db_post_events( prec,  prec->resp, DBE_VAL_LOG );
             break;
         case imsRecordRINI:
             init_motor( prec );

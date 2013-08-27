@@ -42,6 +42,10 @@ menu(motorMode) {
         choice(motorMode_Normal,        "Normal"           )
         choice(motorMode_Scan,          "Scan"             )
 }
+menu(motorHC) {
+        choice(motorHC_Zero,            "Zero"             )
+        choice(motorHC_Restore,         "Restore"          )
+}
 
 recordtype(ims) {
 	include "dbCommon.dbd" 
@@ -535,20 +539,29 @@ recordtype(ims) {
 		pp(TRUE)
 		interest(1)
 	}
-	field(WRTE,DBF_STRING) {
-		prompt("Write A String")
+	field(HCSV,DBF_SHORT) {
+		prompt("Saved HC Setting")
+		special(SPC_NOMOD)
+	}
+	field(HCTG,DBF_MENU) {
+		prompt("Zero/Restore HC Setting")
+		menu(motorHC)
+		special(SPC_MOD)
+		asl(ASL0)
+	}
+	field(CMD,DBF_STRING) {
+		prompt("Command To Controller")
 		promptgroup(GUI_COMMON)
 		size(61)
 		special(SPC_MOD)
 		asl(ASL0)
 		interest(1)
 	}
-	field(READ,DBF_STRING) {
-		prompt("Read A Parameter")
+	field(RESP,DBF_STRING) {
+		prompt("Response From Controller")
 		promptgroup(GUI_COMMON)
 		size(61)
-		special(SPC_MOD)
-		asl(ASL0)
+		special(SPC_NOMOD)
 		interest(1)
 	}
 	field(RCON,DBF_SHORT) {
