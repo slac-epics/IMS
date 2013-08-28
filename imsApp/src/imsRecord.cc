@@ -176,7 +176,6 @@ static long init_record( dbCommon *precord, int pass )
     return( status );
 }
 
-
 /******************************************************************************/
 static long connect_motor( imsRecord *prec )
 {
@@ -231,7 +230,6 @@ static long connect_motor( imsRecord *prec )
     return( status );
 }
 
-
 /******************************************************************************/
 static long init_motor( imsRecord *prec )
 {
@@ -250,12 +248,12 @@ static long init_motor( imsRecord *prec )
 
     msta.All = 0;
 
-    flush_asyn( pasynUser );
-
     // read the part number
     retry = 1;
     do
     {
+        flush_asyn( pasynUser );
+
         send_msg( pasynUser, "PR \"PN=\",PN" );
         status = recv_reply( pasynUser, rbbuf );
         if ( (status > 0) && (strlen(rbbuf) > 3) )
@@ -285,6 +283,8 @@ static long init_motor( imsRecord *prec )
     retry = 1;
     do
     {
+        flush_asyn( pasynUser );
+
         send_msg( pasynUser, "PR \"SN=\",SN" );
         status = recv_reply( pasynUser, rbbuf );
         if ( (status > 0) && (strlen(rbbuf) > 3) )
@@ -314,6 +314,8 @@ static long init_motor( imsRecord *prec )
     retry = 1;
     do
     {
+        flush_asyn( pasynUser );
+
         send_msg( pasynUser, "PR \"S1=\",S1,\", S2=\",S2,\", S3=\",S3" );
         status = recv_reply( pasynUser, rbbuf );
         if ( status > 0 )
@@ -366,6 +368,8 @@ static long init_motor( imsRecord *prec )
     retry = 1;
     do
     {
+        flush_asyn( pasynUser );
+
         send_msg( pasynUser, "PR \"NE=\",NE,\", LM=\",LM,\", SM=\",SM,\", MS=\",MS" );
         status = recv_reply( pasynUser, rbbuf );
         if ( status > 0 )
@@ -405,11 +409,15 @@ static long init_motor( imsRecord *prec )
         msta.Bits.RA_PROBLEM = 1;
         goto finished;
     }
+    else
+        msta.Bits.RA_NE      = prec->ne;
 
     // check the MCode version and running status
     retry = 1;
     do
     {
+        flush_asyn( pasynUser );
+
         send_msg( pasynUser, "PR \"VE=\",VE,\", BY=\",BY" );
         status = recv_reply( pasynUser, rbbuf );
         if ( status > 0 )
@@ -473,6 +481,8 @@ static long init_motor( imsRecord *prec )
             send_msg( pasynUser, "EX 1" );
             epicsThreadSleep( 1 );
 
+            flush_asyn( pasynUser );
+
             send_msg( pasynUser, "PR \"BY=\",BY" );
             status = recv_reply( pasynUser, rbbuf );
             if ( status > 0 )
@@ -489,7 +499,7 @@ static long init_motor( imsRecord *prec )
             send_msg( pasynUser, "PU 0" );
             epicsThreadSleep( 1 );
 
-            send_msg( pasynUser, "S"    );
+            send_msg( pasynUser, "SV 1" );
             epicsThreadSleep( 1 );
         }
         else
@@ -584,14 +594,16 @@ static long init_motor( imsRecord *prec )
     finished:
     mInfo->cMutex->unlock();
 
-    if      ( msta.Bits.RA_PROBLEM                             )     // hardware
+    if      ( msta.Bits.RA_PROBLEM                       )           // hardware
         recGblSetSevr( (dbCommon *)prec, COMM_ALARM,  INVALID_ALARM );
-    else if ( msta.Bits.RA_BY0     || msta.Bits.RA_COMM_ERR ||  // BY=0 or wrong
-              msta.Bits.NOT_INIT                               )     // NOT_INIT
+    else if ( msta.Bits.RA_NE      || msta.Bits.NOT_INIT )   // NE=1 or NOT_INIT
     {
         recGblSetSevr( (dbCommon *)prec, STATE_ALARM, MAJOR_ALARM   );
 
-        log_msg( prec, 0, "Wait for first status update" );
+        if ( msta.Bits.RA_NE )
+            log_msg( prec, 0, "Numeric Enable is set"        );
+        else
+            log_msg( prec, 0, "Wait for first status update" );
     }
 
     prec->msta = msta.All;
@@ -606,7 +618,6 @@ static long init_motor( imsRecord *prec )
 
     return( 0 );
 }
-
 
 /******************************************************************************/
 static long process( dbCommon *precord )
@@ -635,12 +646,12 @@ static long process( dbCommon *precord )
 
         msta.All = prec->msta;
 
-        flush_asyn( mInfo->pasynUser );
-
         // check the MCode running status
         retry = 1;
         do
         {
+            flush_asyn( mInfo->pasynUser );
+
             send_msg( mInfo->pasynUser, "PR \"BY=\",BY" );
             status = recv_reply( mInfo->pasynUser, msg );
             if ( status > 0 )
@@ -896,24 +907,32 @@ static long process( dbCommon *precord )
     finished:
     if ( reset_us ) send_msg( mInfo->pasynUser, "Us 18000" );
 
-    if      ( msta.Bits.RA_PROBLEM                             )     // hardware
+    if      ( msta.Bits.RA_PROBLEM || msta.Bits.RA_COMM_ERR      )   // hardware
         recGblSetSevr( (dbCommon *)prec, COMM_ALARM,  INVALID_ALARM );
-    else if ( msta.Bits.RA_BY0     || msta.Bits.RA_COMM_ERR ||  // BY=0 or wrong
-              msta.Bits.NOT_INIT                               )     // NOT_INIT
+    else if ( msta.Bits.RA_NE      || msta.Bits.RA_BY0        || // NE=1 or BY=0
+              msta.Bits.NOT_INIT                                 )   // NOT_INIT
+    {
         recGblSetSevr( (dbCommon *)prec, STATE_ALARM, MAJOR_ALARM   );
-    else if ( msta.Bits.RA_POWERUP || msta.Bits.EA_SLIP_STALL  )
+
+        if ( msta.Bits.RA_NE ) log_msg( prec, 0, "Numeric Enable is set" );
+    }
+    else if ( msta.Bits.RA_POWERUP || msta.Bits.EA_SLIP_STALL ||
+              msta.Bits.RA_ERR                                   )
     {
         recGblSetSevr( (dbCommon *)prec, STATE_ALARM, MINOR_ALARM   );
 
-        if ( msta.Bits.RA_POWERUP ) log_msg( prec, 0, "power cycled" );
+        if      ( msta.Bits.RA_POWERUP ) log_msg( prec, 0, "power cycled" );
+        else if ( msta.Bits.RA_ERR     ) log_msg( prec, 0, "got error"    );
     }
-    else if ( msta.Bits.RA_STALL                               )      // stalled
+    else if ( msta.Bits.RA_STALL                                 )    // stalled
     {
         if ( prec->stsv > NO_ALARM )
         recGblSetSevr( (dbCommon *)prec, STATE_ALARM, prec->stsv    );
 
-        log_msg( prec, 0, "stall detected" );
+        log_msg( prec, 0, "stall detected"         );
     }
+    else if ( (! first) && (prec->sevr > NO_ALARM) )// had alarm/warnings before
+        log_msg( prec, 0, "alarm/warnings cleared" );
 
     prec->msta = msta.All;
     if ( old_msta != prec->msta ) MARK( M_MSTA );
@@ -1072,6 +1091,7 @@ static long special( dbAddr *pDbAddr, int after )
     short           old_dmov, old_rcnt, old_lvio;
     double          nval, old_val, old_dval, old_rbv, new_dval;
     unsigned short  old_mip, alarm_mask = 0;
+    motor_status    msta;
 
     int             VI, VM, A, fieldIndex = dbGetFieldIndex( pDbAddr );
     int             status = OK;
@@ -1107,6 +1127,8 @@ static long special( dbAddr *pDbAddr, int after )
     old_rcnt = prec->rcnt;
     old_lvio = prec->lvio;
 
+    msta.All = prec->msta;
+
     switch( fieldIndex )
     {
         case imsRecordSSTR:
@@ -1136,9 +1158,26 @@ static long special( dbAddr *pDbAddr, int after )
 
             break;
         case imsRecordVAL :
-            if ( prec->spg != motorSPG_Go )
+            if ( (prec->sevr >  MINOR_ALARM) || msta.Bits.RA_POWERUP ||
+                 (prec->spg  != motorSPG_Go)                            )
             {
                 prec->val  = prec->oval;
+
+                if      ( msta.Bits.RA_PROBLEM || msta.Bits.RA_COMM_ERR )
+                    log_msg( prec, 0, "no move, hardware problem"      );
+                else if ( msta.Bits.RA_NE                               )
+                    log_msg( prec, 0, "no move, NE is set"             );
+                else if ( msta.Bits.RA_BY0                              )
+                    log_msg( prec, 0, "no move, MCode not running"     );
+                else if ( msta.Bits.NOT_INIT                            )
+                    log_msg( prec, 0, "no move, init not finished yet" );
+                else if ( msta.Bits.RA_POWERUP                          )
+                    log_msg( prec, 0, "no tweak, power cycled"          );
+                else if ( prec->spg != motorSPG_Go                      )
+                    log_msg( prec, 0, "no move, SPG is not Go"         );
+                else
+                    log_msg( prec, 0, "no move, unknown alarm"         );
+
                 break;
             }
             else if ( (prec->val < prec->llm) || (prec->val > prec->hlm) )
@@ -1146,6 +1185,7 @@ static long special( dbAddr *pDbAddr, int after )
                 prec->lvio = 1;                     // set limit violation alarm
                 prec->val  = prec->oval;
 
+                log_msg( prec, 0, "no move, limit violated" );
                 break;
             }
 
@@ -1155,9 +1195,26 @@ static long special( dbAddr *pDbAddr, int after )
 
             goto do_move2;
         case imsRecordDVAL:
-            if ( prec->spg != motorSPG_Go )
+            if ( (prec->sevr >  MINOR_ALARM) || msta.Bits.RA_POWERUP ||
+                 (prec->spg  != motorSPG_Go)                            )
             {
                 prec->dval = prec->oval;
+
+                if      ( msta.Bits.RA_PROBLEM || msta.Bits.RA_COMM_ERR )
+                    log_msg( prec, 0, "no move, hardware problem"      );
+                else if ( msta.Bits.RA_NE                               )
+                    log_msg( prec, 0, "no move, NE is set"             );
+                else if ( msta.Bits.RA_BY0                              )
+                    log_msg( prec, 0, "no move, MCode not running"     );
+                else if ( msta.Bits.NOT_INIT                            )
+                    log_msg( prec, 0, "no move, init not finished yet" );
+                else if ( msta.Bits.RA_POWERUP                          )
+                    log_msg( prec, 0, "no tweak, power cycled"          );
+                else if ( prec->spg != motorSPG_Go                      )
+                    log_msg( prec, 0, "no move, SPG is not Go"         );
+                else
+                    log_msg( prec, 0, "no move, unknown alarm"         );
+
                 break;
             }
             else if ( (prec->dval < prec->dllm) || (prec->dval > prec->dhlm) )
@@ -1165,21 +1222,19 @@ static long special( dbAddr *pDbAddr, int after )
                 prec->lvio = 1;                     // set limit violation alarm
                 prec->dval = prec->oval;
 
+                log_msg( prec, 0, "no move, limit violated" );
                 break;
             }
 
             prec->val  = prec->dval * (1. - 2.*prec->dir) + prec->off;
 
             do_move2:
-            if ( prec->set == motorSET_Set )                          // no move
-            {
-                break;
-            }
+            if ( prec->set == motorSET_Set ) break;                   // no move
 
             prec->lvio = 0;
             prec->rcnt = 0;
 
-            if ( prec->spg != motorSPG_Go ) break;
+            // if ( prec->spg != motorSPG_Go  ) break;
 
             if ( prec->dmov == 0 )                               // still moving
             {
@@ -1204,11 +1259,30 @@ static long special( dbAddr *pDbAddr, int after )
             nval = prec->val - prec->twv;
 
             tweak:
-            if ( prec->spg != motorSPG_Go ) break;
+            if ( (prec->sevr >  MINOR_ALARM) || msta.Bits.RA_POWERUP ||
+                 (prec->spg  != motorSPG_Go)                            )
+            {
+                if      ( msta.Bits.RA_PROBLEM || msta.Bits.RA_COMM_ERR )
+                    log_msg( prec, 0, "no tweak, hardware problem"      );
+                else if ( msta.Bits.RA_NE                               )
+                    log_msg( prec, 0, "no tweak, NE is set"             );
+                else if ( msta.Bits.RA_BY0                              )
+                    log_msg( prec, 0, "no tweak, MCode not running"     );
+                else if ( msta.Bits.NOT_INIT                            )
+                    log_msg( prec, 0, "no tweak, init not finished yet" );
+                else if ( msta.Bits.RA_POWERUP                          )
+                    log_msg( prec, 0, "no tweak, power cycled"          );
+                else if ( prec->spg != motorSPG_Go                      )
+                    log_msg( prec, 0, "no tweak, SPG is not Go"         );
+                else
+                    log_msg( prec, 0, "no tweak, unknown alarm"         );
 
-            if ( (nval < prec->llm) || (nval > prec->hlm) )
+                break;
+            }
+            else if ( (nval < prec->llm) || (nval > prec->hlm) )
             {                                    // violated the software limits
                 prec->lvio = 1;                     // set limit violation alarm
+                log_msg( prec, 0, "no tweak, limit violated" );
 
                 break;
             }
@@ -1723,6 +1797,7 @@ static long special( dbAddr *pDbAddr, int after )
     if ( prec->lvio != old_lvio ) MARK( M_LVIO );
 
     post_fields( prec, alarm_mask, 0 );
+    post_msgs  ( prec                );
 
     return( 0 );
 }
