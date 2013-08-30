@@ -109,8 +109,8 @@ static void flush_asyn        ( asynUser *pasynUser                           );
 static long send_msg          ( asynUser *pasynUser, char const *msg          );
 static long recv_reply        ( asynUser *pasynUser, char *rbbuf              );
 
-static void motor_callback    ( struct ims_info *mInfo                        );
-static void listen_to_motor   ( struct ims_info *mInfo                        );
+static void ping_callback     ( struct ims_info *mInfo                        );
+static void ping_controller   ( struct ims_info *mInfo                        );
 
 static long log_msg  ( imsRecord *prec, int dlvl, const char *fmt, ... );
 static void post_msgs( imsRecord *prec                                 );
@@ -137,6 +137,7 @@ static long init_record( dbCommon *precord, int pass )
 
     mInfo = (ims_info *)malloc( sizeof(ims_info) );
     mInfo->precord   = prec;
+    mInfo->pEvent    = new epicsEvent( epicsEventEmpty );
     mInfo->cMutex    = new epicsMutex();
 
     mInfo->lMutex    = new epicsMutex();
@@ -219,13 +220,13 @@ static long connect_motor( imsRecord *prec )
 
     mInfo->cMutex->unlock();
 
-//  callbackSetCallback( (void (*)(struct callbackPvt *)) motor_callback,
-//                       &(mInfo->callback) );
-//  callbackSetPriority( priorityMedium, &(mInfo->callback) );
+    callbackSetCallback( (void (*)(struct callbackPvt *)) ping_callback,
+                         &(mInfo->callback) );
+    callbackSetPriority( priorityMedium, &(mInfo->callback) );
 
-//  epicsThreadCreate  ( prec->name, epicsThreadPriorityMedium,
-//                       epicsThreadGetStackSize(epicsThreadStackMedium),
-//                       (EPICSTHREADFUNC)listen_to_motor, (void *)mInfo );
+    epicsThreadCreate  ( prec->name, epicsThreadPriorityMedium,
+                         epicsThreadGetStackSize(epicsThreadStackMedium),
+                         (EPICSTHREADFUNC)ping_controller, (void *)mInfo );
 
     return( status );
 }
@@ -640,47 +641,17 @@ static long process( dbCommon *precord )
     log_msg( prec, 1, "process" );
 
     mInfo->cMutex->lock();
-    if ( ! mInfo->newData )                                // no new status data
+    if ( (mInfo->newData != 1) && (mInfo->newData != 2) )
     {
         mInfo->cMutex->unlock();
+        goto exit;
+    }
+    else if ( mInfo->newData == 2 )                        // callback from ping
+    {
+        msta.All = prec->msta | mInfo->sword;
 
-        msta.All = prec->msta;
-
-        // check the MCode running status
-        retry = 1;
-        do
-        {
-            flush_asyn( mInfo->pasynUser );
-
-            send_msg( mInfo->pasynUser, "PR \"BY=\",BY" );
-            status = recv_reply( mInfo->pasynUser, msg );
-            if ( status > 0 )
-            {
-                status = sscanf( msg, "BY=%d", &rbby );
-                if ( status == 1 ) break;
-            }
-
-            epicsThreadSleep( 0.2 );
-        } while ( retry++ < 3 );
-
-        if ( status == 1 )                                       // read back BY
-        {
-            if      ( rbby == 0 )                           // MCode not running
-            {
-                log_msg( prec, 0, "MCode not running"   );
-                msta.Bits.RA_BY0      = 1;
-            }
-            else if ( rbby != 1 )                              // wrong BY value
-            {
-                log_msg( prec, 0, "Invalid BY readback" );
-                msta.Bits.RA_COMM_ERR = 1;
-            }
-        }
-        else
-        {
-            log_msg( prec, 0, "Failed to read BY" );
-            msta.Bits.RA_PROBLEM = 1;
-        }
+        mInfo->newData = 0;
+        mInfo->cMutex->unlock();
 
         goto finished;
     }
@@ -921,8 +892,10 @@ static long process( dbCommon *precord )
     {
         recGblSetSevr( (dbCommon *)prec, STATE_ALARM, MINOR_ALARM   );
 
-        if      ( msta.Bits.RA_POWERUP ) log_msg( prec, 0, "power cycled" );
-        else if ( msta.Bits.RA_ERR     ) log_msg( prec, 0, "got error"    );
+        if      ( msta.Bits.RA_POWERUP )
+            log_msg( prec, 0, "power cycled"                   );
+        else if ( msta.Bits.RA_ERR     )
+            log_msg( prec, 0, "got error %d", msta.Bits.RA_ERR );
     }
     else if ( msta.Bits.RA_STALL                                 )    // stalled
     {
@@ -945,6 +918,7 @@ static long process( dbCommon *precord )
 
     recGblFwdLink     ( prec );                 // process the forward scan link
 
+    exit:
     prec->proc = 0;
     prec->pact = 0;
 
@@ -1131,8 +1105,13 @@ static long special( dbAddr *pDbAddr, int after )
 
     switch( fieldIndex )
     {
+        case imsRecordPING:
+            prec->ping = 0;
+            mInfo->pEvent->signal();
+
+            break;
         case imsRecordSSTR:
-            log_msg( prec, 1, "%s", prec->sstr );
+            log_msg( prec, 1, "%s", prec->sstr  );
 
             status = sscanf( prec->sstr, "%ld,P=%ldEOS", &sword, &count );
             if ( status == 2 )
@@ -2070,9 +2049,71 @@ static void post_fields( imsRecord *prec, unsigned short alarm_mask,
 }
 
 /******************************************************************************/
-static void motor_callback( struct ims_info *mInfo )
+static void ping_callback( struct ims_info *mInfo )
 {
     scanOnce( (struct dbCommon *)mInfo->precord );
+}
+
+/******************************************************************************/
+static void ping_controller( struct ims_info *mInfo )
+{
+    imsRecord    *prec = mInfo->precord;
+    char          msg[MAX_MSG_SIZE];
+    long          status = OK;
+    int           retry, rbby;
+    motor_status  msta;
+
+    while ( 1 )
+    {
+        mInfo->pEvent->wait();
+
+        msta.All = 0;
+
+        // check the MCode running status
+        retry = 1;
+        do
+        {
+            flush_asyn( mInfo->pasynUser );
+
+            send_msg( mInfo->pasynUser, "PR \"BY=\",BY" );
+            status = recv_reply( mInfo->pasynUser, msg );
+            if ( status > 0 )
+            {
+                status = sscanf( msg, "BY=%d", &rbby );
+                if ( status == 1 ) break;
+            }
+
+            epicsThreadSleep( 0.2 );
+        } while ( retry++ < 3 );
+
+        if ( status == 1 )                                       // read back BY
+        {
+            if      ( rbby == 0 )                           // MCode not running
+            {
+                log_msg( prec, 0, "MCode not running"   );
+                msta.Bits.RA_BY0      = 1;
+            }
+            else if ( rbby != 1 )                              // wrong BY value
+            {
+                log_msg( prec, 0, "Invalid BY readback" );
+                msta.Bits.RA_COMM_ERR = 1;
+            }
+        }
+        else
+        {
+            log_msg( prec, 0, "Failed to read BY" );
+            msta.Bits.RA_PROBLEM = 1;
+        }
+
+        mInfo->cMutex->lock();
+
+        mInfo->sword   = msta.All;
+        mInfo->newData = 2;
+
+        mInfo->cMutex->unlock();
+
+        callbackRequest( (CALLBACK *)mInfo );
+    }
 }
 
 /******************************************************************************/
@@ -2134,7 +2175,11 @@ static long log_msg( imsRecord *prec, int dlvl, const char *fmt, ... )
 
     va_list    args;
 
-    if ( (dlvl > prec->dlvl) && (dlvl > imsRecordDebug) ) return( 0 );
+    if ( (dlvl >= 0) && (prec->mode == motorMode_Normal    ) &&
+         (dlvl >  max((int)prec->dlvl, (int)imsRecordDebug))    ) return( 0 );
+
+    if ( (dlvl >= 0) && (prec->mode == motorMode_Scan      ) &&
+         (dlvl >  min((int)prec->dlvl, 0                  ))    ) return( 0 );
 
     clock_gettime( CLOCK_REALTIME, &ts );
     localtime_r( &ts.tv_sec, &timeinfo );
@@ -2146,7 +2191,10 @@ static long log_msg( imsRecord *prec, int dlvl, const char *fmt, ... )
     vsprintf( msg, fmt, args );
     va_end  ( args           );
 
-    if ( (dlvl <= prec->dlvl) && (dlvl >= 0) )
+    if ( (dlvl >= 0) && (((prec->mode == motorMode_Normal       ) &&
+                          (dlvl       <= prec->dlvl             )    ) ||
+                         ((prec->mode == motorMode_Scan         ) &&
+                          (dlvl       <= min((int)prec->dlvl, 0))    )    ) )
     {
         mInfo->lMutex->lock();
 
@@ -2164,7 +2212,8 @@ static long log_msg( imsRecord *prec, int dlvl, const char *fmt, ... )
         mInfo->lMutex->unlock();
     }
 
-    if ( dlvl <= imsRecordDebug )
+    if ( (dlvl < 0)                                                     ||
+         ((prec->mode == motorMode_Normal) && (dlvl <= imsRecordDebug))    )
         printf( "%s.%s %s -- %s\n", timestamp, msec, prec->name, msg );
 
     return( 1 );

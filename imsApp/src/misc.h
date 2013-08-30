@@ -3,6 +3,7 @@ struct ims_info
     CALLBACK          callback;
     struct imsRecord *precord;
 
+    epicsEvent       *pEvent;
     epicsMutex       *cMutex;
     asynUser         *pasynUser;
     short             S1;                                           // switch S1
@@ -12,7 +13,7 @@ struct ims_info
 
     long              sword;
     long              count;
-    bool              newData;
+    int               newData;
 
     epicsMutex       *lMutex;
     int               nMessages;

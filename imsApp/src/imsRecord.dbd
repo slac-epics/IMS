@@ -530,6 +530,13 @@ recordtype(ims) {
 		special(SPC_NOMOD)
 		initial(0)
 	}
+	field(PING,DBF_SHORT) {
+		prompt("Ping The Controller")
+		promptgroup(GUI_COMMON)
+		special(SPC_MOD)
+		asl(ASL0)
+		interest(1)
+	}
 	field(SSTR,DBF_STRING) {
 		prompt("Status String")
 		promptgroup(GUI_COMMON)

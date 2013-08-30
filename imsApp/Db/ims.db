@@ -86,7 +86,7 @@ record(calcout, "$(MOTOR):CheckUpdate") {
   field(DESC, "Check Update Time")
   field(INPA, "$(MOTOR):UTC           NPP")
   field(INPB, "$(IOC):CheckUpdate:UTC NPP")
-  field(OUT,  "$(MOTOR).PROC"             )
+  field(OUT,  "$(MOTOR).PING CPP"         )
   field(CALC, "(B-A)>450 ? 1 : 0")
   field(OOPT, "When Non-zero")
   field(DOPT, "Use CALC")
