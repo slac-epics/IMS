@@ -4,6 +4,7 @@ struct ims_info
     struct imsRecord *precord;
 
     epicsEvent       *pEvent;
+    epicsEvent       *sEvent;
     epicsMutex       *cMutex;
     asynUser         *pasynUser;
     short             S1;                                           // switch S1

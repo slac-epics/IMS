@@ -546,6 +546,13 @@ recordtype(ims) {
 		pp(TRUE)
 		interest(1)
 	}
+	field(SVNG,DBF_SHORT) {
+		prompt("Controller To Save")
+		promptgroup(GUI_COMMON)
+		special(SPC_MOD)
+		asl(ASL0)
+		interest(1)
+	}
 	field(HCSV,DBF_SHORT) {
 		prompt("Saved HC Setting")
 		special(SPC_NOMOD)

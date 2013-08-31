@@ -105,9 +105,10 @@ static void enforce_S         ( imsRecord *precord                            );
 static void enforce_BS        ( imsRecord *precord                            );
 static void enforce_HS        ( imsRecord *precord                            );
 
-static void flush_asyn        ( asynUser *pasynUser                           );
-static long send_msg          ( asynUser *pasynUser, char const *msg          );
-static long recv_reply        ( asynUser *pasynUser, char *rbbuf              );
+static void flush_asyn        ( struct ims_info *mInfo                        );
+static long send_msg          ( struct ims_info *mInfo, char const *msg,
+                                                        int sEvt = 1          );
+static long recv_reply        ( struct ims_info *mInfo, char *rbbuf           );
 
 static void ping_callback     ( struct ims_info *mInfo                        );
 static void ping_controller   ( struct ims_info *mInfo                        );
@@ -138,6 +139,7 @@ static long init_record( dbCommon *precord, int pass )
     mInfo = (ims_info *)malloc( sizeof(ims_info) );
     mInfo->precord   = prec;
     mInfo->pEvent    = new epicsEvent( epicsEventEmpty );
+    mInfo->sEvent    = new epicsEvent( epicsEventFull  );
     mInfo->cMutex    = new epicsMutex();
 
     mInfo->lMutex    = new epicsMutex();
@@ -203,7 +205,7 @@ static long connect_motor( imsRecord *prec )
 
     if ( asyn_rtn != asynSuccess )
     {
-        log_msg( prec, 0, "Failed to connect to the port" );
+        log_msg( prec, 0, "failed to connect to the port" );
 
         msta.Bits.RA_PROBLEM = 1;
     }
@@ -234,9 +236,8 @@ static long connect_motor( imsRecord *prec )
 /******************************************************************************/
 static long init_motor( imsRecord *prec )
 {
-    ims_info *mInfo = (ims_info *)prec->dpvt;
+    ims_info       *mInfo = (ims_info *)prec->dpvt;
 
-    asynUser       *pasynUser = mInfo->pasynUser;
     char            msg[MAX_MSG_SIZE], rbbuf[MAX_MSG_SIZE];
     int             s1, s2, s3, a1, a2, a3, d1, d2, d3;
     int             rbne, rblm, rbsm, rbms, rbve, rbby;
@@ -253,10 +254,10 @@ static long init_motor( imsRecord *prec )
     retry = 1;
     do
     {
-        flush_asyn( pasynUser );
+        flush_asyn( mInfo );
 
-        send_msg( pasynUser, "PR \"PN=\",PN" );
-        status = recv_reply( pasynUser, rbbuf );
+        send_msg( mInfo, "PR \"PN=\",PN" );
+        status = recv_reply( mInfo, rbbuf );
         if ( (status > 0) && (strlen(rbbuf) > 3) )
         {
             if      ( strncmp(rbbuf,                   "PN=", 3) == 0 )
@@ -274,7 +275,7 @@ static long init_motor( imsRecord *prec )
 
     if ( status <= 0 )
     {
-        log_msg( prec, 0, "Failed to read the part number" );
+        log_msg( prec, 0, "failed to read the part number" );
 
         msta.Bits.RA_PROBLEM = 1;
         goto finished;
@@ -284,10 +285,10 @@ static long init_motor( imsRecord *prec )
     retry = 1;
     do
     {
-        flush_asyn( pasynUser );
+        flush_asyn( mInfo );
 
-        send_msg( pasynUser, "PR \"SN=\",SN" );
-        status = recv_reply( pasynUser, rbbuf );
+        send_msg( mInfo, "PR \"SN=\",SN" );
+        status = recv_reply( mInfo, rbbuf );
         if ( (status > 0) && (strlen(rbbuf) > 3) )
         {
             if      ( strncmp(rbbuf,                   "SN=", 3) == 0 )
@@ -305,7 +306,7 @@ static long init_motor( imsRecord *prec )
 
     if ( status <= 0 )
     {
-        log_msg( prec, 0, "Failed to read the serial number" );
+        log_msg( prec, 0, "failed to read the serial number" );
 
         msta.Bits.RA_PROBLEM = 1;
         goto finished;
@@ -315,10 +316,10 @@ static long init_motor( imsRecord *prec )
     retry = 1;
     do
     {
-        flush_asyn( pasynUser );
+        flush_asyn( mInfo );
 
-        send_msg( pasynUser, "PR \"S1=\",S1,\", S2=\",S2,\", S3=\",S3" );
-        status = recv_reply( pasynUser, rbbuf );
+        send_msg( mInfo, "PR \"S1=\",S1,\", S2=\",S2,\", S3=\",S3" );
+        status = recv_reply( mInfo, rbbuf );
         if ( status > 0 )
         {
             status = sscanf( rbbuf, "S1=%d, %d, %d, S2=%d, %d, %d, S3=%d, %d, %d",
@@ -359,7 +360,7 @@ static long init_motor( imsRecord *prec )
 
     if ( status != 9 )
     {
-        log_msg( prec, 0, "Failed to read the switch settings" );
+        log_msg( prec, 0, "failed to read the switch settings" );
 
         msta.Bits.RA_PROBLEM = 1;
         goto finished;
@@ -369,10 +370,10 @@ static long init_motor( imsRecord *prec )
     retry = 1;
     do
     {
-        flush_asyn( pasynUser );
+        flush_asyn( mInfo );
 
-        send_msg( pasynUser, "PR \"NE=\",NE,\", LM=\",LM,\", SM=\",SM,\", MS=\",MS" );
-        status = recv_reply( pasynUser, rbbuf );
+        send_msg( mInfo, "PR \"NE=\",NE,\", LM=\",LM,\", SM=\",SM,\", MS=\",MS" );
+        status = recv_reply( mInfo, rbbuf );
         if ( status > 0 )
         {
             status = sscanf( rbbuf, "NE=%d, LM=%d, SM=%d, MS=%d",
@@ -400,7 +401,7 @@ static long init_motor( imsRecord *prec )
 
     if ( status != 4 )
     {
-        log_msg( prec, 0, "Failed to read NE, LM, SM and MS" );
+        log_msg( prec, 0, "failed to read NE, LM, SM and MS" );
 
         prec->ne = 0;
         prec->lm = 0;
@@ -417,10 +418,10 @@ static long init_motor( imsRecord *prec )
     retry = 1;
     do
     {
-        flush_asyn( pasynUser );
+        flush_asyn( mInfo );
 
-        send_msg( pasynUser, "PR \"VE=\",VE,\", BY=\",BY" );
-        status = recv_reply( pasynUser, rbbuf );
+        send_msg( mInfo, "PR \"VE=\",VE,\", BY=\",BY" );
+        status = recv_reply( mInfo, rbbuf );
         if ( status > 0 )
         {
             status = sscanf( rbbuf, "VE=%d, BY=%d", &rbve, &rbby );
@@ -432,7 +433,7 @@ static long init_motor( imsRecord *prec )
 
     if ( status != 2 )
     {
-        log_msg( prec, 0, "Failed to read the MCode version and BY" );
+        log_msg( prec, 0, "failed to read the MCode version and BY" );
 
         rbve = -999;
         rbby =    0;
@@ -442,12 +443,12 @@ static long init_motor( imsRecord *prec )
     {
         char line[256];
 
-        log_msg( prec, 0, "Load MCode ..." );
+        log_msg( prec, 0, "load MCode ..." );
 
-        send_msg( pasynUser, "E"  );
+        send_msg( mInfo, "E"  );
         epicsThreadSleep( 1 );
 
-        send_msg( pasynUser, "CP" );
+        send_msg( mInfo, "CP" );
         epicsThreadSleep( 1 );
 
         strcpy( line, getenv("IMS") );
@@ -460,7 +461,7 @@ static long init_motor( imsRecord *prec )
             fgets( line, 64, fp );
             if ( ferror(fp) || feof(fp) ) break;
 
-            send_msg( pasynUser, line );
+            send_msg( mInfo, line );
             log_msg( prec, -1, line );
 
             epicsThreadSleep( 0.1 );
@@ -474,18 +475,21 @@ static long init_motor( imsRecord *prec )
 
     if ( rbby == 0 )
     {
+        send_msg( mInfo, "p1 P" );
+        epicsThreadSleep( 0.1 );
+
         retry = 1;
         do
         {
             log_msg( prec, 0, "MCode not running, start it ..." );
 
-            send_msg( pasynUser, "EX 1" );
+            send_msg( mInfo, "EX 1" );
             epicsThreadSleep( 1 );
 
-            flush_asyn( pasynUser );
+            flush_asyn( mInfo );
 
-            send_msg( pasynUser, "PR \"BY=\",BY" );
-            status = recv_reply( pasynUser, rbbuf );
+            send_msg( mInfo, "PR \"BY=\",BY" );
+            status = recv_reply( mInfo, rbbuf );
             if ( status > 0 )
             {
                 status = sscanf( rbbuf, "BY=%d", &rbby );
@@ -497,15 +501,15 @@ static long init_motor( imsRecord *prec )
 
         if ( (status == 1) && (rbby == 1) )
         {
-            send_msg( pasynUser, "PU 0" );
-            epicsThreadSleep( 1 );
+            send_msg( mInfo, "PU 0" );
+            epicsThreadSleep( 0.1 );
 
-            send_msg( pasynUser, "SV 1" );
-            epicsThreadSleep( 1 );
+            send_msg( mInfo, "SV 9" );
+            epicsThreadSleep( 1   );
         }
         else
         {
-            log_msg( prec, 0, "Failed to start MCode" );
+            log_msg( prec, 0, "failed to start MCode" );
 
             msta.Bits.RA_PROBLEM = 1;
             goto finished;
@@ -515,12 +519,12 @@ static long init_motor( imsRecord *prec )
 
     // set the parameters
     sprintf( msg, "DE %d", prec->de );
-    send_msg( mInfo->pasynUser, msg );
+    send_msg( mInfo, msg );
 
     epicsThreadSleep( 0.1 );
 
     sprintf( msg, "EE %d", prec->ee );
-    send_msg( mInfo->pasynUser, msg );
+    send_msg( mInfo, msg );
 
     epicsThreadSleep( 0.1 );
 
@@ -528,18 +532,18 @@ static long init_motor( imsRecord *prec )
     if ( prec->ee == motorAble_Enable )
     {
         sprintf( msg, "EL %d", prec->el );
-        send_msg( mInfo->pasynUser, msg );
+        send_msg( mInfo, msg );
     }
 
     epicsThreadSleep( 0.1 );
 
     sprintf( msg, "RC %d", prec->rc );
-    send_msg( mInfo->pasynUser, msg );
+    send_msg( mInfo, msg );
 
     epicsThreadSleep( 0.1 );
 
     sprintf( msg, "HC %d", prec->hc );
-    send_msg( mInfo->pasynUser, msg );
+    send_msg( mInfo, msg );
 
     if ( prec->hc > 0 )
     {
@@ -590,7 +594,7 @@ static long init_motor( imsRecord *prec )
     prec->mip  = MIP_DONE;
 
     // let controller send a status update every ~5 seconds until first process
-    send_msg( pasynUser, "Us 300" );
+    send_msg( mInfo, "Us 300" );
 
     finished:
     mInfo->cMutex->unlock();
@@ -604,7 +608,7 @@ static long init_motor( imsRecord *prec )
         if ( msta.Bits.RA_NE )
             log_msg( prec, 0, "Numeric Enable is set"        );
         else
-            log_msg( prec, 0, "Wait for first status update" );
+            log_msg( prec, 0, "wait for first status update" );
     }
 
     prec->msta = msta.All;
@@ -827,8 +831,8 @@ static long process( dbCommon *precord )
         A  = NINT( (prec->bvel - prec->vbas) / prec->res / prec->bacc );
         sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMA %d",
                       VI, VM, A, prec->rval );
-        send_msg( mInfo->pasynUser, msg    );
-        send_msg( mInfo->pasynUser, "Us 0" );
+        send_msg( mInfo, msg    );
+        send_msg( mInfo, "Us 0" );
     }
     else if ( (motorMode_Normal == prec->mode) &&       // normal mode, not scan
               (fabs(prec->bdst) <= prec->res ) &&      // no backlash, can retry
@@ -841,8 +845,8 @@ static long process( dbCommon *precord )
         prec->mip  |= MIP_RETRY;
 
         sprintf( msg, "MA %d", prec->rval );
-        send_msg( mInfo->pasynUser, msg    );
-        send_msg( mInfo->pasynUser, "Us 0" );
+        send_msg( mInfo, msg    );
+        send_msg( mInfo, "Us 0" );
     }
     else          // finished backlash, close enough, or no (more) retry allowed
     {
@@ -876,7 +880,7 @@ static long process( dbCommon *precord )
     if ( old_rval != prec->rval ) MARK( M_RVAL );
 
     finished:
-    if ( reset_us ) send_msg( mInfo->pasynUser, "Us 18000" );
+    if ( reset_us ) send_msg( mInfo, "Us 18000" );
 
     if      ( msta.Bits.RA_PROBLEM || msta.Bits.RA_COMM_ERR      )   // hardware
         recGblSetSevr( (dbCommon *)prec, COMM_ALARM,  INVALID_ALARM );
@@ -1048,8 +1052,8 @@ static void new_move( imsRecord *prec )
     }
 
     prec->dmov = 0;
-    send_msg( mInfo->pasynUser, msg    );
-    send_msg( mInfo->pasynUser, "Us 0" );
+    send_msg( mInfo, msg    );
+    send_msg( mInfo, "Us 0" );
 
     return;
 }
@@ -1126,7 +1130,7 @@ static long special( dbAddr *pDbAddr, int after )
             }
             else
             {
-                log_msg( prec, 0, "Erroneous status string" );
+                log_msg( prec, 0, "erroneous status string" );
 
                 mInfo->cMutex->lock();
 
@@ -1135,6 +1139,23 @@ static long special( dbAddr *pDbAddr, int after )
 
             mInfo->cMutex->unlock();
 
+            break;
+        case imsRecordSVNG:
+            if      ( prec->svng == 1 )
+            {
+                log_msg( prec, 0, "saving ..." );
+
+                mInfo->sEvent->wait();
+                send_msg( mInfo, "SV 9", 0 );
+            }
+            else if ( prec->svng == 9 )
+            {
+                mInfo->sEvent->signal();
+
+                log_msg( prec, 0, "saved"      );
+            }
+
+            prec->svng = 0;
             break;
         case imsRecordVAL :
             if ( (prec->sevr >  MINOR_ALARM) || msta.Bits.RA_POWERUP ||
@@ -1222,7 +1243,7 @@ static long special( dbAddr *pDbAddr, int after )
                     log_msg( prec, 0, "stop current move" );
                     prec->mip  = MIP_NEW;
 
-                    send_msg( mInfo->pasynUser, "SL 0\r\nUs 0" );
+                    send_msg( mInfo, "SL 0\r\nUs 0" );
                 }
 
                 break;
@@ -1277,7 +1298,7 @@ static long special( dbAddr *pDbAddr, int after )
                 prec->mip &= ~( MIP_STOP | MIP_PAUSE );
 
                 sprintf( msg, "MA %d", prec->rval );
-                send_msg( mInfo->pasynUser, msg );
+                send_msg( mInfo, msg );
 
                 break;
             }
@@ -1295,7 +1316,7 @@ static long special( dbAddr *pDbAddr, int after )
                     prec->mip |=  MIP_PAUSE;
                 }
 
-                send_msg( mInfo->pasynUser, "SL 0\r\nUs 0" );
+                send_msg( mInfo, "SL 0\r\nUs 0" );
             }
 
             break;
@@ -1358,7 +1379,7 @@ static long special( dbAddr *pDbAddr, int after )
                 else
                     sprintf( msg, "P %ld\r\nUs 0",           new_rval );
 
-                send_msg( mInfo->pasynUser, msg );
+                send_msg( mInfo, msg );
             }
 
             break;
@@ -1386,7 +1407,7 @@ static long special( dbAddr *pDbAddr, int after )
                               VI, VM, A, MI );
  
             prec->mip  = MIP_HOMF;
-            send_msg( mInfo->pasynUser, msg );
+            send_msg( mInfo, msg );
 
             break;
         case imsRecordHOMR:
@@ -1413,7 +1434,7 @@ static long special( dbAddr *pDbAddr, int after )
                               VI, VM, A, MI );
  
             prec->mip  = MIP_HOMR;
-            send_msg( mInfo->pasynUser, msg );
+            send_msg( mInfo, msg );
 
             break;
         case imsRecordLLM :
@@ -1510,7 +1531,7 @@ static long special( dbAddr *pDbAddr, int after )
 
             set_el:
             sprintf( msg, "EL %d", prec->el );
-            send_msg( mInfo->pasynUser, msg );
+            send_msg( mInfo, msg );
 
             if ( prec->ee == motorAble_Enable ) goto set_res;
 
@@ -1525,7 +1546,7 @@ static long special( dbAddr *pDbAddr, int after )
 
             set_ms:
             sprintf( msg, "MS %d", prec->ms );
-            send_msg( mInfo->pasynUser, msg );
+            send_msg( mInfo, msg );
 
             if ( prec->ee != motorAble_Enable ) goto set_res;
 
@@ -1685,7 +1706,7 @@ static long special( dbAddr *pDbAddr, int after )
             if ( prec->ee   == prec->oval ) break;
 
             sprintf( msg, "EE %d", prec->ee );
-            send_msg( mInfo->pasynUser, msg );
+            send_msg( mInfo, msg );
 
             nval = prec->res;
             if ( prec->ee   == motorAble_Enable )
@@ -1699,12 +1720,12 @@ static long special( dbAddr *pDbAddr, int after )
             break;
         case imsRecordRC  :
             sprintf( msg, "RC %d",         prec->rc   );
-            send_msg( mInfo->pasynUser, msg );
+            send_msg( mInfo, msg );
 
             break;
         case imsRecordHC  :
             sprintf( msg, "HC %d",         prec->hc   );
-            send_msg( mInfo->pasynUser, msg );
+            send_msg( mInfo, msg );
 
             if ( prec->hc > 0 )
             {
@@ -1723,7 +1744,7 @@ static long special( dbAddr *pDbAddr, int after )
         case imsRecordHCTG:
             if ( prec->hctg == motorHC_Zero )
             {
-                send_msg( mInfo->pasynUser, "HC 0" );
+                send_msg( mInfo, "HC 0" );
 
                 prec->hc   = 0;
                 db_post_events( prec, &prec->hc  , DBE_VAL_LOG );
@@ -1731,7 +1752,7 @@ static long special( dbAddr *pDbAddr, int after )
             else
             {
                 sprintf( msg, "HC %d", prec->hcsv );
-                send_msg( mInfo->pasynUser, msg    );
+                send_msg( mInfo, msg    );
 
                 prec->hc   = prec->hcsv;
                 db_post_events( prec, &prec->hc  , DBE_VAL_LOG );
@@ -1742,16 +1763,16 @@ static long special( dbAddr *pDbAddr, int after )
             if ( prec->mode == prec->oval ) break;
 
             sprintf( msg, "Sk %d\r\nUs 0", prec->mode );
-            send_msg( mInfo->pasynUser, msg );
+            send_msg( mInfo, msg );
 
             break;
         case imsRecordCMD :
-            send_msg( mInfo->pasynUser, prec->cmd );
+            send_msg( mInfo, prec->cmd );
 
             if ( strstr(prec->cmd, "PR ") || strstr(prec->cmd, "pr ") ||
                  strstr(prec->cmd, "Pr ") || strstr(prec->cmd, "pR ")    )
             {
-                status = recv_reply( mInfo->pasynUser, rbbuf );
+                status = recv_reply( mInfo, rbbuf );
                 if ( status > 0 ) strncpy( prec->resp, rbbuf, 61 );
                 else              strncpy( prec->resp, "",    61 );
             }
@@ -1900,35 +1921,40 @@ static long get_alarm_double( dbAddr  *paddr, struct dbr_alDouble * pad)
 }
 
 /******************************************************************************/
-static void flush_asyn( asynUser *pasynUser )
+static void flush_asyn( struct ims_info *mInfo )
 {
-    pasynOctetSyncIO->flush( pasynUser );
+    pasynOctetSyncIO->flush( mInfo->pasynUser );
     return;
 }
 
 /******************************************************************************/
-static long send_msg( asynUser *pasynUser, char const *msg )
+static long send_msg( struct ims_info *mInfo, char const *msg, int sEvt )
 {
     char         local_buf[MAX_MSG_SIZE];
     const double timeout = 1.0;
     size_t       nwrite;
 
     sprintf( local_buf, "%s\r", msg );
-    pasynOctetSyncIO->write( pasynUser, local_buf, strlen(local_buf),
+
+    if ( sEvt == 1 ) mInfo->sEvent->wait( 1.5 );
+
+    pasynOctetSyncIO->write( mInfo->pasynUser, local_buf, strlen(local_buf),
                              timeout, &nwrite );
+
+    if ( sEvt == 1 ) mInfo->sEvent->signal();
 
     return( 0 );
 }
 
 /******************************************************************************/
-static long recv_reply( asynUser *pasynUser, char *rbbuf )
+static long recv_reply( struct ims_info *mInfo, char *rbbuf )
 {
     const double timeout  = 1.0;
     size_t       nread    = 0;
     asynStatus   asyn_rtn = asynError;
     int          eomReason;
 
-    asyn_rtn = pasynOctetSyncIO->read( pasynUser, rbbuf, MAX_MSG_SIZE,
+    asyn_rtn = pasynOctetSyncIO->read( mInfo->pasynUser, rbbuf, MAX_MSG_SIZE,
                                        timeout, &nread, &eomReason );
 
     if ( (asyn_rtn != asynSuccess) || (nread <= 0) )
@@ -2073,10 +2099,10 @@ static void ping_controller( struct ims_info *mInfo )
         retry = 1;
         do
         {
-            flush_asyn( mInfo->pasynUser );
+            flush_asyn( mInfo );
 
-            send_msg( mInfo->pasynUser, "PR \"BY=\",BY" );
-            status = recv_reply( mInfo->pasynUser, msg );
+            send_msg( mInfo, "PR \"BY=\",BY" );
+            status = recv_reply( mInfo, msg );
             if ( status > 0 )
             {
                 status = sscanf( msg, "BY=%d", &rbby );
@@ -2095,13 +2121,13 @@ static void ping_controller( struct ims_info *mInfo )
             }
             else if ( rbby != 1 )                              // wrong BY value
             {
-                log_msg( prec, 0, "Invalid BY readback" );
+                log_msg( prec, 0, "invalid BY readback" );
                 msta.Bits.RA_COMM_ERR = 1;
             }
         }
         else
         {
-            log_msg( prec, 0, "Failed to read BY" );
+            log_msg( prec, 0, "failed to read BY" );
             msta.Bits.RA_PROBLEM = 1;
         }
 

@@ -44,12 +44,34 @@ record(stringout, "$(MOTOR):UPDATE") {
   field(OMSL, "closed_loop")
 }
 
+record(longin, "$(MOTOR):WANT2SAVE") {
+  field(DESC, "Want To Save Signal")
+  field(DTYP, "stream")
+  field(INP,  "@report.proto SAVING  $(ASYN) 1")
+  field(SCAN, "I/O Intr")
+  field(FLNK, "$(MOTOR):SAVING")
+}
+
+record(longout, "$(MOTOR):SAVING") {
+  field(DESC, "Controller To Save")
+  field(DOL,  "$(MOTOR):WANT2SAVE")
+  field(OUT,  "$(MOTOR).SVNG")
+  field(OMSL, "closed_loop")
+}
+
 record(longin, "$(MOTOR):SAVED_RAW") {
   field(DESC, "Saved Raw Position")
   field(DTYP, "stream")
   field(INP,  "@report.proto SAVED_P $(ASYN) 1")
   field(EGU,  "Steps/Counts")
   field(SCAN, "I/O Intr")
+  field(FLNK, "$(MOTOR):SAVED")
+}
+
+record(longout, "$(MOTOR):SAVED") {
+  field(DESC, "Controller Saved")
+  field(DOL,  "9")
+  field(OUT,  "$(MOTOR).SVNG")
   field(FLNK, "$(MOTOR):SAVED_P")
 }
 
@@ -94,6 +116,13 @@ record(calcout, "$(MOTOR):CheckUpdate") {
   field(EVNT, "9")
 }
 
+record(stringout, "$(MOTOR):P1P") {
+  field(DESC, "P1 = P")
+  field(OMSL, "closed_loop")
+  field(VAL,  "p1 P")
+  field(OUT,  "$(MOTOR).CMD")
+}
+
 record(stringout, "$(MOTOR):EXE_PG") {
   field(DESC, "Start The MCode Program")
   field(OMSL, "closed_loop")
@@ -134,19 +163,22 @@ record(seq, "$(MOTOR):SEQ") {
   field(SELM, "Mask")
   field(DLY1, "0")
   field(DO1,  "1")
-  field(LNK1, "$(MOTOR):EXE_PG.PROC"  )
-  field(DLY2, "3.0")
+  field(LNK1, "$(MOTOR):P1P.PROC"     )
+  field(DLY2, "0.1")
   field(DO2,  "1")
-  field(LNK2, "$(MOTOR):CLEAR_PU.PROC")
-  field(DLY3, "0.5")
+  field(LNK2, "$(MOTOR):EXE_PG.PROC"  )
+  field(DLY3, "3.0")
   field(DO3,  "1")
-  field(LNK3, "$(MOTOR):CLEAR_ST.PROC")
-  field(DLY4, "0.5")
+  field(LNK3, "$(MOTOR):CLEAR_PU.PROC")
+  field(DLY4, "0.1")
   field(DO4,  "1")
-  field(LNK4, "$(MOTOR):CLEAR_ER.PROC")
-  field(DLY5, "0.5")
+  field(LNK4, "$(MOTOR):CLEAR_ST.PROC")
+  field(DLY5, "0.1")
   field(DO5,  "1")
-  field(LNK5, "$(MOTOR):UPDATE_NOW.PROC")
+  field(LNK5, "$(MOTOR):CLEAR_ER.PROC")
+  field(DLY6, "0.1")
+  field(DO6,  "1")
+  field(LNK6, "$(MOTOR):UPDATE_NOW.PROC")
 }
 
 record(longout, "$(MOTOR):SEQ_SELN") {

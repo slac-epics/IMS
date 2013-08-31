@@ -70,7 +70,7 @@ PG 1
     RT
 
   LB Zc
-    CL Zd, Sv=1     ' Save now
+    CL Zd, Sv=9     ' Save now
 
     CL Ze, Sk=0     ' Not scanning
 
@@ -114,22 +114,31 @@ PG 1
 
   LB Zi
     CL Zj, R3=0     ' Delay started by slipping
-    CL Zd, R3=1	    ' Delay started by a move
+    CL Zk, R3=1	    ' Delay started by a move
     RT
 
   LB Zj
     X1 p1-Sd
     X2 p1+Sd
-    CL Zd, P<X1	    ' Really slipped below deadband
-    CL Zd, P>X2	    ' Really slipped above deadband
-    CL Zk, P>=X1    ' Came back or not
+    CL Zk, P<X1	    ' Really slipped below deadband
+    CL Zk, P>X2	    ' Really slipped above deadband
+    CL Zm, P>=X1    ' Came back or not
     RT
 
   LB Zk
-    CL Zl, P<=X2    ' Came back
+    CL Zl, Sv=0
     RT
 
   LB Zl
+    Sv 1
+    PR "Want2Save"
+    RT
+
+  LB Zm
+    CL Zn, P<=X2    ' Came back
+    RT
+
+  LB Zn
     R4 0            ' Came back, reset the delay counter
     RT
 
