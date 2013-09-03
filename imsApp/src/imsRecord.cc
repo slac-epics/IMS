@@ -31,7 +31,7 @@
 
 #include "epicsExport.h"
 
-#include "misc.h"
+#include "ims.h"
 
 
 /*** Forward references ***/
