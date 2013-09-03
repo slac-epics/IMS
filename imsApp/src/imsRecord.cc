@@ -95,7 +95,7 @@ extern "C" { epicsExportAddress( rset, imsRSET ); }
 
 static long connect_motor     ( imsRecord *precord                            );
 static long init_motor        ( imsRecord *precord                            );
-static long process_motor_info( imsRecord *precord, status_word sword,
+static long process_motor_info( imsRecord *precord, status_word csr,  
                                                     long count                );
 static void new_move          ( imsRecord *precord                            );
 static void post_fields       ( imsRecord *precord, unsigned short alarm_mask,
@@ -635,7 +635,7 @@ static long process( dbCommon *precord )
     double          old_val,  old_dval, old_diff, diff;
     long            count, old_rval, old_msta = prec->msta, status = OK;
     int             VI, VM, A, retry, rbby;
-    status_word     sword;
+    status_word     csr;
     motor_status    msta;
     bool            first, reset_us=FALSE;
 
@@ -652,7 +652,7 @@ static long process( dbCommon *precord )
     }
     else if ( mInfo->newData == 2 )                        // callback from ping
     {
-        msta.All = prec->msta | mInfo->sword;
+        msta.All = prec->msta | mInfo->csr;
 
         mInfo->newData = 0;
         mInfo->cMutex->unlock();
@@ -660,20 +660,20 @@ static long process( dbCommon *precord )
         goto finished;
     }
 
-    sword.All = mInfo->sword;
-    count     = mInfo->count;
-    first     = ! mInfo->initialized;
+    csr.All = mInfo->csr;
+    count   = mInfo->count;
+    first   = ! mInfo->initialized;
 
     if ( first ) mInfo->initialized = 1;
     mInfo->newData = 0;
 
     mInfo->cMutex->unlock();
 
-    process_motor_info( prec, sword, count );
+    process_motor_info( prec, csr, count );
 
     msta.All = prec->msta;
 
-    if ( prec->movn ) goto finished;                                   // moving
+    if ( prec->movn ) goto finished;                             // still moving
 
     if ( (! first) && (prec->mip == MIP_DONE) ) // done moving, check slip_stall
     {
@@ -701,10 +701,12 @@ static long process( dbCommon *precord )
     diff     = prec->rbv - prec->val;
     if ( first ||                                         // first status update
          (msta.Bits.RA_STALL && (! msta.Bits.RA_SM)) ||               // stalled
+         ((prec->mip  == MIP_HOME        ) &&
+          (prec->htyp == motorHTYP_Switch) && prec->hmls) || // homing-to-switch
          prec->lls || prec->hls ||                         // hit a limit switch
-         (prec->mip  & MIP_STOP) || (prec->mip  & MIP_PAUSE) || // stop or pause
-         (prec->mip == MIP_HOME)                                ) // done homing
-    {
+         (prec->mip  & (MIP_STOP | MIP_PAUSE)) ||               // stop or pause
+         ((prec->mip  == MIP_HOME) && (prec->htyp == motorHTYP_Encoder)) )
+    {                                                            // encoder home
         short newval = 1;
 
         if ( msta.Bits.RA_STALL && (! msta.Bits.RA_SM) )
@@ -715,7 +717,7 @@ static long process( dbCommon *precord )
                 prec->miss = 1;
             }
             else if ( (prec->mip != MIP_DONE) &&
-                      !(prec->mip & (MIP_STOP || MIP_PAUSE)) )     // was moving
+                      !(prec->mip & (MIP_STOP | MIP_PAUSE)) )      // was moving
             {
                 if ( fabs(diff) < prec->rdbd )
                 {
@@ -733,6 +735,18 @@ static long process( dbCommon *precord )
             else if ( first )                             // first status update
                 log_msg( prec, 0, "initialization completed" );
         }
+        else if ( (prec->mip  == MIP_HOME        ) &&
+                  (prec->htyp == motorHTYP_Switch) && prec->hmls )
+        {
+            log_msg( prec, 0, "homed to switch" );
+            prec->miss = 0;
+
+            prec->athm = 1;
+            msta.Bits.RA_HOMED = 1;
+            msta.Bits.RA_HOME  = 1;
+
+            db_post_events( prec, &prec->athm, DBE_VAL_LOG );
+        }
         else if ( prec->lls )
         {
             if ( prec->mip == MIP_HOME )                           // was homing
@@ -741,7 +755,7 @@ static long process( dbCommon *precord )
                 prec->miss = 1;
             }
             else if ( (prec->mip != MIP_DONE) &&
-                      !(prec->mip & (MIP_STOP || MIP_PAUSE)) )     // was moving
+                      !(prec->mip & (MIP_STOP | MIP_PAUSE)) )      // was moving
             {
                 if ( fabs(diff) < prec->rdbd )
                 {
@@ -767,7 +781,7 @@ static long process( dbCommon *precord )
                 prec->miss = 1;
             }
             else if ( (prec->mip != MIP_DONE) &&
-                      !(prec->mip & (MIP_STOP || MIP_PAUSE)) )     // was moving
+                      !(prec->mip & (MIP_STOP | MIP_PAUSE)) )      // was moving
             {
                 if ( fabs(diff) < prec->rdbd )
                 {
@@ -795,10 +809,16 @@ static long process( dbCommon *precord )
             log_msg( prec, 0, "paused" );
             newval = 0;
         }
-        else if ( prec->mip == MIP_HOME )
+        else if ( (prec->mip == MIP_HOME) && (prec->htyp == motorHTYP_Encoder) )
         {
-            log_msg( prec, 0, "homed" );
+            log_msg( prec, 0, "homed to encoder mark" );
             prec->miss = 0;
+
+            prec->athm = 1;
+            msta.Bits.RA_HOMED = 1;
+            msta.Bits.EA_HOME  = 1;
+
+            db_post_events( prec, &prec->athm, DBE_VAL_LOG );
         }
         else if ( first )                                 // first status update
             log_msg( prec, 0, "initialization completed" );
@@ -840,7 +860,7 @@ static long process( dbCommon *precord )
               (prec->rtry > 0) && (prec->rcnt < prec->rtry) )  // can retry more
     {
         log_msg( prec, 0, "desired %.6g, reached %.6g, retrying %d ...",
-                          prec->val, prec->rbv, prec->rcnt++ );
+                          prec->val, prec->rbv, ++prec->rcnt );
 
         prec->mip  |= MIP_RETRY;
 
@@ -889,7 +909,8 @@ static long process( dbCommon *precord )
     {
         recGblSetSevr( (dbCommon *)prec, STATE_ALARM, MAJOR_ALARM   );
 
-        if ( msta.Bits.RA_NE ) log_msg( prec, 0, "Numeric Enable is set" );
+        if ( msta.Bits.RA_NE  ) log_msg( prec, 0, "Numeric Enable is set" );
+        if ( msta.Bits.RA_BY0 ) log_msg( prec, 0, "MCode not running"     );
     }
     else if ( msta.Bits.RA_POWERUP || msta.Bits.EA_SLIP_STALL ||
               msta.Bits.RA_ERR                                   )
@@ -930,7 +951,7 @@ static long process( dbCommon *precord )
 }
 
 /******************************************************************************/
-static long process_motor_info( imsRecord *prec, status_word sword, long count )
+static long process_motor_info( imsRecord *prec, status_word csr, long count )
 {
     ims_info     *mInfo = (ims_info *)prec->dpvt;
     short         old_movn, old_rlls, old_rhls, old_lls, old_hls;
@@ -939,6 +960,16 @@ static long process_motor_info( imsRecord *prec, status_word sword, long count )
     motor_status  msta;
 
     int           dir = (prec->dir == motorDIR_Positive) ? 1 : -1;
+
+    if ( csr.Bits.BY0 )
+    {
+        msta.All         = prec->msta;
+        msta.Bits.RA_BY0 = csr.Bits.BY0;
+        prec->msta       = msta.All;
+        prec->movn       = 0;
+
+        return( 0 );
+    }
 
     old_movn     = prec->movn;
     old_rlls     = prec->rlls;
@@ -951,25 +982,30 @@ static long process_motor_info( imsRecord *prec, status_word sword, long count )
 
     msta.All             = 0;
 
-    msta.Bits.RA_MOVING  = sword.Bits.MOVING;
-    msta.Bits.RA_EE      = sword.Bits.EE    ;
-    msta.Bits.RA_SM      = sword.Bits.SM    ;
-    msta.Bits.RA_STALL   = sword.Bits.ST    ;
-    msta.Bits.RA_POWERUP = sword.Bits.PU    ;
-    msta.Bits.RA_NE      = sword.Bits.NE    ;
-    msta.Bits.RA_ERR     = sword.Bits.ERR & 127;
+    msta.Bits.RA_MOVING  = csr.Bits.MOVING;
+    msta.Bits.RA_EE      = csr.Bits.EE    ;
+    msta.Bits.RA_SM      = csr.Bits.SM    ;
+    msta.Bits.RA_STALL   = csr.Bits.ST    ;
+    msta.Bits.RA_POWERUP = csr.Bits.PU    ;
+    msta.Bits.RA_NE      = csr.Bits.NE    ;
+    msta.Bits.RA_ERR     = csr.Bits.ERR & 127;
 
     prec->movn = msta.Bits.RA_MOVING;
 
     prec->rlls = 0;
     prec->rhls = 0;
-    if ( mInfo->S1 == 3 ) prec->rlls = sword.Bits.I1;
-    if ( mInfo->S2 == 3 ) prec->rlls = sword.Bits.I2;
-    if ( mInfo->S3 == 3 ) prec->rlls = sword.Bits.I3;
+    prec->hmls = 0;
+    if ( mInfo->S1 == 3 ) prec->rlls = csr.Bits.I1;
+    if ( mInfo->S2 == 3 ) prec->rlls = csr.Bits.I2;
+    if ( mInfo->S3 == 3 ) prec->rlls = csr.Bits.I3;
 
-    if ( mInfo->S1 == 2 ) prec->rhls = sword.Bits.I1;
-    if ( mInfo->S2 == 2 ) prec->rhls = sword.Bits.I2;
-    if ( mInfo->S3 == 2 ) prec->rhls = sword.Bits.I3;
+    if ( mInfo->S1 == 2 ) prec->rhls = csr.Bits.I1;
+    if ( mInfo->S2 == 2 ) prec->rhls = csr.Bits.I2;
+    if ( mInfo->S3 == 2 ) prec->rhls = csr.Bits.I3;
+
+    if ( mInfo->S1 == 1 ) prec->hmls = csr.Bits.I1;
+    if ( mInfo->S2 == 1 ) prec->hmls = csr.Bits.I2;
+    if ( mInfo->S3 == 1 ) prec->hmls = csr.Bits.I3;
 
     msta.Bits.RA_MINUS_LS = prec->rlls;
     msta.Bits.RA_PLUS_LS  = prec->rhls;
@@ -1065,7 +1101,7 @@ static long special( dbAddr *pDbAddr, int after )
     ims_info       *mInfo = (ims_info *)prec->dpvt;
     char            MI = (prec->htyp == motorHTYP_Switch) ? 'M' : 'I';
     char            msg[MAX_MSG_SIZE], rbbuf[MAX_MSG_SIZE];
-    long            sword, count, old_rval, new_rval;
+    long            csr, count, old_rval, new_rval;
     short           old_dmov, old_rcnt, old_lvio;
     double          nval, old_val, old_dval, old_rbv, new_dval;
     unsigned short  old_mip, alarm_mask = 0;
@@ -1117,14 +1153,14 @@ static long special( dbAddr *pDbAddr, int after )
         case imsRecordSSTR:
             log_msg( prec, 1, "%s", prec->sstr  );
 
-            status = sscanf( prec->sstr, "%ld,P=%ldEOS", &sword, &count );
+            status = sscanf( prec->sstr, "%ld,P=%ldEOS", &csr, &count );
             if ( status == 2 )
             {
-                log_msg( prec, 2, "Status=%d,P=%d", sword, count );
+                log_msg( prec, 2, "CSR=%d,P=%d", csr, count );
 
                 mInfo->cMutex->lock();
 
-                mInfo->sword   = sword;
+                mInfo->csr     = csr;
                 mInfo->count   = count;
                 mInfo->newData = 1;
             }
@@ -1234,6 +1270,13 @@ static long special( dbAddr *pDbAddr, int after )
             prec->lvio = 0;
             prec->rcnt = 0;
 
+            prec->athm = 0;
+            msta.Bits.RA_HOMED = 0;
+            msta.Bits.RA_HOME  = 0;
+            msta.Bits.EA_HOME  = 0;
+
+            db_post_events( prec, &prec->athm, DBE_VAL_LOG );
+
             // if ( prec->spg != motorSPG_Go  ) break;
 
             if ( prec->dmov == 0 )                               // still moving
@@ -1319,6 +1362,21 @@ static long special( dbAddr *pDbAddr, int after )
                 send_msg( mInfo, "SL 0\r\nUs 0" );
             }
 
+            break;
+        case ( imsRecordSTOP ):
+            send_msg( mInfo, "\e" );
+
+            prec->mip  &= ~MIP_PAUSE;
+            prec->mip  |=  MIP_STOP ;
+            prec->spg   = motorSPG_Stop;
+            db_post_events( prec, &prec->spg,  DBE_VAL_LOG );
+
+            log_msg( prec, 0, "emergency stop !!!" );
+
+            // force a status update
+            send_msg( mInfo, "PR \"BOS65536,P=\",P,\"EOS\"" );
+
+            prec->stop = 0;
             break;
         case ( imsRecordDIR  ):
             if ( prec->dir == prec->oval ) break;
@@ -1407,6 +1465,14 @@ static long special( dbAddr *pDbAddr, int after )
                               VI, VM, A, MI );
  
             prec->mip  = MIP_HOMF;
+
+            prec->athm = 0;
+            msta.Bits.RA_HOMED = 0;
+            msta.Bits.RA_HOME  = 0;
+            msta.Bits.EA_HOME  = 0;
+
+            db_post_events( prec, &prec->athm, DBE_VAL_LOG );
+
             send_msg( mInfo, msg );
 
             break;
@@ -1434,6 +1500,14 @@ static long special( dbAddr *pDbAddr, int after )
                               VI, VM, A, MI );
  
             prec->mip  = MIP_HOMR;
+
+            prec->athm = 0;
+            msta.Bits.RA_HOMED = 0;
+            msta.Bits.RA_HOME  = 0;
+            msta.Bits.EA_HOME  = 0;
+
+            db_post_events( prec, &prec->athm, DBE_VAL_LOG );
+
             send_msg( mInfo, msg );
 
             break;
@@ -2116,7 +2190,6 @@ static void ping_controller( struct ims_info *mInfo )
         {
             if      ( rbby == 0 )                           // MCode not running
             {
-                log_msg( prec, 0, "MCode not running"   );
                 msta.Bits.RA_BY0      = 1;
             }
             else if ( rbby != 1 )                              // wrong BY value
@@ -2133,7 +2206,7 @@ static void ping_controller( struct ims_info *mInfo )
 
         mInfo->cMutex->lock();
 
-        mInfo->sword   = msta.All;
+        mInfo->csr     = msta.All;
         mInfo->newData = 2;
 
         mInfo->cMutex->unlock();

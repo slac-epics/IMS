@@ -461,6 +461,11 @@ recordtype(ims) {
 		initial(2)
 		interest(1)
 	}
+	field(STOP,DBF_SHORT) {
+		prompt("Emergency Stop")
+		special(SPC_MOD)
+		asl(ASL0)
+	}
 	field(MIP,DBF_USHORT) {
 		prompt("Motion In Progress")
 		special(SPC_NOMOD)
@@ -498,6 +503,10 @@ recordtype(ims) {
 	}
 	field(RHLS,DBF_SHORT) {
 		prompt("Raw High Limit Switch")
+		special(SPC_NOMOD)
+	}
+	field(HMLS,DBF_SHORT) {
+		prompt("Home Limit Switch")
 		special(SPC_NOMOD)
 	}
 	field(LLS,DBF_SHORT) {

@@ -12,7 +12,7 @@ struct ims_info
     short             S3;
     bool              initialized;
 
-    long              sword;
+    long              csr;
     long              count;
     int               newData;
 
@@ -39,7 +39,8 @@ typedef union
         unsigned int ST     : 1; // stall detected
         unsigned int PU     : 1; // power-cycled
         unsigned int NE     : 1; // numeric enable
-        unsigned int NA     :16; // not used
+        unsigned int BY0    : 1; // MCode not running
+        unsigned int NA     :15; // not used
     } Bits;
 } status_word;
 
@@ -101,7 +102,7 @@ typedef union
     } Bits;
 } changed_fields;
 
-#define MARK(FIELD)   { changed_fields temp; temp.All = prec->cmap;            \
+#define   MARK(FIELD) { changed_fields temp; temp.All = prec->cmap;            \
                         temp.Bits.FIELD = 1; prec->cmap = temp.All; }
 
 #define MARKED(FIELD) ( cmap.Bits.FIELD )
