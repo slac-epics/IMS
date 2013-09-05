@@ -10,6 +10,6 @@ ExtraInput    = Ignore;
 # Reports from the controller
 STATUS  { ReplyTimeout = 50; ReadTimeout = 10; InTerminator =; in "%.1/BOS([0-9,P=\-]*EOS)\r\n$/"; }
 
-SAVING  { ReplyTimeout = 50; ReadTimeout = 10; InTerminator =; in "Want2%#{Save=1}"; }
-SAVED_P { ReplyTimeout = 50; ReadTimeout = 10; InTerminator =; in "Saved %d"; }
+SAVING  { ReplyTimeout = 50; ReadTimeout = 10; InTerminator =; in "%.1/.*Want2([Save]*).*/"; }
+SAVED_P { ReplyTimeout = 50; ReadTimeout = 10; InTerminator =; in "%.1/.*Saved ([0-9\-]*).*/"; }
 

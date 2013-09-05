@@ -9,7 +9,7 @@ struct ims_info
     asynUser         *pasynUser;
     short             S1;                                           // switch S1
     short             S2;
-    short             S3;
+    short             S4;
     bool              initialized;
 
     long              csr;
@@ -34,7 +34,7 @@ typedef union
         unsigned int SM     : 1; // stall mode
         unsigned int I1     : 1; // I1
         unsigned int I2     : 1; // I2
-        unsigned int I3     : 1; // I3
+        unsigned int I4     : 1; // I4
         unsigned int ERR    : 7; // error number
         unsigned int ST     : 1; // stall detected
         unsigned int PU     : 1; // power-cycled

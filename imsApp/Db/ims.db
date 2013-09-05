@@ -44,34 +44,44 @@ record(stringout, "$(MOTOR):UPDATE") {
   field(OMSL, "closed_loop")
 }
 
-record(longin, "$(MOTOR):WANT2SAVE") {
+record(stringin, "$(MOTOR):WANT2SAVE") {
   field(DESC, "Want To Save Signal")
   field(DTYP, "stream")
   field(INP,  "@report.proto SAVING  $(ASYN) 1")
   field(SCAN, "I/O Intr")
+  field(MPST, "Always")
   field(FLNK, "$(MOTOR):SAVING")
 }
 
-record(longout, "$(MOTOR):SAVING") {
+record(stringout, "$(MOTOR):SAVING") {
   field(DESC, "Controller To Save")
   field(DOL,  "$(MOTOR):WANT2SAVE")
   field(OUT,  "$(MOTOR).SVNG")
   field(OMSL, "closed_loop")
 }
 
-record(longin, "$(MOTOR):SAVED_RAW") {
+record(stringin, "$(MOTOR):SAVED_STR") {
   field(DESC, "Saved Raw Position")
   field(DTYP, "stream")
   field(INP,  "@report.proto SAVED_P $(ASYN) 1")
   field(EGU,  "Steps/Counts")
   field(SCAN, "I/O Intr")
+  field(MPST, "Always")
   field(FLNK, "$(MOTOR):SAVED")
 }
 
-record(longout, "$(MOTOR):SAVED") {
+record(stringout, "$(MOTOR):SAVED") {
   field(DESC, "Controller Saved")
-  field(DOL,  "9")
+  field(DOL,  "$(MOTOR):SAVED_STR")
   field(OUT,  "$(MOTOR).SVNG")
+  field(OMSL, "closed_loop")
+  field(FLNK, "$(MOTOR):SAVED_RAW")
+}
+
+record(scalcout, "$(MOTOR):SAVED_RAW") {
+  field(DESC, "Saved Raw Position")
+  field(INDD, "$(MOTOR):SAVED_STR NPP")
+  field(CALC, "INT(DD)")
   field(FLNK, "$(MOTOR):SAVED_P")
 }
 

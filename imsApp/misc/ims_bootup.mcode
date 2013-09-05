@@ -91,7 +91,7 @@ PG 1
   LB Ze
     CL Zf, R4>0     ' Moved or slipped, delaying for saving
     CL Zg, R4=0     ' Check for slipping
-    CL Zi, R4>2000  ' Has delayed about 30 seconds
+    CL Zi, R4>3000  ' Has delayed about 45 seconds
     RT
 
   LB Zf
@@ -162,7 +162,7 @@ PG 1
     X1 ER*   64     ' bit-7 through 13 is the error code
     X2 X2+X1
 
-    X1 I3*   32     ' bit-6 is I3
+    X1 I4*   32     ' bit-6 is I4
     X2 X2+X1
 
     X1 I2*   16     ' bit-5 is I2

@@ -93,8 +93,8 @@ recordtype(ims) {
 		asl(ASL0)
 		interest(1)
 	}
-	field(S3,DBF_STRING) {
-		prompt("S3 Setting")
+	field(S4,DBF_STRING) {
+		prompt("S4 Setting")
 		promptgroup(GUI_COMMON)
 		size(61)
 		special(SPC_MOD)
@@ -186,6 +186,14 @@ recordtype(ims) {
 		promptgroup(GUI_COMMON)
 		special(SPC_MOD)
 		asl(ASL0)
+		interest(1)
+	}
+	field(MT,DBF_USHORT) {
+		prompt("Settling Delay Time (ms)")
+		promptgroup(GUI_COMMON)
+		special(SPC_MOD)
+		asl(ASL0)
+		initial(0)
 		interest(1)
 	}
 	field(MPGM,DBF_STRING) {
@@ -423,7 +431,7 @@ recordtype(ims) {
 		special(SPC_NOMOD)
 	}
 	field(TWV,DBF_DOUBLE) {
-		prompt("Tweak Step Size (EGU)")
+		prompt("Tweak Amount (EGU)")
 		promptgroup(GUI_COMMON)
 		asl(ASL0)
 		interest(1)
@@ -555,9 +563,10 @@ recordtype(ims) {
 		pp(TRUE)
 		interest(1)
 	}
-	field(SVNG,DBF_SHORT) {
+	field(SVNG,DBF_STRING) {
 		prompt("Controller To Save")
 		promptgroup(GUI_COMMON)
+		size(61)
 		special(SPC_MOD)
 		asl(ASL0)
 		interest(1)
@@ -586,6 +595,55 @@ recordtype(ims) {
 		size(61)
 		special(SPC_NOMOD)
 		interest(1)
+	}
+	field(EGAG,DBF_MENU) {
+		prompt("Use External Guage")
+		promptgroup(GUI_COMMON)
+		menu(menuYesNo)
+		asl(ASL0)
+		initial("NO")
+		interest(1)
+	}
+	field(ERBL,DBF_INLINK) {
+		prompt("External Guage Readback Link")
+		promptgroup(GUI_COMMON)
+		special(SPC_NOMOD)
+		interest(1)
+	}
+	field(ESKL,DBF_DOUBLE) {
+		prompt("External Guage Scale")
+		promptgroup(GUI_COMMON)
+		initial(1)
+		interest(1)
+	}
+	field(ERBV,DBF_DOUBLE) {
+		prompt("External Guage RBV")
+		promptgroup(GUI_COMMON)
+		special(SPC_NOMOD)
+		interest(1)
+	}
+	field(EVAL,DBF_DOUBLE) {
+		prompt("External Guage Target")
+		promptgroup(GUI_COMMON)
+		special(SPC_MOD)
+		interest(1)
+	}
+	field(ETWV,DBF_DOUBLE) {
+		prompt("External Guage Tweak Amount")
+		promptgroup(GUI_COMMON)
+		asl(ASL0)
+		initial(1)
+		interest(1)
+	}
+	field(ETWF,DBF_SHORT) {
+		prompt("External Guage Tweak Forward")
+		special(SPC_MOD)
+		asl(ASL0)
+	}
+	field(ETWR,DBF_SHORT) {
+		prompt("External Guage Tweak Reverse")
+		special(SPC_MOD)
+		asl(ASL0)
 	}
 	field(RCON,DBF_SHORT) {
 		prompt("Re-connect to the Controller")
