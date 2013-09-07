@@ -709,7 +709,7 @@ static long process( dbCommon *precord )
     old_rval = prec->rval;
 
     if ( prec->egag == menuYesNoYES )
-        diff = ( prec->erbv - prec->eval ) * prec->eskl;
+        diff = ( prec->erbv - prec->eval ) * prec->eskl * ( 1. - 2.*prec->dir );
     else
         diff =   prec->rbv  - prec->val;
 
@@ -880,7 +880,8 @@ static long process( dbCommon *precord )
             log_msg( prec, 0, "desired %.6g, reached %.6g, retrying %d ...",
                               prec->eval, prec->erbv, ++prec->rcnt );
 
-            sprintf( msg, "MR %d", diff*(1. - 2.*prec->dir)/prec->res );
+            sprintf( msg, "MR %d", (prec->eval - prec->erbv) * prec->eskl /
+                                   prec->res                                );
         }
         else
         {
@@ -1134,7 +1135,7 @@ static long special( dbAddr *pDbAddr, int after )
     char            msg[MAX_MSG_SIZE], rbbuf[MAX_MSG_SIZE];
     long            csr, count, old_rval, new_rval;
     short           old_dmov, old_rcnt, old_lvio;
-    double          nval, old_val, old_dval, old_rbv, new_dval;
+    double          nval, old_val, old_dval, old_rbv, new_dval, new_eval;
     unsigned short  old_mip, alarm_mask = 0;
     motor_status    msta;
 
@@ -1160,6 +1161,7 @@ static long special( dbAddr *pDbAddr, int after )
         else if ( fieldIndex == imsRecordUREV ) prec->oval = prec->urev;
         else if ( fieldIndex == imsRecordEE   ) prec->oval = prec->ee  ;
         else if ( fieldIndex == imsRecordMODE ) prec->oval = prec->mode;
+        else if ( fieldIndex == imsRecordEVAL ) prec->oval = prec->eval;
 
         return( OK );
     }
@@ -1228,24 +1230,24 @@ static long special( dbAddr *pDbAddr, int after )
             break;
         case imsRecordVAL :
             if ( (prec->sevr >  MINOR_ALARM) || msta.Bits.RA_POWERUP ||
-                 (prec->spg  != motorSPG_Go)                            )
+                 ((prec->set == motorSET_Use) && (prec->spg != motorSPG_Go)) )
             {
                 prec->val  = prec->oval;
 
                 if      ( msta.Bits.RA_PROBLEM || msta.Bits.RA_COMM_ERR )
-                    log_msg( prec, 0, "no move, hardware problem"      );
+                    log_msg( prec, 0, "no move/set, hardware problem"  );
                 else if ( msta.Bits.RA_NE                               )
-                    log_msg( prec, 0, "no move, NE is set"             );
+                    log_msg( prec, 0, "no move/set, NE is set"         );
                 else if ( msta.Bits.RA_BY0                              )
-                    log_msg( prec, 0, "no move, MCode not running"     );
+                    log_msg( prec, 0, "no move/set, MCode not running" );
                 else if ( msta.Bits.NOT_INIT                            )
-                    log_msg( prec, 0, "no move, init not finished yet" );
+                    log_msg( prec, 0, "no move/set, init not finished" );
                 else if ( msta.Bits.RA_POWERUP                          )
-                    log_msg( prec, 0, "no tweak, power cycled"          );
+                    log_msg( prec, 0, "no move/set, power cycled"      );
                 else if ( prec->spg != motorSPG_Go                      )
                     log_msg( prec, 0, "no move, SPG is not Go"         );
                 else
-                    log_msg( prec, 0, "no move, unknown alarm"         );
+                    log_msg( prec, 0, "no move/set, unknown alarm"     );
 
                 break;
             }
@@ -1260,35 +1262,44 @@ static long special( dbAddr *pDbAddr, int after )
                 prec->lvio = 1;                     // set limit violation alarm
                 prec->val  = prec->oval;
 
-                log_msg( prec, 0, "no move, limit violated" );
+                log_msg( prec, 0, "no move/set, limit violated" );
                 break;
             }
 
             do_move1:
             if ( prec->set == motorSET_Use )            // do it only when "Use"
+            {
+                if ( prec->egag == menuYesNoYES )
+                {
+                    prec->eval = prec->erbv + (new_dval - prec->dval) /
+                                              prec->eskl;
+                    db_post_events( prec, &prec->eval, DBE_VAL_LOG );
+                }
+
                 prec->dval = new_dval;
+            }
 
             goto do_move2;
         case imsRecordDVAL:
             if ( (prec->sevr >  MINOR_ALARM) || msta.Bits.RA_POWERUP ||
-                 (prec->spg  != motorSPG_Go)                            )
+                 ((prec->set == motorSET_Use) && (prec->spg != motorSPG_Go)) )
             {
                 prec->dval = prec->oval;
 
                 if      ( msta.Bits.RA_PROBLEM || msta.Bits.RA_COMM_ERR )
-                    log_msg( prec, 0, "no move, hardware problem"      );
+                    log_msg( prec, 0, "no move/set, hardware problem"  );
                 else if ( msta.Bits.RA_NE                               )
-                    log_msg( prec, 0, "no move, NE is set"             );
+                    log_msg( prec, 0, "no move/set, NE is set"         );
                 else if ( msta.Bits.RA_BY0                              )
-                    log_msg( prec, 0, "no move, MCode not running"     );
+                    log_msg( prec, 0, "no move/set, MCode not running" );
                 else if ( msta.Bits.NOT_INIT                            )
-                    log_msg( prec, 0, "no move, init not finished yet" );
+                    log_msg( prec, 0, "no move/set, init not finished" );
                 else if ( msta.Bits.RA_POWERUP                          )
-                    log_msg( prec, 0, "no tweak, power cycled"          );
+                    log_msg( prec, 0, "no move/set, power cycled"      );
                 else if ( prec->spg != motorSPG_Go                      )
                     log_msg( prec, 0, "no move, SPG is not Go"         );
                 else
-                    log_msg( prec, 0, "no move, unknown alarm"         );
+                    log_msg( prec, 0, "no move/set, unknown alarm"     );
 
                 break;
             }
@@ -1302,11 +1313,21 @@ static long special( dbAddr *pDbAddr, int after )
                 prec->lvio = 1;                     // set limit violation alarm
                 prec->dval = prec->oval;
 
-                log_msg( prec, 0, "no move, limit violated" );
+                log_msg( prec, 0, "no move/set, limit violated" );
                 break;
             }
 
             prec->val  = prec->dval * (1. - 2.*prec->dir) + prec->off;
+
+            if ( prec->set == motorSET_Use )            // do it only when "Use"
+            {
+                if ( prec->egag == menuYesNoYES )
+                {
+                    prec->eval = prec->erbv + (prec->dval - prec->oval) /
+                                              prec->eskl;
+                    db_post_events( prec, &prec->eval, DBE_VAL_LOG );
+                }
+            }
 
             do_move2:
             if ( prec->set == motorSET_Set ) break;                   // no move
@@ -1350,19 +1371,19 @@ static long special( dbAddr *pDbAddr, int after )
                  (prec->spg  != motorSPG_Go)                            )
             {
                 if      ( msta.Bits.RA_PROBLEM || msta.Bits.RA_COMM_ERR )
-                    log_msg( prec, 0, "no tweak, hardware problem"      );
+                    log_msg( prec, 0, "no tweak, hardware problem"  );
                 else if ( msta.Bits.RA_NE                               )
-                    log_msg( prec, 0, "no tweak, NE is set"             );
+                    log_msg( prec, 0, "no tweak, NE is set"         );
                 else if ( msta.Bits.RA_BY0                              )
-                    log_msg( prec, 0, "no tweak, MCode not running"     );
+                    log_msg( prec, 0, "no tweak, MCode not running" );
                 else if ( msta.Bits.NOT_INIT                            )
-                    log_msg( prec, 0, "no tweak, init not finished yet" );
+                    log_msg( prec, 0, "no tweak, init not finished" );
                 else if ( msta.Bits.RA_POWERUP                          )
-                    log_msg( prec, 0, "no tweak, power cycled"          );
+                    log_msg( prec, 0, "no tweak, power cycled"      );
                 else if ( prec->spg != motorSPG_Go                      )
-                    log_msg( prec, 0, "no tweak, SPG is not Go"         );
+                    log_msg( prec, 0, "no tweak, SPG is not Go"     );
                 else
-                    log_msg( prec, 0, "no tweak, unknown alarm"         );
+                    log_msg( prec, 0, "no tweak, unknown alarm"     );
 
                 break;
             }
@@ -1449,12 +1470,6 @@ static long special( dbAddr *pDbAddr, int after )
             {
                 db_post_events( prec, &prec->lls,  DBE_VAL_LOG );
                 db_post_events( prec, &prec->hls,  DBE_VAL_LOG );
-            }
-
-            if ( prec->egag == menuYesNoYES )
-            {
-                prec->eskl *= -1;
-                db_post_events( prec, &prec->eskl, DBE_VAL_LOG );
             }
 
             goto change_dir_off;
@@ -1910,6 +1925,110 @@ static long special( dbAddr *pDbAddr, int after )
 
             db_post_events( prec,  prec->resp, DBE_VAL_LOG );
             break;
+        case imsRecordEVAL:
+            if ( (prec->egag == menuYesNoNO ) ||
+                 (prec->sevr >  MINOR_ALARM ) || msta.Bits.RA_POWERUP       ||
+                 (prec->set  == motorSET_Set) || (prec->spg != motorSPG_Go)    )
+            {
+                prec->eval = prec->oval;
+                db_post_events( prec, &prec->eval, DBE_VAL_LOG );
+
+                if      ( prec->egag == menuYesNoNO                     )
+                    log_msg( prec, 0, "no tweak, no ext. guage"     );
+                else if ( prec->set  == motorSET_Set                    )
+                    log_msg( prec, 0, "no tweak, motor in SET mode" );
+                else if ( msta.Bits.RA_PROBLEM || msta.Bits.RA_COMM_ERR )
+                    log_msg( prec, 0, "no move, hardware problem"  );
+                else if ( msta.Bits.RA_NE                               )
+                    log_msg( prec, 0, "no move, NE is set"         );
+                else if ( msta.Bits.RA_BY0                              )
+                    log_msg( prec, 0, "no move, MCode not running" );
+                else if ( msta.Bits.NOT_INIT                            )
+                    log_msg( prec, 0, "no move, init not finished" );
+                else if ( msta.Bits.RA_POWERUP                          )
+                    log_msg( prec, 0, "no move, power cycled"      );
+                else if ( prec->spg != motorSPG_Go                      )
+                    log_msg( prec, 0, "no move, SPG is not Go"     );
+                else
+                    log_msg( prec, 0, "no move, unknown alarm"     );
+
+                break;
+            }
+
+            new_dval = prec->dval + (prec->eval - prec->erbv) * prec->eskl;
+            nval     = new_dval * (1. - 2.*prec->dir) + prec->off;
+            if ( (nval < prec->llm) || (nval > prec->hlm) ||
+                 ((prec->bdst > 0) && (prec->drbv > new_dval) &&
+                  ((new_dval - prec->bdst) < prec->dllm)         ) ||
+                 ((prec->bdst < 0) && (prec->drbv < new_dval) &&
+                  ((new_dval - prec->bdst) > prec->dhlm)         )     )
+            {                                    // violated the software limits
+                prec->lvio = 1;                     // set limit violation alarm
+                prec->eval = prec->oval;
+                db_post_events( prec, &prec->eval, DBE_VAL_LOG );
+
+                log_msg( prec, 0, "no move, limit violated" );
+                break;
+            }
+
+            prec->val  = nval;
+            prec->dval = new_dval;
+
+            goto do_move2;
+        case imsRecordETWF:
+            new_eval = prec->eval + prec->etwv;
+            goto etweak;
+        case imsRecordETWR:
+            new_eval = prec->eval - prec->etwv;
+
+            etweak:
+            if ( (prec->egag == menuYesNoNO ) ||
+                 (prec->sevr >  MINOR_ALARM ) || msta.Bits.RA_POWERUP       ||
+                 (prec->set  == motorSET_Set) || (prec->spg != motorSPG_Go)    )
+            {
+                if      ( prec->egag == menuYesNoNO                     )
+                    log_msg( prec, 0, "no tweak, no ext. guage"     );
+                else if ( prec->set  == motorSET_Set                    )
+                    log_msg( prec, 0, "no tweak, motor in SET mode" );
+                else if ( msta.Bits.RA_PROBLEM || msta.Bits.RA_COMM_ERR )
+                    log_msg( prec, 0, "no tweak, hardware problem"  );
+                else if ( msta.Bits.RA_NE                               )
+                    log_msg( prec, 0, "no tweak, NE is set"         );
+                else if ( msta.Bits.RA_BY0                              )
+                    log_msg( prec, 0, "no tweak, MCode not running" );
+                else if ( msta.Bits.NOT_INIT                            )
+                    log_msg( prec, 0, "no tweak, init not finished" );
+                else if ( msta.Bits.RA_POWERUP                          )
+                    log_msg( prec, 0, "no tweak, power cycled"      );
+                else if ( prec->spg != motorSPG_Go                      )
+                    log_msg( prec, 0, "no tweak, SPG is not Go"     );
+                else
+                    log_msg( prec, 0, "no tweak, unknown alarm"     );
+
+                break;
+            }
+
+            new_dval = prec->dval + (new_eval - prec->erbv) * prec->eskl;
+            nval     = new_dval * (1. - 2.*prec->dir) + prec->off;
+            if ( (nval < prec->llm) || (nval > prec->hlm) ||
+                 ((prec->bdst > 0) && (prec->drbv > new_dval) &&
+                  ((new_dval - prec->bdst) < prec->dllm)         ) ||
+                 ((prec->bdst < 0) && (prec->drbv < new_dval) &&
+                  ((new_dval - prec->bdst) > prec->dhlm)         )     )
+            {                                    // violated the software limits
+                prec->lvio = 1;                     // set limit violation alarm
+
+                log_msg( prec, 0, "no tweak, limit violated" );
+                break;
+            }
+
+            prec->eval = new_eval;
+            db_post_events( prec, &prec->eval, DBE_VAL_LOG );
+
+            prec->val  = nval;
+            prec->dval = new_dval;
+
+            goto do_move2;
         case imsRecordRINI:
             init_motor( prec );
 

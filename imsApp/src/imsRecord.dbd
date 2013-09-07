@@ -22,8 +22,8 @@ menu(motorDIR) {
 	choice(motorDIR_Negative,       "Negative"         )
 }
 menu(motorOFF) {
-	choice(motorOFF_Variable,       "Variable"         )
-	choice(motorOFF_Freeze,         "Freeze"           )
+	choice(motorOFF_Variable,       "Offset"           )
+	choice(motorOFF_Freeze,         "Controller"       )
 }
 menu(motorSET) {
 	choice(motorSET_Use,            "Use"              )
@@ -247,7 +247,7 @@ recordtype(ims) {
 		asl(ASL0)
 	}
 	field(FOFF,DBF_MENU) {
-		prompt("Variable/Freeze Offset")
+		prompt("Adjust Offset / Controller")
 		promptgroup(GUI_COMMON)
 		menu(motorOFF)
 		initial("Variable")
