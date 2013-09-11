@@ -573,11 +573,6 @@ static long init_motor( imsRecord *prec )
 
     epicsThreadSleep( 0.1 );
 
-    sprintf( msg, "DE %d", prec->de   );
-    send_msg( mInfo, msg );
-
-    epicsThreadSleep( 0.1 );
-
     sprintf( msg, "EE %d", prec->ee   );
     send_msg( mInfo, msg );
 
@@ -945,15 +940,16 @@ static long process( dbCommon *precord )
     finished:
     if ( reset_us ) send_msg( mInfo, "Us 18000" );
 
-    if      ( msta.Bits.RA_PROBLEM || msta.Bits.RA_COMM_ERR      )   // hardware
+    if      ( msta.Bits.RA_PROBLEM || msta.Bits.RA_COMM_ERR       )  // hardware
         recGblSetSevr( (dbCommon *)prec, COMM_ALARM,  INVALID_ALARM );
-    else if ( msta.Bits.RA_NE      || msta.Bits.RA_BY0        || // NE=1 or BY=0
-              msta.Bits.NOT_INIT                                 )   // NOT_INIT
+    else if ( msta.Bits.RA_NE      || msta.Bits.RA_BY0         ||// NE=1 or BY=0
+              msta.Bits.NOT_INIT   || (prec->lls && prec->hls)    )  // NOT_INIT
     {
         recGblSetSevr( (dbCommon *)prec, STATE_ALARM, MAJOR_ALARM   );
 
-        if ( msta.Bits.RA_NE  ) log_msg( prec, 0, "Numeric Enable is set" );
-        if ( msta.Bits.RA_BY0 ) log_msg( prec, 0, "MCode not running"     );
+        if (msta.Bits.RA_NE       ) log_msg( prec, 0, "Numeric Enable is set" );
+        if (msta.Bits.RA_BY0      ) log_msg( prec, 0, "MCode not running"     );
+        if (prec->lls && prec->hls) log_msg( prec, 0, "both limits hit"       );
     }
     else if ( msta.Bits.RA_POWERUP ||
               (msta.Bits.RA_STALL && (! msta.Bits.RA_SM)) ||
@@ -1201,7 +1197,7 @@ static long special( dbAddr *pDbAddr, int after )
     {
         case imsRecordPING:
             prec->ping = 0;
-            mInfo->pEvent->signal();
+            if ( prec->mode == motorMode_Normal ) mInfo->pEvent->signal();
 
             break;
         case imsRecordSSTR:
@@ -1533,25 +1529,26 @@ static long special( dbAddr *pDbAddr, int after )
 
             break;
         case imsRecordHOMF:
-            if ( prec->spg != motorSPG_Go ) break;
+            if ( (prec->htyp == motorHTYP_None) ||
+                 (prec->spg  != motorSPG_Go   )    ) break;
 
             VI = NINT( prec->vbas / prec->res );
             VM = NINT( prec->hvel / prec->res );
             A  = NINT( (prec->hvel - prec->vbas) / prec->res / prec->hacc );
             if      ( (prec->dir  == motorDIR_Positive) &&
-                      (prec->hdir == motorDIR_Positive)    )
+                      (prec->hege == motorDIR_Positive)    )
                 sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 4\r\nUs 0",
                               VI, VM, A, MI );
             else if ( (prec->dir  == motorDIR_Positive) &&
-                      (prec->hdir == motorDIR_Negative)    )
+                      (prec->hege == motorDIR_Negative)    )
                 sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 3\r\nUs 0",
                               VI, VM, A, MI );
             else if ( (prec->dir  == motorDIR_Negative) &&
-                      (prec->hdir == motorDIR_Positive)    )
+                      (prec->hege == motorDIR_Positive)    )
                 sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 2\r\nUs 0",
                               VI, VM, A, MI );
             else if ( (prec->dir  == motorDIR_Negative) &&
-                      (prec->hdir == motorDIR_Negative)    )
+                      (prec->hege == motorDIR_Negative)    )
                 sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 1\r\nUs 0",
                               VI, VM, A, MI );
  
@@ -1565,28 +1562,30 @@ static long special( dbAddr *pDbAddr, int after )
             db_post_events( prec, &prec->athm, DBE_VAL_LOG );
 
             send_msg( mInfo, msg );
+            log_msg( prec, 0, "home >> ..." );
 
             break;
         case imsRecordHOMR:
-            if ( prec->spg != motorSPG_Go ) break;
+            if ( (prec->htyp == motorHTYP_None) ||
+                 (prec->spg  != motorSPG_Go   )    ) break;
 
             VI = NINT( prec->vbas / prec->res );
             VM = NINT( prec->hvel / prec->res );
             A  = NINT( (prec->hvel - prec->vbas) / prec->res / prec->hacc );
             if      ( (prec->dir  == motorDIR_Positive) &&
-                      (prec->hdir == motorDIR_Positive)    )
+                      (prec->hege == motorDIR_Positive)    )
                 sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 1\r\nUs 0",
                               VI, VM, A, MI );
             else if ( (prec->dir  == motorDIR_Positive) &&
-                      (prec->hdir == motorDIR_Negative)    )
+                      (prec->hege == motorDIR_Negative)    )
                 sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 2\r\nUs 0",
                               VI, VM, A, MI );
             else if ( (prec->dir  == motorDIR_Negative) &&
-                      (prec->hdir == motorDIR_Positive)    )
+                      (prec->hege == motorDIR_Positive)    )
                 sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 3\r\nUs 0",
                               VI, VM, A, MI );
             else if ( (prec->dir  == motorDIR_Negative) &&
-                      (prec->hdir == motorDIR_Negative)    )
+                      (prec->hege == motorDIR_Negative)    )
                 sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 4\r\nUs 0",
                               VI, VM, A, MI );
  
@@ -1600,6 +1599,7 @@ static long special( dbAddr *pDbAddr, int after )
             db_post_events( prec, &prec->athm, DBE_VAL_LOG );
 
             send_msg( mInfo, msg );
+            log_msg( prec, 0, "home << ..." );
 
             break;
         case imsRecordLLM :

@@ -35,6 +35,7 @@ menu(motorSPG) {
 	choice(motorSPG_Go,             "Go"               )
 }
 menu(motorHTYP) {
+        choice(motorHTYP_None,          "Not Setup"        )
         choice(motorHTYP_Encoder,       "Encoder"          )
         choice(motorHTYP_Switch,        "Switch"           )
 }
@@ -148,15 +149,6 @@ recordtype(ims) {
 		initial(5)
 		interest(1)
 	}
-	field(DE,DBF_MENU) {
-		prompt("Torque Dis/Enable")
-		promptgroup(GUI_COMMON)
-		menu(motorAble)
-		special(SPC_MOD)
-		asl(ASL0)
-		initial("Enable")
-		interest(1)
-	}
 	field(EE,DBF_MENU) {
 		prompt("Encoder Enable")
 		promptgroup(GUI_COMMON)
@@ -265,11 +257,11 @@ recordtype(ims) {
 		prompt("Homing Type")
 		promptgroup(GUI_COMMON)
 		menu(motorHTYP)
-		initial("Switch")
+		initial("Not Setup")
 		interest(1)
 	}
-	field(HDIR,DBF_MENU) {
-		prompt("Homing Direction")
+	field(HEGE,DBF_MENU) {
+		prompt("Homing Edge")
 		promptgroup(GUI_COMMON)
 		menu(motorDIR)
 		initial("Positive")
