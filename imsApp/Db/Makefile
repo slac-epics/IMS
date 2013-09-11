@@ -26,5 +26,5 @@ REQ     += ims_autosave.template
 
 include $(TOP)/configure/RULES
 #----------------------------------------
-#  ADD RULES AFTER THIS LINE
+# ADD RULES AFTER THIS LINE
 

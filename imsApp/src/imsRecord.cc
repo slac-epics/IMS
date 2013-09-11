@@ -240,7 +240,7 @@ static long init_motor( imsRecord *prec )
 
     char            msg[MAX_MSG_SIZE], rbbuf[MAX_MSG_SIZE];
     int             s1, s2, s4, a1, a2, a4, d1, d2, d4;
-    int             rbne, rblm, rbsm, rbms, rbve, rbby;
+    int             rbne, rblm, rbsm, rbel, rbms, rbve, rbby;
     int             retry, status = 0;
     epicsUInt32     old_msta = prec->msta;
     motor_status    msta;
@@ -366,19 +366,18 @@ static long init_motor( imsRecord *prec )
         goto finished;
     }
 
-    // read the numeric enable, limit stop mode, stall mode and MS
+    // read the numeric enable, limit stop mode, stall mode
     retry = 1;
     do
     {
         flush_asyn( mInfo );
 
-        send_msg( mInfo, "PR \"NE=\",NE,\", LM=\",LM,\", SM=\",SM,\", MS=\",MS" );
+        send_msg( mInfo, "PR \"NE=\",NE,\", LM=\",LM,\", SM=\",SM" );
         status = recv_reply( mInfo, rbbuf );
         if ( status > 0 )
         {
-            status = sscanf( rbbuf, "NE=%d, LM=%d, SM=%d, MS=%d",
-                                    &rbne, &rblm, &rbsm, &rbms );
-            if ( status == 4 )
+            status = sscanf( rbbuf, "NE=%d, LM=%d, SM=%d", &rbne, &rblm, &rbsm);
+            if ( status == 3 )
             {
                 if ( rbne == 0 || rbne == 1 ) prec->ne = rbne;    // 1 : enabled
                 else                          status = 0;
@@ -387,6 +386,43 @@ static long init_motor( imsRecord *prec )
                 else                          status = 0;
 
                 if ( rbsm == 0 || rbsm == 1 ) prec->sm = rbsm;    // 1 : no stop
+                else                          status = 0;
+            }
+            else
+                status = 0;
+        }
+
+        epicsThreadSleep( 0.2 );
+    } while ( (status != 3) && (retry++ < 3) );
+
+    if ( status != 3 )
+    {
+        log_msg( prec, 0, "failed to read NE, LM and SM" );
+
+        prec->ne = 0;
+        prec->lm = 0;
+        prec->sm = 0;
+
+        msta.Bits.RA_PROBLEM = 1;
+        goto finished;
+    }
+    else
+        msta.Bits.RA_NE      = prec->ne;
+
+    // read the EL and MS
+    retry = 1;
+    do
+    {
+        flush_asyn( mInfo );
+
+        send_msg( mInfo, "PR \"EL=\",EL,\", MS=\",MS" );
+        status = recv_reply( mInfo, rbbuf );
+        if ( status > 0 )
+        {
+            status = sscanf( rbbuf, "EL=%d, MS=%d", &rbel, &rbms );
+            if ( status == 2 )
+            {
+                if ( rbel  > 0              ) prec->el = rbel;
                 else                          status = 0;
 
                 if ( rbms  > 0              ) prec->ms = rbms;
@@ -397,22 +433,18 @@ static long init_motor( imsRecord *prec )
         }
 
         epicsThreadSleep( 0.2 );
-    } while ( (status != 4) && (retry++ < 3) );
+    } while ( (status != 2) && (retry++ < 3) );
 
-    if ( status != 4 )
+    if ( status != 2 )
     {
-        log_msg( prec, 0, "failed to read NE, LM, SM and MS" );
+        log_msg( prec, 0, "failed to read EL and MS" );
 
-        prec->ne = 0;
-        prec->lm = 0;
-        prec->sm = 0;
-        prec->ms = 0;
+        prec->el = 1;
+        prec->ms = 1;
 
         msta.Bits.RA_PROBLEM = 1;
         goto finished;
     }
-    else
-        msta.Bits.RA_NE      = prec->ne;
 
     // check the MCode version and running status
     retry = 1;
@@ -541,22 +573,13 @@ static long init_motor( imsRecord *prec )
 
     epicsThreadSleep( 0.1 );
 
-    sprintf( msg, "DE %d", prec->de );
+    sprintf( msg, "DE %d", prec->de   );
     send_msg( mInfo, msg );
 
     epicsThreadSleep( 0.1 );
 
-    sprintf( msg, "EE %d", prec->ee );
+    sprintf( msg, "EE %d", prec->ee   );
     send_msg( mInfo, msg );
-
-    epicsThreadSleep( 0.1 );
-
-    if ( prec->el <= 0 ) prec->el = 1;
-    if ( prec->ee == motorAble_Enable )
-    {
-        sprintf( msg, "EL %d", prec->el );
-        send_msg( mInfo, msg );
-    }
 
     epicsThreadSleep( 0.1 );
 
@@ -572,15 +595,9 @@ static long init_motor( imsRecord *prec )
     msta.Bits.NOT_INIT = 1;
 
     if ( prec->ee == motorAble_Enable )
-    {
-        prec->elms = prec->el;
-        prec->res  = prec->urev / prec->el /   4.;
-    }
+        prec->res  = prec->urev / prec->el / 4.        ;
     else
-    {
-        prec->elms = prec->ms;
-        prec->res  = prec->urev / prec->ms / 200.;
-    }
+        prec->res  = prec->urev / prec->ms / prec->srev;
 
     // make sure the limits are consistent
     if ( prec->dir == motorDIR_Positive )
@@ -938,14 +955,17 @@ static long process( dbCommon *precord )
         if ( msta.Bits.RA_NE  ) log_msg( prec, 0, "Numeric Enable is set" );
         if ( msta.Bits.RA_BY0 ) log_msg( prec, 0, "MCode not running"     );
     }
-    else if ( msta.Bits.RA_POWERUP || msta.Bits.EA_SLIP_STALL ||
-              msta.Bits.RA_ERR                                   )
+    else if ( msta.Bits.RA_POWERUP ||
+              (msta.Bits.RA_STALL && (! msta.Bits.RA_SM)) ||
+              msta.Bits.RA_ERR || msta.Bits.EA_SLIP_STALL        )
     {
         recGblSetSevr( (dbCommon *)prec, STATE_ALARM, MINOR_ALARM   );
 
-        if      ( msta.Bits.RA_POWERUP )
+        if      ( msta.Bits.RA_POWERUP                      )
             log_msg( prec, 0, "power cycled"                   );
-        else if ( msta.Bits.RA_ERR     )
+        else if ( msta.Bits.RA_STALL && (! msta.Bits.RA_SM) )
+            log_msg( prec, 0, "stalled"                        );
+        else if ( msta.Bits.RA_ERR                          )
             log_msg( prec, 0, "got error %d", msta.Bits.RA_ERR );
     }
     else if ( msta.Bits.RA_STALL                                 )    // stalled
@@ -1157,8 +1177,8 @@ static long special( dbAddr *pDbAddr, int after )
         else if ( fieldIndex == imsRecordDHLM ) prec->oval = prec->dhlm;
         else if ( fieldIndex == imsRecordEL   ) prec->oval = prec->el  ;
         else if ( fieldIndex == imsRecordMS   ) prec->oval = prec->ms  ;
-        else if ( fieldIndex == imsRecordELMS ) prec->oval = prec->elms;
         else if ( fieldIndex == imsRecordUREV ) prec->oval = prec->urev;
+        else if ( fieldIndex == imsRecordSREV ) prec->oval = prec->srev;
         else if ( fieldIndex == imsRecordEE   ) prec->oval = prec->ee  ;
         else if ( fieldIndex == imsRecordMODE ) prec->oval = prec->mode;
         else if ( fieldIndex == imsRecordEVAL ) prec->oval = prec->eval;
@@ -1674,7 +1694,6 @@ static long special( dbAddr *pDbAddr, int after )
                 break;
             }
 
-            set_el:
             sprintf( msg, "EL %d", prec->el );
             send_msg( mInfo, msg );
 
@@ -1689,33 +1708,12 @@ static long special( dbAddr *pDbAddr, int after )
                 break;
             }
 
-            set_ms:
             sprintf( msg, "MS %d", prec->ms );
             send_msg( mInfo, msg );
 
             if ( prec->ee != motorAble_Enable ) goto set_res;
 
             break;
-        case imsRecordELMS:
-            if ( prec->elms <= 0 )
-            {
-                prec->elms = prec->oval;
-                db_post_events( prec, &prec->elms, DBE_VAL_LOG );
-                break;
-            }
-
-            if ( prec->ee == motorAble_Enable )
-            {
-                prec->el   = prec->elms;
-                db_post_events( prec, &prec->el  , DBE_VAL_LOG );
-                goto set_el;
-            }
-            else
-            {
-                prec->ms   = prec->elms;
-                db_post_events( prec, &prec->ms  , DBE_VAL_LOG );
-                goto set_ms;
-            }
         case imsRecordUREV:
             if ( prec->urev <= 0. )
             {
@@ -1724,12 +1722,23 @@ static long special( dbAddr *pDbAddr, int after )
                 break;
             }
 
+            prec->vbas = prec->urev * prec->sbas;
+            prec->vmax = prec->urev * prec->smax;
+            prec->velo = prec->urev * prec->s   ;
+            prec->bvel = prec->urev * prec->bs  ;
+            prec->hvel = prec->urev * prec->hs  ;
+            db_post_events( prec, &prec->vbas, DBE_VAL_LOG );
+            db_post_events( prec, &prec->vmax, DBE_VAL_LOG );
+            db_post_events( prec, &prec->velo, DBE_VAL_LOG );
+            db_post_events( prec, &prec->bvel, DBE_VAL_LOG );
+            db_post_events( prec, &prec->hvel, DBE_VAL_LOG );
+
             set_res:
             nval = prec->res;
             if ( prec->ee == motorAble_Enable )
-                prec->res = prec->urev / prec->el /   4.;
+                prec->res = prec->urev / prec->el / 4.        ;
             else
-                prec->res = prec->urev / prec->ms / 200.;
+                prec->res = prec->urev / prec->ms / prec->srev;
 
             if ( prec->res != nval )
             {
@@ -1744,6 +1753,15 @@ static long special( dbAddr *pDbAddr, int after )
             }
 
             break;
+        case imsRecordSREV:
+            if ( prec->srev <= 0 )
+            {
+                prec->srev = prec->oval;
+                db_post_events( prec, &prec->srev, DBE_VAL_LOG );
+                break;
+            }
+
+            goto set_res;
         case imsRecordSBAS:
             if ( (prec->smax > 0.) && (prec->sbas > prec->smax) )
             {
@@ -1855,14 +1873,14 @@ static long special( dbAddr *pDbAddr, int after )
 
             nval = prec->res;
             if ( prec->ee   == motorAble_Enable )
-                prec->res = prec->urev / prec->el /   4.;
+                prec->res  = prec->urev / prec->el / 4.       ;
             else
-                prec->res = prec->urev / prec->ms / 200.;
+                prec->res = prec->urev / prec->ms / prec->srev;
 
             if ( prec->res  != nval )
                 db_post_events( prec, &prec->res,  DBE_VAL_LOG );
 
-            break;
+            break;  // dhz should update RRBV, DRBV, RBV and VAL
         case imsRecordRC  :
             sprintf( msg, "RC %d",         prec->rc   );
             send_msg( mInfo, msg );

@@ -181,13 +181,6 @@ recordtype(ims) {
 		initial(256)
 		interest(1)
 	}
-	field(ELMS,DBF_SHORT) {
-		prompt("Encoder Lines/MS Resolution")
-		promptgroup(GUI_COMMON)
-		special(SPC_MOD)
-		asl(ASL0)
-		interest(1)
-	}
 	field(MT,DBF_USHORT) {
 		prompt("Settling Delay Time (ms)")
 		promptgroup(GUI_COMMON)
@@ -228,6 +221,14 @@ recordtype(ims) {
 		initial(1)
 		interest(1)
 	}
+	field(SREV,DBF_SHORT) {
+		prompt("Full Steps Per Resolution")
+		promptgroup(GUI_COMMON)
+		special(SPC_MOD)
+		asl(ASL0)
+		initial(200)
+		interest(1)
+	}
 	field(RES,DBF_DOUBLE) {
 		prompt("Step Size (EGU)")
 		special(SPC_NOMOD)
@@ -250,7 +251,7 @@ recordtype(ims) {
 		prompt("Adjust Offset / Controller")
 		promptgroup(GUI_COMMON)
 		menu(motorOFF)
-		initial("Variable")
+		initial("Offset")
 		interest(1)
 	}
 	field(SET,DBF_MENU) {

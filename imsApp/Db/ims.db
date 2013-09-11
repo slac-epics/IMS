@@ -64,7 +64,6 @@ record(stringin, "$(MOTOR):SAVED_STR") {
   field(DESC, "Saved Raw Position")
   field(DTYP, "stream")
   field(INP,  "@report.proto SAVED_P $(ASYN) 1")
-  field(EGU,  "Steps/Counts")
   field(SCAN, "I/O Intr")
   field(MPST, "Always")
   field(FLNK, "$(MOTOR):SAVED")
