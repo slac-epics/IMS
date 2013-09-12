@@ -561,13 +561,13 @@ static long init_motor( imsRecord *prec )
     if ( prec->hc > 0 )
     {
         prec->hcsv = prec->hc;
-        prec->hctg = motorHC_Restore;
+        prec->hctg = imsHC_Restore;
         db_post_events( prec, &prec->hcsv, DBE_VAL_LOG );
         db_post_events( prec, &prec->hctg, DBE_VAL_LOG );
     }
     else
     {
-        prec->hctg = motorHC_Zero;
+        prec->hctg = imsHC_Zero;
         db_post_events( prec, &prec->hctg, DBE_VAL_LOG );
     }
 
@@ -589,13 +589,13 @@ static long init_motor( imsRecord *prec )
     mInfo->initialized = 0;
     msta.Bits.NOT_INIT = 1;
 
-    if ( prec->ee == motorAble_Enable )
+    if ( prec->ee == imsAble_Enable )
         prec->res  = prec->urev / prec->el / 4.        ;
     else
         prec->res  = prec->urev / prec->ms / prec->srev;
 
     // make sure the limits are consistent
-    if ( prec->dir == motorDIR_Positive )
+    if ( prec->dir == imsDIR_Positive )
     {
         prec->dllm = prec->llm - prec->off;
         prec->dhlm = prec->hlm - prec->off;
@@ -721,23 +721,21 @@ static long process( dbCommon *precord )
     old_rval = prec->rval;
 
     if ( prec->egag == menuYesNoYES )
-        diff = ( prec->erbv - prec->eval ) * prec->eskl * ( 1. - 2.*prec->dir );
+        diff = ( prec->erbv - prec->eval ) * prec->eskl * ( 2.*prec->dir - 1. );
     else
         diff =   prec->rbv  - prec->val;
 
     if ( first ||                                         // first status update
          (msta.Bits.RA_STALL && (! msta.Bits.RA_SM)) ||               // stalled
-         ((prec->mip  == MIP_HOME        ) &&
-          (prec->htyp == motorHTYP_Switch) && prec->hmls) || // homing-to-switch
          prec->lls || prec->hls ||                         // hit a limit switch
-         (prec->mip  & (MIP_STOP | MIP_PAUSE)) ||               // stop or pause
-         ((prec->mip  == MIP_HOME) && (prec->htyp == motorHTYP_Encoder)) )
+         (prec->mip & (MIP_STOP | MIP_PAUSE)) ||                // stop or pause
+         (prec->mip & MIP_HOME              )           )         // done homing
     {                                                            // encoder home
         short newval = 1;
 
         if ( msta.Bits.RA_STALL && (! msta.Bits.RA_SM) )
         {
-            if ( prec->mip == MIP_HOME )                           // was homing
+            if ( prec->mip & MIP_HOME )                            // was homing
             {
                 log_msg( prec, 0, "stalled, missed home" );
                 prec->miss = 1;
@@ -761,21 +759,9 @@ static long process( dbCommon *precord )
             else if ( first )                             // first status update
                 log_msg( prec, 0, "initialization completed" );
         }
-        else if ( (prec->mip  == MIP_HOME        ) &&
-                  (prec->htyp == motorHTYP_Switch) && prec->hmls )
-        {
-            log_msg( prec, 0, "homed to switch" );
-            prec->miss = 0;
-
-            prec->athm = 1;
-            msta.Bits.RA_HOMED = 1;
-            msta.Bits.RA_HOME  = 1;
-
-            db_post_events( prec, &prec->athm, DBE_VAL_LOG );
-        }
         else if ( prec->lls )
         {
-            if ( prec->mip == MIP_HOME )                           // was homing
+            if ( prec->mip & MIP_HOME )                            // was homing
             {
                 log_msg( prec, 0, "hit low limit, missed home" );
                 prec->miss = 1;
@@ -801,7 +787,7 @@ static long process( dbCommon *precord )
         }
         else if ( prec->hls )
         {
-            if ( prec->mip == MIP_HOME )                           // was homing
+            if ( prec->mip & MIP_HOME )                            // was homing
             {
                 log_msg( prec, 0, "hit high limit, missed home" );
                 prec->miss = 1;
@@ -835,14 +821,15 @@ static long process( dbCommon *precord )
             log_msg( prec, 0, "paused" );
             newval = 0;
         }
-        else if ( (prec->mip == MIP_HOME) && (prec->htyp == motorHTYP_Encoder) )
+        else if ( prec->mip & MIP_HOME )
         {
-            log_msg( prec, 0, "homed to encoder mark" );
+            log_msg( prec, 0, "homed" );
             prec->miss = 0;
 
             prec->athm = 1;
             msta.Bits.RA_HOMED = 1;
-            msta.Bits.EA_HOME  = 1;
+            if ( prec->htyp == imsHTYP_Switch ) msta.Bits.RA_HOME = 1;
+            else                                msta.Bits.EA_HOME = 1;
 
             db_post_events( prec, &prec->athm, DBE_VAL_LOG );
         }
@@ -880,7 +867,7 @@ static long process( dbCommon *precord )
         send_msg( mInfo, msg    );
         send_msg( mInfo, "Us 0" );
     }
-    else if ( (motorMode_Normal == prec->mode) &&       // normal mode, not scan
+    else if ( (imsMode_Normal   == prec->mode) &&       // normal mode, not scan
               (fabs(prec->bdst) <= prec->res ) &&      // no backlash, can retry
               (fabs(diff)       >= prec->rdbd) &&           // not closed enough
               (prec->rtry > 0) && (prec->rcnt < prec->rtry) )  // can retry more
@@ -1001,7 +988,7 @@ static long process_motor_info( imsRecord *prec, status_word csr, long count )
     long          old_rrbv, status = 0;
     motor_status  msta;
 
-    int           dir = (prec->dir == motorDIR_Positive) ? 1 : -1;
+    int           dir = (prec->dir == imsDIR_Positive) ? 1 : -1;
 
     if ( csr.Bits.BY0 )
     {
@@ -1147,7 +1134,7 @@ static long special( dbAddr *pDbAddr, int after )
 {
     imsRecord      *prec = (imsRecord *) pDbAddr->precord;
     ims_info       *mInfo = (ims_info *)prec->dpvt;
-    char            MI = (prec->htyp == motorHTYP_Switch) ? 'M' : 'I';
+    char            MI = (prec->htyp == imsHTYP_Switch) ? 'M' : 'I';
     char            msg[MAX_MSG_SIZE], rbbuf[MAX_MSG_SIZE];
     long            csr, count, old_rval, new_rval;
     short           old_dmov, old_rcnt, old_lvio;
@@ -1155,7 +1142,7 @@ static long special( dbAddr *pDbAddr, int after )
     unsigned short  old_mip, alarm_mask = 0;
     motor_status    msta;
 
-    int             dir = (prec->dir == motorDIR_Positive) ? 1 : -1;
+    int             dir = (prec->dir == imsDIR_Positive) ? 1 : -1;
     int             VI, VM, A, fieldIndex = dbGetFieldIndex( pDbAddr );
     int             status = OK;
 
@@ -1197,7 +1184,7 @@ static long special( dbAddr *pDbAddr, int after )
     {
         case imsRecordPING:
             prec->ping = 0;
-            if ( prec->mode == motorMode_Normal ) mInfo->pEvent->signal();
+            if ( prec->mode == imsMode_Normal ) mInfo->pEvent->signal();
 
             break;
         case imsRecordSSTR:
@@ -1246,7 +1233,7 @@ static long special( dbAddr *pDbAddr, int after )
             break;
         case imsRecordVAL :
             if ( (prec->sevr >  MINOR_ALARM) || msta.Bits.RA_POWERUP ||
-                 ((prec->set == motorSET_Use) && (prec->spg != motorSPG_Go)) )
+                 ((prec->set == imsSET_Use) && (prec->spg != imsSPG_Go)) )
             {
                 prec->val  = prec->oval;
 
@@ -1260,7 +1247,7 @@ static long special( dbAddr *pDbAddr, int after )
                     log_msg( prec, 0, "no move/set, init not finished" );
                 else if ( msta.Bits.RA_POWERUP                          )
                     log_msg( prec, 0, "no move/set, power cycled"      );
-                else if ( prec->spg != motorSPG_Go                      )
+                else if ( prec->spg != imsSPG_Go                        )
                     log_msg( prec, 0, "no move, SPG is not Go"         );
                 else
                     log_msg( prec, 0, "no move/set, unknown alarm"     );
@@ -1268,7 +1255,7 @@ static long special( dbAddr *pDbAddr, int after )
                 break;
             }
 
-            new_dval = (prec->val - prec->off) * (1. - 2.*prec->dir);
+            new_dval = (prec->val - prec->off) * (2.*prec->dir - 1.);
             if ( (prec->val < prec->llm) || (prec->val > prec->hlm) ||
                  ((prec->bdst > 0) && (prec->drbv > new_dval) &&
                   ((new_dval - prec->bdst) < prec->dllm)         ) ||
@@ -1283,7 +1270,7 @@ static long special( dbAddr *pDbAddr, int after )
             }
 
             do_move1:
-            if ( prec->set == motorSET_Use )            // do it only when "Use"
+            if ( prec->set == imsSET_Use )              // do it only when "Use"
             {
                 if ( prec->egag == menuYesNoYES )
                 {
@@ -1298,7 +1285,7 @@ static long special( dbAddr *pDbAddr, int after )
             goto do_move2;
         case imsRecordDVAL:
             if ( (prec->sevr >  MINOR_ALARM) || msta.Bits.RA_POWERUP ||
-                 ((prec->set == motorSET_Use) && (prec->spg != motorSPG_Go)) )
+                 ((prec->set == imsSET_Use) && (prec->spg != imsSPG_Go)) )
             {
                 prec->dval = prec->oval;
 
@@ -1312,7 +1299,7 @@ static long special( dbAddr *pDbAddr, int after )
                     log_msg( prec, 0, "no move/set, init not finished" );
                 else if ( msta.Bits.RA_POWERUP                          )
                     log_msg( prec, 0, "no move/set, power cycled"      );
-                else if ( prec->spg != motorSPG_Go                      )
+                else if ( prec->spg != imsSPG_Go                        )
                     log_msg( prec, 0, "no move, SPG is not Go"         );
                 else
                     log_msg( prec, 0, "no move/set, unknown alarm"     );
@@ -1333,9 +1320,9 @@ static long special( dbAddr *pDbAddr, int after )
                 break;
             }
 
-            prec->val  = prec->dval * (1. - 2.*prec->dir) + prec->off;
+            prec->val  = prec->dval * (2.*prec->dir - 1.) + prec->off;
 
-            if ( prec->set == motorSET_Use )            // do it only when "Use"
+            if ( prec->set == imsSET_Use )              // do it only when "Use"
             {
                 if ( prec->egag == menuYesNoYES )
                 {
@@ -1346,7 +1333,7 @@ static long special( dbAddr *pDbAddr, int after )
             }
 
             do_move2:
-            if ( prec->set == motorSET_Set ) break;                   // no move
+            if ( prec->set == imsSET_Set ) break;                     // no move
 
             prec->lvio = 0;
             prec->rcnt = 0;
@@ -1358,7 +1345,7 @@ static long special( dbAddr *pDbAddr, int after )
 
             db_post_events( prec, &prec->athm, DBE_VAL_LOG );
 
-            // if ( prec->spg != motorSPG_Go  ) break;
+            // if ( prec->spg != imsSPG_Go  ) break;
 
             if ( prec->dmov == 0 )                               // still moving
             {
@@ -1384,7 +1371,7 @@ static long special( dbAddr *pDbAddr, int after )
 
             tweak:
             if ( (prec->sevr >  MINOR_ALARM) || msta.Bits.RA_POWERUP ||
-                 (prec->spg  != motorSPG_Go)                            )
+                 (prec->spg  != imsSPG_Go  )                            )
             {
                 if      ( msta.Bits.RA_PROBLEM || msta.Bits.RA_COMM_ERR )
                     log_msg( prec, 0, "no tweak, hardware problem"  );
@@ -1396,7 +1383,7 @@ static long special( dbAddr *pDbAddr, int after )
                     log_msg( prec, 0, "no tweak, init not finished" );
                 else if ( msta.Bits.RA_POWERUP                          )
                     log_msg( prec, 0, "no tweak, power cycled"      );
-                else if ( prec->spg != motorSPG_Go                      )
+                else if ( prec->spg != imsSPG_Go                        )
                     log_msg( prec, 0, "no tweak, SPG is not Go"     );
                 else
                     log_msg( prec, 0, "no tweak, unknown alarm"     );
@@ -1404,7 +1391,7 @@ static long special( dbAddr *pDbAddr, int after )
                 break;
             }
 
-            new_dval = (nval - prec->off) * (1. - 2.*prec->dir);
+            new_dval = (nval - prec->off) * (2.*prec->dir - 1.);
             if ( (nval < prec->llm) || (nval > prec->hlm)          ||
                  ((prec->bdst > 0) && (prec->drbv > new_dval) &&
                   ((new_dval - prec->bdst) < prec->dllm)         ) ||
@@ -1422,7 +1409,7 @@ static long special( dbAddr *pDbAddr, int after )
         case imsRecordSPG :
             if ( (prec->spg == prec->oval) || (prec->mip == MIP_DONE) ) break;
 
-            if ( prec->spg == motorSPG_Go )
+            if ( prec->spg == imsSPG_Go )
             {
                 log_msg( prec, 0, "resume moving" );
                 prec->mip &= ~( MIP_STOP | MIP_PAUSE );
@@ -1434,7 +1421,7 @@ static long special( dbAddr *pDbAddr, int after )
             }
             else
             {
-                if ( prec->spg == motorSPG_Stop )
+                if ( prec->spg == imsSPG_Stop )
                 {
                     log_msg( prec, 0, "stop, with deceleration" );
                     prec->mip &= ~MIP_PAUSE;
@@ -1451,11 +1438,15 @@ static long special( dbAddr *pDbAddr, int after )
 
             break;
         case ( imsRecordSTOP ):
+            prec->stop = 0;
+
+            if ( prec->mip == MIP_DONE ) break;
+
             send_msg( mInfo, "\e" );
 
             prec->mip  &= ~MIP_PAUSE;
             prec->mip  |=  MIP_STOP ;
-            prec->spg   = motorSPG_Stop;
+            prec->spg   = imsSPG_Stop;
             db_post_events( prec, &prec->spg,  DBE_VAL_LOG );
 
             log_msg( prec, 0, "emergency stop !!!" );
@@ -1463,12 +1454,11 @@ static long special( dbAddr *pDbAddr, int after )
             // force a status update
             send_msg( mInfo, "PR \"BOS65536,P=\",P,\"EOS\"" );
 
-            prec->stop = 0;
             break;
         case ( imsRecordDIR  ):
             if ( prec->dir == prec->oval ) break;
 
-            if ( prec->dir == motorDIR_Positive )                // was negative
+            if ( prec->dir == imsDIR_Positive )                  // was negative
             {
                 prec->llm = prec->off + prec->dllm;
                 prec->hlm = prec->off + prec->dhlm;
@@ -1497,7 +1487,7 @@ static long special( dbAddr *pDbAddr, int after )
             db_post_events( prec, &prec->llm,  DBE_VAL_LOG );
             db_post_events( prec, &prec->hlm,  DBE_VAL_LOG );
 
-            prec->rbv  = prec->drbv * (1. - 2.*prec->dir) + prec->off;
+            prec->rbv  = prec->drbv * (2.*prec->dir - 1.) + prec->off;
             prec->val  = prec->rbv;
 
 //          check_software_limits( prec );
@@ -1505,20 +1495,20 @@ static long special( dbAddr *pDbAddr, int after )
             break;
         case imsRecordSET :
             if ( (prec->set == prec->oval  ) ||
-                 (prec->set == motorSET_Set)    ) break;
+                 (prec->set == imsSET_Set)      ) break;
 
             prec->rbv  = prec->val;
-            if ( prec->foff == motorOFF_Variable )
+            if ( prec->foff == imsOFF_Variable )
             {
-                prec->off  = prec->rbv - prec->drbv * (1. - 2.*prec->dir);
+                prec->off  = prec->rbv - prec->drbv * (2.*prec->dir - 1.);
                 db_post_events( prec, &prec->off,  DBE_VAL_LOG );
             }
             else
             {
-                new_dval = (prec->rbv - prec->off) * (1. - 2.*prec->dir);
+                new_dval = (prec->rbv - prec->off) * (2.*prec->dir - 1.);
                 new_rval = NINT(new_dval / prec->res);
 
-                if ( prec->ee == motorAble_Enable )
+                if ( prec->ee == imsAble_Enable )
                     sprintf( msg, "P %ld\r\nC2 %ld\r\nUs 0", new_rval,
                                                              new_rval );
                 else
@@ -1529,26 +1519,26 @@ static long special( dbAddr *pDbAddr, int after )
 
             break;
         case imsRecordHOMF:
-            if ( (prec->htyp == motorHTYP_None) ||
-                 (prec->spg  != motorSPG_Go   )    ) break;
+            if ( (prec->htyp == imsHTYP_None) ||
+                 (prec->spg  != imsSPG_Go   )    ) break;
 
             VI = NINT( prec->vbas / prec->res );
             VM = NINT( prec->hvel / prec->res );
             A  = NINT( (prec->hvel - prec->vbas) / prec->res / prec->hacc );
-            if      ( (prec->dir  == motorDIR_Positive) &&
-                      (prec->hege == motorDIR_Positive)    )
+            if      ( (prec->dir  == imsDIR_Positive) &&
+                      (prec->hege == imsDIR_Positive)    )
                 sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 4\r\nUs 0",
                               VI, VM, A, MI );
-            else if ( (prec->dir  == motorDIR_Positive) &&
-                      (prec->hege == motorDIR_Negative)    )
+            else if ( (prec->dir  == imsDIR_Positive) &&
+                      (prec->hege == imsDIR_Negative)    )
                 sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 3\r\nUs 0",
                               VI, VM, A, MI );
-            else if ( (prec->dir  == motorDIR_Negative) &&
-                      (prec->hege == motorDIR_Positive)    )
+            else if ( (prec->dir  == imsDIR_Negative) &&
+                      (prec->hege == imsDIR_Positive)    )
                 sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 2\r\nUs 0",
                               VI, VM, A, MI );
-            else if ( (prec->dir  == motorDIR_Negative) &&
-                      (prec->hege == motorDIR_Negative)    )
+            else if ( (prec->dir  == imsDIR_Negative) &&
+                      (prec->hege == imsDIR_Negative)    )
                 sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 1\r\nUs 0",
                               VI, VM, A, MI );
  
@@ -1566,26 +1556,26 @@ static long special( dbAddr *pDbAddr, int after )
 
             break;
         case imsRecordHOMR:
-            if ( (prec->htyp == motorHTYP_None) ||
-                 (prec->spg  != motorSPG_Go   )    ) break;
+            if ( (prec->htyp == imsHTYP_None) ||
+                 (prec->spg  != imsSPG_Go   )    ) break;
 
             VI = NINT( prec->vbas / prec->res );
             VM = NINT( prec->hvel / prec->res );
             A  = NINT( (prec->hvel - prec->vbas) / prec->res / prec->hacc );
-            if      ( (prec->dir  == motorDIR_Positive) &&
-                      (prec->hege == motorDIR_Positive)    )
+            if      ( (prec->dir  == imsDIR_Positive) &&
+                      (prec->hege == imsDIR_Positive)    )
                 sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 1\r\nUs 0",
                               VI, VM, A, MI );
-            else if ( (prec->dir  == motorDIR_Positive) &&
-                      (prec->hege == motorDIR_Negative)    )
+            else if ( (prec->dir  == imsDIR_Positive) &&
+                      (prec->hege == imsDIR_Negative)    )
                 sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 2\r\nUs 0",
                               VI, VM, A, MI );
-            else if ( (prec->dir  == motorDIR_Negative) &&
-                      (prec->hege == motorDIR_Positive)    )
+            else if ( (prec->dir  == imsDIR_Negative) &&
+                      (prec->hege == imsDIR_Positive)    )
                 sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 3\r\nUs 0",
                               VI, VM, A, MI );
-            else if ( (prec->dir  == motorDIR_Negative) &&
-                      (prec->hege == motorDIR_Negative)    )
+            else if ( (prec->dir  == imsDIR_Negative) &&
+                      (prec->hege == imsDIR_Negative)    )
                 sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 4\r\nUs 0",
                               VI, VM, A, MI );
  
@@ -1610,7 +1600,7 @@ static long special( dbAddr *pDbAddr, int after )
                 break;
             }
 
-            if ( prec->dir == motorDIR_Positive )
+            if ( prec->dir == imsDIR_Positive )
             {
                 prec->dllm = prec->llm - prec->off;
                 db_post_events( prec, &prec->dllm, DBE_VAL_LOG );
@@ -1634,7 +1624,7 @@ static long special( dbAddr *pDbAddr, int after )
                 break;
             }
 
-            if ( prec->dir == motorDIR_Positive )
+            if ( prec->dir == imsDIR_Positive )
             {
                 prec->dhlm = prec->hlm - prec->off;
                 db_post_events( prec, &prec->dhlm, DBE_VAL_LOG );
@@ -1654,7 +1644,7 @@ static long special( dbAddr *pDbAddr, int after )
                 break;
             }
 
-            if ( prec->dir == motorDIR_Positive )
+            if ( prec->dir == imsDIR_Positive )
             {
                 prec->llm  = prec->off + prec->dllm;
                 db_post_events( prec, &prec->llm,  DBE_VAL_LOG );
@@ -1674,7 +1664,7 @@ static long special( dbAddr *pDbAddr, int after )
                 break;
             }
 
-            if ( prec->dir == motorDIR_Positive )
+            if ( prec->dir == imsDIR_Positive )
             {
                 prec->hlm  = prec->off + prec->dhlm;
                 db_post_events( prec, &prec->hlm,  DBE_VAL_LOG );
@@ -1697,7 +1687,7 @@ static long special( dbAddr *pDbAddr, int after )
             sprintf( msg, "EL %d", prec->el );
             send_msg( mInfo, msg );
 
-            if ( prec->ee == motorAble_Enable ) goto set_res;
+            if ( prec->ee == imsAble_Enable ) goto set_res;
 
             break;
         case imsRecordMS  :
@@ -1711,7 +1701,7 @@ static long special( dbAddr *pDbAddr, int after )
             sprintf( msg, "MS %d", prec->ms );
             send_msg( mInfo, msg );
 
-            if ( prec->ee != motorAble_Enable ) goto set_res;
+            if ( prec->ee != imsAble_Enable ) goto set_res;
 
             break;
         case imsRecordUREV:
@@ -1735,17 +1725,17 @@ static long special( dbAddr *pDbAddr, int after )
 
             set_res:
             nval = prec->res;
-            if ( prec->ee == motorAble_Enable )
+            if ( prec->ee == imsAble_Enable )
                 prec->res = prec->urev / prec->el / 4.        ;
             else
                 prec->res = prec->urev / prec->ms / prec->srev;
 
             if ( prec->res != nval )
             {
-                if ( prec->set == motorSET_Use )
+                if ( prec->set == imsSET_Use )
                 {
                     prec->drbv = prec->rrbv * prec->res;
-                    prec->rbv  = (1. - 2.*prec->dir) * prec->drbv + prec->off;
+                    prec->rbv  = (2.*prec->dir - 1.) * prec->drbv + prec->off;
                     prec->val  = prec->rbv;
                 }
 
@@ -1872,7 +1862,7 @@ static long special( dbAddr *pDbAddr, int after )
             send_msg( mInfo, msg );
 
             nval = prec->res;
-            if ( prec->ee   == motorAble_Enable )
+            if ( prec->ee   == imsAble_Enable )
                 prec->res  = prec->urev / prec->el / 4.       ;
             else
                 prec->res = prec->urev / prec->ms / prec->srev;
@@ -1893,19 +1883,19 @@ static long special( dbAddr *pDbAddr, int after )
             if ( prec->hc > 0 )
             {
                 prec->hcsv = prec->hc;
-                prec->hctg = motorHC_Restore;
+                prec->hctg = imsHC_Restore;
                 db_post_events( prec, &prec->hcsv, DBE_VAL_LOG );
                 db_post_events( prec, &prec->hctg, DBE_VAL_LOG );
             }
             else
             {
-                prec->hctg = motorHC_Zero;
+                prec->hctg = imsHC_Zero;
                 db_post_events( prec, &prec->hctg, DBE_VAL_LOG );
             }
 
             break;
         case imsRecordHCTG:
-            if ( prec->hctg == motorHC_Zero )
+            if ( prec->hctg == imsHC_Zero )
             {
                 send_msg( mInfo, "HC 0" );
 
@@ -1945,15 +1935,15 @@ static long special( dbAddr *pDbAddr, int after )
             break;
         case imsRecordEVAL:
             if ( (prec->egag == menuYesNoNO ) ||
-                 (prec->sevr >  MINOR_ALARM ) || msta.Bits.RA_POWERUP       ||
-                 (prec->set  == motorSET_Set) || (prec->spg != motorSPG_Go)    )
+                 (prec->sevr >  MINOR_ALARM ) || msta.Bits.RA_POWERUP     ||
+                 (prec->set  == imsSET_Set  ) || (prec->spg != imsSPG_Go)    )
             {
                 prec->eval = prec->oval;
                 db_post_events( prec, &prec->eval, DBE_VAL_LOG );
 
                 if      ( prec->egag == menuYesNoNO                     )
                     log_msg( prec, 0, "no tweak, no ext. guage"     );
-                else if ( prec->set  == motorSET_Set                    )
+                else if ( prec->set  == imsSET_Set                      )
                     log_msg( prec, 0, "no tweak, motor in SET mode" );
                 else if ( msta.Bits.RA_PROBLEM || msta.Bits.RA_COMM_ERR )
                     log_msg( prec, 0, "no move, hardware problem"  );
@@ -1965,7 +1955,7 @@ static long special( dbAddr *pDbAddr, int after )
                     log_msg( prec, 0, "no move, init not finished" );
                 else if ( msta.Bits.RA_POWERUP                          )
                     log_msg( prec, 0, "no move, power cycled"      );
-                else if ( prec->spg != motorSPG_Go                      )
+                else if ( prec->spg != imsSPG_Go                        )
                     log_msg( prec, 0, "no move, SPG is not Go"     );
                 else
                     log_msg( prec, 0, "no move, unknown alarm"     );
@@ -1974,7 +1964,7 @@ static long special( dbAddr *pDbAddr, int after )
             }
 
             new_dval = prec->dval + (prec->eval - prec->erbv) * prec->eskl;
-            nval     = new_dval * (1. - 2.*prec->dir) + prec->off;
+            nval     = new_dval * (2.*prec->dir - 1.) + prec->off;
             if ( (nval < prec->llm) || (nval > prec->hlm) ||
                  ((prec->bdst > 0) && (prec->drbv > new_dval) &&
                   ((new_dval - prec->bdst) < prec->dllm)         ) ||
@@ -2001,12 +1991,12 @@ static long special( dbAddr *pDbAddr, int after )
 
             etweak:
             if ( (prec->egag == menuYesNoNO ) ||
-                 (prec->sevr >  MINOR_ALARM ) || msta.Bits.RA_POWERUP       ||
-                 (prec->set  == motorSET_Set) || (prec->spg != motorSPG_Go)    )
+                 (prec->sevr >  MINOR_ALARM ) || msta.Bits.RA_POWERUP     ||
+                 (prec->set  == imsSET_Set  ) || (prec->spg != imsSPG_Go)    )
             {
                 if      ( prec->egag == menuYesNoNO                     )
                     log_msg( prec, 0, "no tweak, no ext. guage"     );
-                else if ( prec->set  == motorSET_Set                    )
+                else if ( prec->set  == imsSET_Set                      )
                     log_msg( prec, 0, "no tweak, motor in SET mode" );
                 else if ( msta.Bits.RA_PROBLEM || msta.Bits.RA_COMM_ERR )
                     log_msg( prec, 0, "no tweak, hardware problem"  );
@@ -2018,7 +2008,7 @@ static long special( dbAddr *pDbAddr, int after )
                     log_msg( prec, 0, "no tweak, init not finished" );
                 else if ( msta.Bits.RA_POWERUP                          )
                     log_msg( prec, 0, "no tweak, power cycled"      );
-                else if ( prec->spg != motorSPG_Go                      )
+                else if ( prec->spg != imsSPG_Go                        )
                     log_msg( prec, 0, "no tweak, SPG is not Go"     );
                 else
                     log_msg( prec, 0, "no tweak, unknown alarm"     );
@@ -2027,7 +2017,7 @@ static long special( dbAddr *pDbAddr, int after )
             }
 
             new_dval = prec->dval + (new_eval - prec->erbv) * prec->eskl;
-            nval     = new_dval * (1. - 2.*prec->dir) + prec->off;
+            nval     = new_dval * (2.*prec->dir - 1.) + prec->off;
             if ( (nval < prec->llm) || (nval > prec->hlm) ||
                  ((prec->bdst > 0) && (prec->drbv > new_dval) &&
                   ((new_dval - prec->bdst) < prec->dllm)         ) ||
@@ -2467,10 +2457,10 @@ static long log_msg( imsRecord *prec, int dlvl, const char *fmt, ... )
 
     va_list    args;
 
-    if ( (dlvl >= 0) && (prec->mode == motorMode_Normal    ) &&
+    if ( (dlvl >= 0) && (prec->mode == imsMode_Normal      ) &&
          (dlvl >  max((int)prec->dlvl, (int)imsRecordDebug))    ) return( 0 );
 
-    if ( (dlvl >= 0) && (prec->mode == motorMode_Scan      ) &&
+    if ( (dlvl >= 0) && (prec->mode == imsMode_Scan        ) &&
          (dlvl >  min((int)prec->dlvl, 0                  ))    ) return( 0 );
 
     clock_gettime( CLOCK_REALTIME, &ts );
@@ -2483,9 +2473,9 @@ static long log_msg( imsRecord *prec, int dlvl, const char *fmt, ... )
     vsprintf( msg, fmt, args );
     va_end  ( args           );
 
-    if ( (dlvl >= 0) && (((prec->mode == motorMode_Normal       ) &&
+    if ( (dlvl >= 0) && (((prec->mode == imsMode_Normal         ) &&
                           (dlvl       <= prec->dlvl             )    ) ||
-                         ((prec->mode == motorMode_Scan         ) &&
+                         ((prec->mode == imsMode_Scan           ) &&
                           (dlvl       <= min((int)prec->dlvl, 0))    )    ) )
     {
         mInfo->lMutex->lock();
@@ -2504,8 +2494,8 @@ static long log_msg( imsRecord *prec, int dlvl, const char *fmt, ... )
         mInfo->lMutex->unlock();
     }
 
-    if ( (dlvl < 0)                                                     ||
-         ((prec->mode == motorMode_Normal) && (dlvl <= imsRecordDebug))    )
+    if ( (dlvl < 0)                                                   ||
+         ((prec->mode == imsMode_Normal) && (dlvl <= imsRecordDebug))    )
         printf( "%s.%s %s -- %s\n", timestamp, msec, prec->name, msg );
 
     return( 1 );

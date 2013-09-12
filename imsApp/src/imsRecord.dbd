@@ -1,51 +1,51 @@
 include "menuYesNo.dbd"
 
-menu(motorAble) {
-	choice(motorAble_Disable,       "Disable"          )
-	choice(motorAble_Enable,        "Enable"           )
+menu(imsAble) {
+	choice(imsAble_Disable,       "Disable"          )
+	choice(imsAble_Enable,        "Enable"           )
 }
-menu(motorLM) {
-	choice(motorLM_Invalid,         "Invalid"          )
-	choice(motorLM_DecelHome,       "Decel, Home"      )
-	choice(motorLM_Decel,           "Decel"            )
-	choice(motorLM_DecelStopProg,   "Decel, StopProg"  )
-	choice(motorLM_NoDecelHome,     "NoDecel, Home"    )
-	choice(motorLM_NoDecel,         "NoDecel"          )
-	choice(motorLM_NoDecelStopProg, "NoDecel, StopProg")
+menu(imsLM) {
+	choice(imsLM_Invalid,         "Invalid"          )
+	choice(imsLM_DecelHome,       "Decel, Home"      )
+	choice(imsLM_Decel,           "Decel"            )
+	choice(imsLM_DecelStopProg,   "Decel, StopProg"  )
+	choice(imsLM_NoDecelHome,     "NoDecel, Home"    )
+	choice(imsLM_NoDecel,         "NoDecel"          )
+	choice(imsLM_NoDecelStopProg, "NoDecel, StopProg")
 }
-menu(motorSM) {
-	choice(motorSM_Stop,            "Stop on stall"    )
-	choice(motorSM_NoStop,          "No stop"          )
+menu(imsSM) {
+	choice(imsSM_Stop,            "Stop on stall"    )
+	choice(imsSM_NoStop,          "No stop"          )
 }
-menu(motorDIR) {
-	choice(motorDIR_Positive,       "Positive"         )
-	choice(motorDIR_Negative,       "Negative"         )
+menu(imsDIR) {
+	choice(imsDIR_Negative,       "Negative"         )
+	choice(imsDIR_Positive,       "Positive"         )
 }
-menu(motorOFF) {
-	choice(motorOFF_Variable,       "Offset"           )
-	choice(motorOFF_Freeze,         "Controller"       )
+menu(imsOFF) {
+	choice(imsOFF_Variable,       "Offset"           )
+	choice(imsOFF_Freeze,         "Controller"       )
 }
-menu(motorSET) {
-	choice(motorSET_Use,            "Use"              )
-	choice(motorSET_Set,            "Set"              )
+menu(imsSET) {
+	choice(imsSET_Use,            "Use"              )
+	choice(imsSET_Set,            "Set"              )
 }
-menu(motorSPG) {
-	choice(motorSPG_Stop,           "Stop"             )
-	choice(motorSPG_Pause,          "Pause"            )
-	choice(motorSPG_Go,             "Go"               )
+menu(imsSPG) {
+	choice(imsSPG_Stop,           "Stop"             )
+	choice(imsSPG_Pause,          "Pause"            )
+	choice(imsSPG_Go,             "Go"               )
 }
-menu(motorHTYP) {
-        choice(motorHTYP_None,          "Not Setup"        )
-        choice(motorHTYP_Encoder,       "Encoder"          )
-        choice(motorHTYP_Switch,        "Switch"           )
+menu(imsHTYP) {
+        choice(imsHTYP_None,          "N/A"              )
+        choice(imsHTYP_Encoder,       "Encoder"          )
+        choice(imsHTYP_Switch,        "Switch"           )
 }
-menu(motorMode) {
-        choice(motorMode_Normal,        "Normal"           )
-        choice(motorMode_Scan,          "Scan"             )
+menu(imsMode) {
+        choice(imsMode_Normal,        "Normal"           )
+        choice(imsMode_Scan,          "Scan"             )
 }
-menu(motorHC) {
-        choice(motorHC_Zero,            "Zero"             )
-        choice(motorHC_Restore,         "Restore"          )
+menu(imsHC) {
+        choice(imsHC_Zero,            "Zero"             )
+        choice(imsHC_Restore,         "Restore"          )
 }
 
 recordtype(ims) {
@@ -105,7 +105,7 @@ recordtype(ims) {
 	field(NE,DBF_MENU) {
 		prompt("Numeric Enable")
 		promptgroup(GUI_COMMON)
-		menu(motorAble)
+		menu(imsAble)
 		special(SPC_MOD)
 		asl(ASL0)
 		interest(1)
@@ -113,7 +113,7 @@ recordtype(ims) {
 	field(LM,DBF_MENU) {
 		prompt("Limit Stop Mode")
 		promptgroup(GUI_COMMON)
-		menu(motorLM)
+		menu(imsLM)
 		special(SPC_MOD)
 		asl(ASL0)
 		interest(1)
@@ -121,7 +121,7 @@ recordtype(ims) {
 	field(SM,DBF_MENU) {
 		prompt("Stall Mode")
 		promptgroup(GUI_COMMON)
-		menu(motorSM)
+		menu(imsSM)
 		special(SPC_MOD)
 		asl(ASL0)
 		interest(1)
@@ -152,7 +152,7 @@ recordtype(ims) {
 	field(EE,DBF_MENU) {
 		prompt("Encoder Enable")
 		promptgroup(GUI_COMMON)
-		menu(motorAble)
+		menu(imsAble)
 		special(SPC_MOD)
 		asl(ASL0)
 		initial("Disable")
@@ -195,7 +195,7 @@ recordtype(ims) {
 	field(MODE,DBF_MENU) {
 		prompt("Running Mode")
 		promptgroup(GUI_COMMON)
-		menu(motorMode)
+		menu(imsMode)
 		special(SPC_MOD)
 		initial("Normal")
 		interest(1)
@@ -229,7 +229,7 @@ recordtype(ims) {
 	field(DIR,DBF_MENU) {
 		prompt("User Direction")
 		promptgroup(GUI_COMMON)
-		menu(motorDIR)
+		menu(imsDIR)
 		special(SPC_MOD)
 		initial("Positive")
 		interest(1)
@@ -242,13 +242,13 @@ recordtype(ims) {
 	field(FOFF,DBF_MENU) {
 		prompt("Adjust Offset / Controller")
 		promptgroup(GUI_COMMON)
-		menu(motorOFF)
+		menu(imsOFF)
 		initial("Offset")
 		interest(1)
 	}
 	field(SET,DBF_MENU) {
 		prompt("Set/Use Switch")
-		menu(motorSET)
+		menu(imsSET)
 		special(SPC_MOD)
 		asl(ASL0)
 		interest(1)
@@ -256,14 +256,14 @@ recordtype(ims) {
 	field(HTYP,DBF_MENU) {
 		prompt("Homing Type")
 		promptgroup(GUI_COMMON)
-		menu(motorHTYP)
+		menu(imsHTYP)
 		initial("Not Setup")
 		interest(1)
 	}
 	field(HEGE,DBF_MENU) {
 		prompt("Homing Edge")
 		promptgroup(GUI_COMMON)
-		menu(motorDIR)
+		menu(imsDIR)
 		initial("Positive")
 		interest(1)
 	}
@@ -456,7 +456,7 @@ recordtype(ims) {
 	}
 	field(SPG,DBF_MENU) {
 		prompt("Stop/Pause/Go")
-		menu(motorSPG)
+		menu(imsSPG)
 		special(SPC_MOD)
 		asl(ASL0)
 		initial(2)
@@ -570,7 +570,7 @@ recordtype(ims) {
 	}
 	field(HCTG,DBF_MENU) {
 		prompt("Zero/Restore HC Setting")
-		menu(motorHC)
+		menu(imsHC)
 		special(SPC_MOD)
 		asl(ASL0)
 	}
