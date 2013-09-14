@@ -76,17 +76,19 @@ extern "C" { epicsExportAddress( rset, imsRSET ); }
 
 
 #define MIP_DONE     0x0000    // No motion is in progress
-#define MIP_HOMF     0x0008    // A home-forward command is in progress
-#define MIP_HOMR     0x0010    // A home-reverse command is in progress
+#define MIP_MOVE     0x0001    // A move not resulting from Jog* or Hom*
+#define MIP_RETRY    0x0002    // A retry is in progress
+#define MIP_NEW      0x0004    // Stop current move for a new move
+#define MIP_BL       0x0008    // Done moving, now take out backlash
+#define MIP_HOMF     0x0010    // A home-forward command is in progress
+#define MIP_HOMR     0x0020    // A home-reverse command is in progress
+#define MIP_HOMB     0x0040    // Back off from the limit switch
+#define MIP_HOMC     0x0080    // Creep to the limit switch
 #define MIP_HOME     (MIP_HOMF | MIP_HOMR)
-#define MIP_MOVE     0x0020    // A move not resulting from Jog* or Hom*
-#define MIP_RETRY    0x0040    // A retry is in progress
-#define MIP_NEW      0x0080    // Stop current move for a new move
-#define MIP_BL       0x0100    // Done moving, now take out backlash
-#define MIP_STOP     0x0200    // We're trying to stop.  If a home command
+#define MIP_PAUSE    0x0100    // Move is being paused
+#define MIP_STOP     0x0800    // We're trying to stop.  If a home command
                                // is issued when the motor is moving, we
                                // stop the motor first
-#define MIP_PAUSE    0x0400    // Move is paused
 
 #define MAX_MSG_SIZE 61
 
@@ -655,11 +657,11 @@ static long process( dbCommon *precord )
     unsigned short  old_mip,  alarm_mask;
     short           old_dmov, old_rcnt, old_miss;
     double          old_val,  old_dval, old_diff, diff;
-    long            count, old_rval, old_msta = prec->msta, status = OK;
+    long            count, old_rval, old_msta = prec->msta, nval, status = OK;
     int             VI, VM, A;
     status_word     csr;
     motor_status    msta;
-    bool            first, reset_us=FALSE;
+    bool            first, reset_us = FALSE;
 
     if ( prec->pact ) return( OK );
 
@@ -728,9 +730,9 @@ static long process( dbCommon *precord )
     if ( first ||                                         // first status update
          (msta.Bits.RA_STALL && (! msta.Bits.RA_SM)) ||               // stalled
          prec->lls || prec->hls ||                         // hit a limit switch
-         (prec->mip & (MIP_STOP | MIP_PAUSE)) ||                // stop or pause
-         (prec->mip & MIP_HOME              )           )         // done homing
-    {                                                            // encoder home
+         (prec->mip & MIP_HOME) ||                                 // was homing
+         (prec->mip & (MIP_STOP | MIP_PAUSE))           )       // stop or pause
+    {
         short newval = 1;
 
         if ( msta.Bits.RA_STALL && (! msta.Bits.RA_SM) )
@@ -761,7 +763,42 @@ static long process( dbCommon *precord )
         }
         else if ( prec->lls )
         {
-            if ( prec->mip & MIP_HOME )                            // was homing
+            if      ( (prec->htyp == imsHTYP_Limits       ) &&
+                      (prec->mip  == MIP_HOMR             )    )  // home to LLS
+            {
+                log_msg( prec, 0, "back off from LLS (HDST: %.6g), with ACCL & VELO",
+                                  prec->hdst );
+
+                prec->mip  |= MIP_HOMB;
+                if ( prec->dir == imsDIR_Positive )
+                    nval = NINT(       prec->hdst / prec->res );
+                else
+                    nval = NINT( -1. * prec->hdst / prec->res );
+
+                VI = NINT( prec->vbas / prec->res );
+                VM = NINT( prec->velo / prec->res );
+                A  = NINT( (prec->velo - prec->vbas) / prec->res / prec->accl );
+                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR %d",
+                              VI, VM, A, nval );
+
+                send_msg( mInfo, msg    );
+                send_msg( mInfo, "Us 0" );
+
+                newval = 0;
+            }
+            else if ( (prec->htyp == imsHTYP_Limits       ) &&
+                      (prec->mip  == (MIP_HOMR | MIP_HOMC))    ) // creep to LLS
+            {
+                log_msg( prec, 0, "homed to LLS" );
+
+                prec->miss = 0;
+                prec->athm = 1;
+                msta.Bits.RA_HOMED = 1;
+                msta.Bits.RA_HOME  = 1;
+
+                db_post_events( prec, &prec->athm, DBE_VAL_LOG );
+            }
+            else if ( prec->mip & MIP_HOME )                       // was homing
             {
                 log_msg( prec, 0, "hit low limit, missed home" );
                 prec->miss = 1;
@@ -787,7 +824,42 @@ static long process( dbCommon *precord )
         }
         else if ( prec->hls )
         {
-            if ( prec->mip & MIP_HOME )                            // was homing
+            if      ( (prec->htyp == imsHTYP_Limits       ) &&
+                      (prec->mip  == MIP_HOMF             )    )  // home to HLS
+            {
+                log_msg( prec, 0, "back off from HLS (HDST: %.6g), with ACCL & VELO",
+                                  prec->hdst );
+
+                prec->mip  |= MIP_HOMB;
+                if ( prec->dir == imsDIR_Positive )
+                    nval = NINT( -1. * prec->hdst / prec->res );
+                else
+                    nval = NINT(       prec->hdst / prec->res );
+
+                VI = NINT( prec->vbas / prec->res );
+                VM = NINT( prec->velo / prec->res );
+                A  = NINT( (prec->velo - prec->vbas) / prec->res / prec->accl );
+                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR %d",
+                              VI, VM, A, nval );
+
+                send_msg( mInfo, msg    );
+                send_msg( mInfo, "Us 0" );
+
+                newval = 0;
+            }
+            else if ( (prec->htyp == imsHTYP_Limits       ) &&
+                      (prec->mip  == (MIP_HOMF | MIP_HOMC))    ) // creep to HLS
+            {
+                log_msg( prec, 0, "homed to HLS" );
+
+                prec->miss = 0;
+                prec->athm = 1;
+                msta.Bits.RA_HOMED = 1;
+                msta.Bits.RA_HOME  = 1;
+
+                db_post_events( prec, &prec->athm, DBE_VAL_LOG );
+            }
+            else if ( prec->mip & MIP_HOME )                       // was homing
             {
                 log_msg( prec, 0, "hit high limit, missed home" );
                 prec->miss = 1;
@@ -811,6 +883,66 @@ static long process( dbCommon *precord )
             else if ( first )                             // first status update
                 log_msg( prec, 0, "initialization completed" );
         }
+        else if ( prec->mip == (MIP_HOMR | MIP_HOMB) )
+        {
+            log_msg( prec, 0, "creep to LLS, with HACC & HVEL" );
+
+            prec->mip  = MIP_HOMR | MIP_HOMC;
+
+            VI = NINT( prec->vbas / prec->res );
+            VM = NINT( prec->hvel / prec->res );
+            A  = NINT( (prec->hvel - prec->vbas) / prec->res / prec->hacc );
+            if ( prec->dir == imsDIR_Positive )
+                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR -2147483647",
+                              VI, VM, A );
+            else
+                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR  2147483647",
+                              VI, VM, A );
+
+            send_msg( mInfo, msg    );
+            send_msg( mInfo, "Us 0" );
+
+            newval = 0;
+        }
+        else if ( prec->mip == (MIP_HOMF | MIP_HOMB) )
+        {
+            log_msg( prec, 0, "creep to HLS, with HACC & HVEL" );
+
+            prec->mip  = MIP_HOMF | MIP_HOMC;
+
+            VI = NINT( prec->vbas / prec->res );
+            VM = NINT( prec->hvel / prec->res );
+            A  = NINT( (prec->hvel - prec->vbas) / prec->res / prec->hacc );
+            if ( prec->dir == imsDIR_Positive )
+                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR  2147483647",
+                              VI, VM, A );
+            else
+                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR -2147483647",
+                              VI, VM, A );
+
+            send_msg( mInfo, msg    );
+            send_msg( mInfo, "Us 0" );
+
+            newval = 0;
+        }
+        else if ( prec->mip & MIP_HOME  )
+        {
+            prec->miss = 0;
+            prec->athm = 1;
+            msta.Bits.RA_HOMED = 1;
+            if ( prec->htyp == imsHTYP_Switch )
+            {
+                log_msg( prec, 0, "homed to home switch"  );
+                msta.Bits.RA_HOME = 1;
+            }
+            else
+            {
+                log_msg( prec, 0, "homed to encoder mark" );
+                msta.Bits.EA_HOME = 1;
+            }
+
+            db_post_events( prec, &prec->athm, DBE_VAL_LOG );
+        }
         else if ( prec->mip & MIP_STOP  )
         {
             log_msg( prec, 0, "stopped" );
@@ -818,20 +950,8 @@ static long process( dbCommon *precord )
         }
         else if ( prec->mip & MIP_PAUSE )
         {
-            log_msg( prec, 0, "paused" );
+            log_msg( prec, 0, "paused"  );
             newval = 0;
-        }
-        else if ( prec->mip & MIP_HOME )
-        {
-            log_msg( prec, 0, "homed" );
-            prec->miss = 0;
-
-            prec->athm = 1;
-            msta.Bits.RA_HOMED = 1;
-            if ( prec->htyp == imsHTYP_Switch ) msta.Bits.RA_HOME = 1;
-            else                                msta.Bits.EA_HOME = 1;
-
-            db_post_events( prec, &prec->athm, DBE_VAL_LOG );
         }
         else if ( first )                                 // first status update
             log_msg( prec, 0, "initialization completed" );
@@ -1000,14 +1120,14 @@ static long process_motor_info( imsRecord *prec, status_word csr, long count )
         return( status );
     }
 
-    old_movn     = prec->movn;
-    old_rlls     = prec->rlls;
-    old_rhls     = prec->rhls;
-    old_lls      = prec->lls ;
-    old_hls      = prec->hls ;
-    old_rrbv     = prec->rrbv;
-    old_drbv     = prec->drbv;
-    old_rbv      = prec->rbv ;
+    old_movn   = prec->movn;
+    old_rlls   = prec->rlls;
+    old_rhls   = prec->rhls;
+    old_lls    = prec->lls ;
+    old_hls    = prec->hls ;
+    old_rrbv   = prec->rrbv;
+    old_drbv   = prec->drbv;
+    old_rbv    = prec->rbv ;
 
     msta.All             = 0;
 
@@ -1396,7 +1516,7 @@ static long special( dbAddr *pDbAddr, int after )
                  ((prec->bdst > 0) && (prec->drbv > new_dval) &&
                   ((new_dval - prec->bdst) < prec->dllm)         ) ||
                  ((prec->bdst < 0) && (prec->drbv < new_dval) &&
-                  ((new_dval - prec->bdst) > prec->dhlm)         )     )
+                  ((new_dval - prec->bdst) > prec->dhlm)         )    )
             {                                    // violated the software limits
                 prec->lvio = 1;                     // set limit violation alarm
                 log_msg( prec, 0, "no tweak, limit violated" );
@@ -1423,7 +1543,7 @@ static long special( dbAddr *pDbAddr, int after )
             {
                 if ( prec->spg == imsSPG_Stop )
                 {
-                    log_msg( prec, 0, "stop, with deceleration" );
+                    log_msg( prec, 0, "stop, with deceleration"  );
                     prec->mip &= ~MIP_PAUSE;
                     prec->mip |=  MIP_STOP ;
                 }
@@ -1494,8 +1614,8 @@ static long special( dbAddr *pDbAddr, int after )
 
             break;
         case imsRecordSET :
-            if ( (prec->set == prec->oval  ) ||
-                 (prec->set == imsSET_Set)      ) break;
+            if ( (prec->set == prec->oval) ||
+                 (prec->set == imsSET_Set)    ) break;
 
             prec->rbv  = prec->val;
             if ( prec->foff == imsOFF_Variable )
@@ -1520,27 +1640,42 @@ static long special( dbAddr *pDbAddr, int after )
             break;
         case imsRecordHOMF:
             if ( (prec->htyp == imsHTYP_None) ||
+                 (prec->mip  != MIP_DONE    ) ||
                  (prec->spg  != imsSPG_Go   )    ) break;
 
             VI = NINT( prec->vbas / prec->res );
-            VM = NINT( prec->hvel / prec->res );
-            A  = NINT( (prec->hvel - prec->vbas) / prec->res / prec->hacc );
-            if      ( (prec->dir  == imsDIR_Positive) &&
-                      (prec->hege == imsDIR_Positive)    )
-                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 4\r\nUs 0",
-                              VI, VM, A, MI );
-            else if ( (prec->dir  == imsDIR_Positive) &&
-                      (prec->hege == imsDIR_Negative)    )
-                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 3\r\nUs 0",
-                              VI, VM, A, MI );
-            else if ( (prec->dir  == imsDIR_Negative) &&
-                      (prec->hege == imsDIR_Positive)    )
-                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 2\r\nUs 0",
-                              VI, VM, A, MI );
-            else if ( (prec->dir  == imsDIR_Negative) &&
-                      (prec->hege == imsDIR_Negative)    )
-                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 1\r\nUs 0",
-                              VI, VM, A, MI );
+            if ( prec->htyp == imsHTYP_Limits )
+            {
+                VM = NINT( prec->velo / prec->res );
+                A  = NINT( (prec->velo - prec->vbas) / prec->res / prec->accl );
+                if ( prec->dir == imsDIR_Positive )
+                    sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR  2147483647",
+                                  VI, VM, A );
+                else
+                    sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR -2147483647",
+                                  VI, VM, A );
+            }
+            else
+            {
+                VM = NINT( prec->hvel / prec->res );
+                A  = NINT( (prec->hvel - prec->vbas) / prec->res / prec->hacc );
+                if      ( (prec->dir  == imsDIR_Positive) &&
+                          (prec->hege == imsDIR_Positive)    )
+                    sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 4",
+                                  VI, VM, A, MI );
+                else if ( (prec->dir  == imsDIR_Positive) &&
+                          (prec->hege == imsDIR_Negative)    )
+                    sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 3",
+                                  VI, VM, A, MI );
+                else if ( (prec->dir  == imsDIR_Negative) &&
+                          (prec->hege == imsDIR_Positive)    )
+                    sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 2",
+                                  VI, VM, A, MI );
+                else if ( (prec->dir  == imsDIR_Negative) &&
+                          (prec->hege == imsDIR_Negative)    )
+                    sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 1",
+                                  VI, VM, A, MI );
+            }
  
             prec->mip  = MIP_HOMF;
 
@@ -1551,33 +1686,54 @@ static long special( dbAddr *pDbAddr, int after )
 
             db_post_events( prec, &prec->athm, DBE_VAL_LOG );
 
-            send_msg( mInfo, msg );
-            log_msg( prec, 0, "home >> ..." );
+            send_msg( mInfo, msg    );
+            send_msg( mInfo, "Us 0" );
+            if      ( prec->htyp == imsHTYP_Encoder )
+                log_msg( prec, 0, "homing >> to encoder mark ..." );
+            else if ( prec->htyp == imsHTYP_Switch  )
+                log_msg( prec, 0, "homing >> to home switch ..."  );
+            else
+                log_msg( prec, 0, "homing >> to HLS ..."          );
 
             break;
         case imsRecordHOMR:
             if ( (prec->htyp == imsHTYP_None) ||
+                 (prec->mip  != MIP_DONE    ) ||
                  (prec->spg  != imsSPG_Go   )    ) break;
 
             VI = NINT( prec->vbas / prec->res );
-            VM = NINT( prec->hvel / prec->res );
-            A  = NINT( (prec->hvel - prec->vbas) / prec->res / prec->hacc );
-            if      ( (prec->dir  == imsDIR_Positive) &&
-                      (prec->hege == imsDIR_Positive)    )
-                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 1\r\nUs 0",
-                              VI, VM, A, MI );
-            else if ( (prec->dir  == imsDIR_Positive) &&
-                      (prec->hege == imsDIR_Negative)    )
-                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 2\r\nUs 0",
-                              VI, VM, A, MI );
-            else if ( (prec->dir  == imsDIR_Negative) &&
-                      (prec->hege == imsDIR_Positive)    )
-                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 3\r\nUs 0",
-                              VI, VM, A, MI );
-            else if ( (prec->dir  == imsDIR_Negative) &&
-                      (prec->hege == imsDIR_Negative)    )
-                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 4\r\nUs 0",
-                              VI, VM, A, MI );
+            if ( prec->htyp == imsHTYP_Limits )
+            {
+                VM = NINT( prec->velo / prec->res );
+                A  = NINT( (prec->velo - prec->vbas) / prec->res / prec->accl );
+                if ( prec->dir == imsDIR_Positive )
+                    sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR -2147483647",
+                                  VI, VM, A );
+                else
+                    sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR  2147483647",
+                                  VI, VM, A );
+            }
+            else
+            {
+                VM = NINT( prec->hvel / prec->res );
+                A  = NINT( (prec->hvel - prec->vbas) / prec->res / prec->hacc );
+                if      ( (prec->dir  == imsDIR_Positive) &&
+                          (prec->hege == imsDIR_Positive)    )
+                    sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 1",
+                                  VI, VM, A, MI );
+                else if ( (prec->dir  == imsDIR_Positive) &&
+                          (prec->hege == imsDIR_Negative)    )
+                    sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 2",
+                                  VI, VM, A, MI );
+                else if ( (prec->dir  == imsDIR_Negative) &&
+                          (prec->hege == imsDIR_Positive)    )
+                    sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 3",
+                                  VI, VM, A, MI );
+                else if ( (prec->dir  == imsDIR_Negative) &&
+                          (prec->hege == imsDIR_Negative)    )
+                    sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 4",
+                                  VI, VM, A, MI );
+            }
  
             prec->mip  = MIP_HOMR;
 
@@ -1588,8 +1744,14 @@ static long special( dbAddr *pDbAddr, int after )
 
             db_post_events( prec, &prec->athm, DBE_VAL_LOG );
 
-            send_msg( mInfo, msg );
-            log_msg( prec, 0, "home << ..." );
+            send_msg( mInfo, msg    );
+            send_msg( mInfo, "Us 0" );
+            if      ( prec->htyp == imsHTYP_Encoder )
+                log_msg( prec, 0, "homing << to encoder mark ..." );
+            else if ( prec->htyp == imsHTYP_Switch  )
+                log_msg( prec, 0, "homing << to home switch ..."  );
+            else
+                log_msg( prec, 0, "homing << to LLS ..."          );
 
             break;
         case imsRecordLLM :
@@ -1863,21 +2025,31 @@ static long special( dbAddr *pDbAddr, int after )
 
             nval = prec->res;
             if ( prec->ee   == imsAble_Enable )
-                prec->res  = prec->urev / prec->el / 4.       ;
+                prec->res = prec->urev / prec->el / 4.        ;
             else
                 prec->res = prec->urev / prec->ms / prec->srev;
 
             if ( prec->res  != nval )
                 db_post_events( prec, &prec->res,  DBE_VAL_LOG );
 
-            break;  // dhz should update RRBV, DRBV, RBV and VAL
+            prec->rval = NINT(prec->dval / prec->res);
+
+            if ( prec->ee == imsAble_Enable )
+                sprintf( msg, "P %ld\r\nC2 %ld\r\nUs 0", prec->rval,
+                                                         prec->rval );
+            else
+                sprintf( msg, "P %ld\r\nUs 0",           prec->rval );
+
+            send_msg( mInfo, msg );
+
+            break;
         case imsRecordRC  :
-            sprintf( msg, "RC %d",         prec->rc   );
+            sprintf( msg, "RC %d", prec->rc );
             send_msg( mInfo, msg );
 
             break;
         case imsRecordHC  :
-            sprintf( msg, "HC %d",         prec->hc   );
+            sprintf( msg, "HC %d", prec->hc );
             send_msg( mInfo, msg );
 
             if ( prec->hc > 0 )
@@ -1969,7 +2141,7 @@ static long special( dbAddr *pDbAddr, int after )
                  ((prec->bdst > 0) && (prec->drbv > new_dval) &&
                   ((new_dval - prec->bdst) < prec->dllm)         ) ||
                  ((prec->bdst < 0) && (prec->drbv < new_dval) &&
-                  ((new_dval - prec->bdst) > prec->dhlm)         )     )
+                  ((new_dval - prec->bdst) > prec->dhlm)         )    )
             {                                    // violated the software limits
                 prec->lvio = 1;                     // set limit violation alarm
                 prec->eval = prec->oval;
@@ -1990,9 +2162,9 @@ static long special( dbAddr *pDbAddr, int after )
             new_eval = prec->eval - prec->etwv;
 
             etweak:
-            if ( (prec->egag == menuYesNoNO ) ||
-                 (prec->sevr >  MINOR_ALARM ) || msta.Bits.RA_POWERUP     ||
-                 (prec->set  == imsSET_Set  ) || (prec->spg != imsSPG_Go)    )
+            if ( (prec->egag == menuYesNoNO) ||
+                 (prec->sevr >  MINOR_ALARM) || msta.Bits.RA_POWERUP     ||
+                 (prec->set  == imsSET_Set ) || (prec->spg != imsSPG_Go)    )
             {
                 if      ( prec->egag == menuYesNoNO                     )
                     log_msg( prec, 0, "no tweak, no ext. guage"     );
@@ -2022,7 +2194,7 @@ static long special( dbAddr *pDbAddr, int after )
                  ((prec->bdst > 0) && (prec->drbv > new_dval) &&
                   ((new_dval - prec->bdst) < prec->dllm)         ) ||
                  ((prec->bdst < 0) && (prec->drbv < new_dval) &&
-                  ((new_dval - prec->bdst) > prec->dhlm)         )     )
+                  ((new_dval - prec->bdst) > prec->dhlm)         )    )
             {                                    // violated the software limits
                 prec->lvio = 1;                     // set limit violation alarm
 

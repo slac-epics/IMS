@@ -36,8 +36,9 @@ menu(imsSPG) {
 }
 menu(imsHTYP) {
         choice(imsHTYP_None,          "N/A"              )
-        choice(imsHTYP_Encoder,       "Encoder"          )
-        choice(imsHTYP_Switch,        "Switch"           )
+        choice(imsHTYP_Encoder,       "E Mark"           )
+        choice(imsHTYP_Switch,        "H Switch"         )
+        choice(imsHTYP_Limits,        "Limits"           )
 }
 menu(imsMode) {
         choice(imsMode_Normal,        "Normal"           )
@@ -257,7 +258,7 @@ recordtype(ims) {
 		prompt("Homing Type")
 		promptgroup(GUI_COMMON)
 		menu(imsHTYP)
-		initial("Not Setup")
+		initial("N/A")
 		interest(1)
 	}
 	field(HEGE,DBF_MENU) {
@@ -269,6 +270,11 @@ recordtype(ims) {
 	}
 	field(BDST,DBF_DOUBLE) {
 		prompt("BL Distance (EGU)")
+		promptgroup(GUI_COMMON)
+		interest(1)
+	}
+	field(HDST,DBF_DOUBLE) {
+		prompt("Homing Distance (EGU)")
 		promptgroup(GUI_COMMON)
 		interest(1)
 	}
