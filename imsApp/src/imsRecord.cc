@@ -241,9 +241,8 @@ static long init_motor( imsRecord *prec )
     ims_info       *mInfo = (ims_info *)prec->dpvt;
 
     char            msg[MAX_MSG_SIZE], rbbuf[MAX_MSG_SIZE];
-    int             s1, s2, s4, a1, a2, a4, d1, d2, d4;
-    int             rbne, rblm, rbsm, rbel, rbms, rbve, rbby;
-    int             retry, status = 0;
+    int             s1, s2, s3, s4, a1, a2, a3, a4, d1, d2, d3, d4;
+    int             rbve, rbby, retry, status = 0;
     epicsUInt32     old_msta = prec->msta;
     motor_status    msta;
     unsigned short  alarm_mask;
@@ -320,129 +319,52 @@ static long init_motor( imsRecord *prec )
     {
         flush_asyn( mInfo );
 
-        send_msg( mInfo, "PR \"S1=\",S1,\", S2=\",S2,\", S4=\",S4" );
+        send_msg( mInfo, "PR \"S1=\",S1,\", S2=\",S2,\", S3=\",S3,\", S4=\",S4" );
         status = recv_reply( mInfo, rbbuf );
         if ( status > 0 )
         {
-            status = sscanf( rbbuf, "S1=%d, %d, %d, S2=%d, %d, %d, S4=%d, %d, %d",
-                                    &s1, &a1, &d1, &s2, &a2, &d2, &s4, &a4, &d4 );
-            if ( status == 9 )
+            status = sscanf( rbbuf, "S1=%d, %d, %d, S2=%d, %d, %d, S3=%d, %d, %d, S4=%d, %d, %d",
+                                    &s1, &a1, &d1, &s2, &a2, &d2, &s3, &a3, &d3, &s4, &a4, &d4 );
+            if ( status == 12 )
             {
                 if ( (a1 < 0) || (a1 > 1) ||
                      (s1 < 0) || ((s1 > 3) && (s1 != 16) && (s1 != 17)) )
                     status = 0;
-                else if ( (a1 == 1) && (s1 > 0) && (s1 < 4) ) mInfo->S1 = s1;
+                else if ( (a1 == 1) && (s1 > 1) && (s1 < 4) ) mInfo->S1 = s1;
                 else                                          mInfo->S1 = 0;
 
                 if ( (a2 < 0) || (a2 > 1) ||
                      (s2 < 0) || ((s2 > 3) && (s2 != 16) && (s2 != 17)) )
                     status = 0;
-                else if ( (a2 == 1) && (s2 > 0) && (s2 < 4) ) mInfo->S2 = s2;
+                else if ( (a2 == 1) && (s2 > 1) && (s2 < 4) ) mInfo->S2 = s2;
                 else                                          mInfo->S2 = 0;
+
+                if ( (a3 < 0) || (a3 > 1) ||
+                     (s3 < 0) || ((s3 > 3) && (s3 != 16) && (s3 != 17)) )
+                    status = 0;
 
                 if ( (a4 < 0) || (a4 > 1) ||
                      (s4 < 0) || ((s4 > 3) && (s4 != 16) && (s4 != 17)) )
                     status = 0;
-                else if ( (a4 == 1) && (s4 > 0) && (s4 < 4) ) mInfo->S4 = s4;
-                else                                          mInfo->S4 = 0;
             }
             else
                 status = 0;
 
-            if ( status == 9 )
+            if ( status == 12 )
             {
                 sprintf( prec->s1, "%d, %d, %d", s1, a1, d1 );
                 sprintf( prec->s2, "%d, %d, %d", s2, a2, d2 );
+                sprintf( prec->s3, "%d, %d, %d", s3, a3, d3 );
                 sprintf( prec->s4, "%d, %d, %d", s4, a4, d4 );
             }
         }
 
         epicsThreadSleep( 0.2 );
-    } while ( (status != 9) && (retry++ < 3) );
+    } while ( (status != 12) && (retry++ < 3) );
 
-    if ( status != 9 )
+    if ( status != 12 )
     {
         log_msg( prec, 0, "failed to read the switch settings" );
-
-        msta.Bits.RA_PROBLEM = 1;
-        goto finished;
-    }
-
-    // read the numeric enable, limit stop mode, stall mode
-    retry = 1;
-    do
-    {
-        flush_asyn( mInfo );
-
-        send_msg( mInfo, "PR \"NE=\",NE,\", LM=\",LM,\", SM=\",SM" );
-        status = recv_reply( mInfo, rbbuf );
-        if ( status > 0 )
-        {
-            status = sscanf( rbbuf, "NE=%d, LM=%d, SM=%d", &rbne, &rblm, &rbsm);
-            if ( status == 3 )
-            {
-                if ( rbne == 0 || rbne == 1 ) prec->ne = rbne;    // 1 : enabled
-                else                          status = 0;
-
-                if ( rblm >  0 || rblm <  7 ) prec->lm = rblm;
-                else                          status = 0;
-
-                if ( rbsm == 0 || rbsm == 1 ) prec->sm = rbsm;    // 1 : no stop
-                else                          status = 0;
-            }
-            else
-                status = 0;
-        }
-
-        epicsThreadSleep( 0.2 );
-    } while ( (status != 3) && (retry++ < 3) );
-
-    if ( status != 3 )
-    {
-        log_msg( prec, 0, "failed to read NE, LM and SM" );
-
-        prec->ne = 0;
-        prec->lm = 0;
-        prec->sm = 0;
-
-        msta.Bits.RA_PROBLEM = 1;
-        goto finished;
-    }
-    else
-        msta.Bits.RA_NE      = prec->ne;
-
-    // read the EL and MS
-    retry = 1;
-    do
-    {
-        flush_asyn( mInfo );
-
-        send_msg( mInfo, "PR \"EL=\",EL,\", MS=\",MS" );
-        status = recv_reply( mInfo, rbbuf );
-        if ( status > 0 )
-        {
-            status = sscanf( rbbuf, "EL=%d, MS=%d", &rbel, &rbms );
-            if ( status == 2 )
-            {
-                if ( rbel  > 0              ) prec->el = rbel;
-                else                          status = 0;
-
-                if ( rbms  > 0              ) prec->ms = rbms;
-                else                          status = 0;
-            }
-            else
-                status = 0;
-        }
-
-        epicsThreadSleep( 0.2 );
-    } while ( (status != 2) && (retry++ < 3) );
-
-    if ( status != 2 )
-    {
-        log_msg( prec, 0, "failed to read EL and MS" );
-
-        prec->el = 1;
-        prec->ms = 1;
 
         msta.Bits.RA_PROBLEM = 1;
         goto finished;
@@ -548,16 +470,29 @@ static long init_motor( imsRecord *prec )
             msta.Bits.RA_PROBLEM = 1;
             goto finished;
         }
-
     }
 
     // set the parameters
-    sprintf( msg, "RC %d", prec->rc );
+    send_msg( mInfo, "NE 0" );
+
+    epicsThreadSleep( 0.1 );
+
+    sprintf( msg, "LM %d\r\nSM %d\r\nSF %d", prec->lm, prec->sm, prec->sf   );
     send_msg( mInfo, msg );
 
     epicsThreadSleep( 0.1 );
 
-    sprintf( msg, "HC %d", prec->hc );
+    sprintf( msg, "EE %d\r\nEL %d\r\nMS %d", prec->ee, prec->el, prec->ms   );
+    send_msg( mInfo, msg );
+
+    epicsThreadSleep( 0.1 );
+
+    sprintf( msg, "MT %d\r\nHT %d\r\nES %d", prec->mt, prec->ht, prec->es   );
+    send_msg( mInfo, msg );
+
+    epicsThreadSleep( 0.1 );
+
+    sprintf( msg, "RC %d\r\nHC %d\r\nSk %d", prec->rc, prec->hc, prec->mode );
     send_msg( mInfo, msg );
 
     if ( prec->hc > 0 )
@@ -572,21 +507,6 @@ static long init_motor( imsRecord *prec )
         prec->hctg = imsHC_Zero;
         db_post_events( prec, &prec->hctg, DBE_VAL_LOG );
     }
-
-    epicsThreadSleep( 0.1 );
-
-    sprintf( msg, "EE %d", prec->ee   );
-    send_msg( mInfo, msg );
-
-    epicsThreadSleep( 0.1 );
-
-    sprintf( msg, "MT %d", prec->mt   );
-    send_msg( mInfo, msg );
-
-    epicsThreadSleep( 0.1 );
-
-    sprintf( msg, "Sk %d", prec->mode );
-    send_msg( mInfo, msg );
 
     mInfo->initialized = 0;
     msta.Bits.NOT_INIT = 1;
@@ -1143,18 +1063,11 @@ static long process_motor_info( imsRecord *prec, status_word csr, long count )
 
     prec->rlls = 0;
     prec->rhls = 0;
-    prec->hmls = 0;
     if ( mInfo->S1 == 3 ) prec->rlls = csr.Bits.I1;
     if ( mInfo->S2 == 3 ) prec->rlls = csr.Bits.I2;
-    if ( mInfo->S4 == 3 ) prec->rlls = csr.Bits.I4;
 
     if ( mInfo->S1 == 2 ) prec->rhls = csr.Bits.I1;
     if ( mInfo->S2 == 2 ) prec->rhls = csr.Bits.I2;
-    if ( mInfo->S4 == 2 ) prec->rhls = csr.Bits.I4;
-
-    if ( mInfo->S1 == 1 ) prec->hmls = csr.Bits.I1;
-    if ( mInfo->S2 == 1 ) prec->hmls = csr.Bits.I2;
-    if ( mInfo->S4 == 1 ) prec->hmls = csr.Bits.I4;
 
     msta.Bits.RA_MINUS_LS = prec->rlls;
     msta.Bits.RA_PLUS_LS  = prec->rhls;

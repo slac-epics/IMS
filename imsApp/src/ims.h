@@ -9,7 +9,6 @@ struct ims_info
     asynUser         *pasynUser;
     short             S1;                                           // switch S1
     short             S2;
-    short             S4;
     bool              initialized;
 
     long              csr;

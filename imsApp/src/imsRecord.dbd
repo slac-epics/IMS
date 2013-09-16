@@ -6,16 +6,22 @@ menu(imsAble) {
 }
 menu(imsLM) {
 	choice(imsLM_Invalid,         "Invalid"          )
-	choice(imsLM_DecelHome,       "Decel, Home"      )
-	choice(imsLM_Decel,           "Decel"            )
+	choice(imsLM_DecelHome,       "Decel, CanHome"   )
+	choice(imsLM_Decel,           "Decel, NoHome"    )
 	choice(imsLM_DecelStopProg,   "Decel, StopProg"  )
-	choice(imsLM_NoDecelHome,     "NoDecel, Home"    )
-	choice(imsLM_NoDecel,         "NoDecel"          )
+	choice(imsLM_NoDecelHome,     "NoDecel, CanHome" )
+	choice(imsLM_NoDecel,         "NoDecel, NoHome"  )
 	choice(imsLM_NoDecelStopProg, "NoDecel, StopProg")
 }
 menu(imsSM) {
 	choice(imsSM_Stop,            "Stop on stall"    )
 	choice(imsSM_NoStop,          "No stop"          )
+}
+menu(imsES) {
+	choice(imsES_CtrlE,           "Ctrl+E"           )
+	choice(imsES_ESC,             "ESC"              )
+	choice(imsES_CtrlE1,          "Ctrl+E (PY=1)"    )
+	choice(imsES_ESC1,            "ESC (PY=1)"       )
 }
 menu(imsDIR) {
 	choice(imsDIR_Negative,       "Negative"         )
@@ -95,18 +101,18 @@ recordtype(ims) {
 		asl(ASL0)
 		interest(1)
 	}
-	field(S4,DBF_STRING) {
-		prompt("S4 Setting")
+	field(S3,DBF_STRING) {
+		prompt("S3 Setting")
 		promptgroup(GUI_COMMON)
 		size(61)
 		special(SPC_MOD)
 		asl(ASL0)
 		interest(1)
 	}
-	field(NE,DBF_MENU) {
-		prompt("Numeric Enable")
+	field(S4,DBF_STRING) {
+		prompt("S4 Setting")
 		promptgroup(GUI_COMMON)
-		menu(imsAble)
+		size(61)
 		special(SPC_MOD)
 		asl(ASL0)
 		interest(1)
@@ -117,6 +123,7 @@ recordtype(ims) {
 		menu(imsLM)
 		special(SPC_MOD)
 		asl(ASL0)
+		initial("Decel, CanHome")
 		interest(1)
 	}
 	field(SM,DBF_MENU) {
@@ -127,27 +134,19 @@ recordtype(ims) {
 		asl(ASL0)
 		interest(1)
 	}
+	field(SF,DBF_USHORT) {
+		prompt("Stall factor")
+		promptgroup(GUI_COMMON)
+		special(SPC_MOD)
+		asl(ASL0)
+		initial(15)
+		interest(1)
+	}
 	field(STSV,DBF_MENU) {
 		prompt("Stall Severity")
 		promptgroup(GUI_COMMON)
 		menu(menuAlarmSevr)
 		initial("NO_ALARM")
-		interest(1)
-	}
-	field(HC,DBF_SHORT) {
-		prompt("Holding Current")
-		promptgroup(GUI_COMMON)
-		special(SPC_MOD)
-		asl(ASL0)
-		initial(0)
-		interest(1)
-	}
-	field(RC,DBF_SHORT) {
-		prompt("Running Current")
-		promptgroup(GUI_COMMON)
-		special(SPC_MOD)
-		asl(ASL0)
-		initial(5)
 		interest(1)
 	}
 	field(EE,DBF_MENU) {
@@ -176,6 +175,39 @@ recordtype(ims) {
 	}
 	field(MT,DBF_USHORT) {
 		prompt("Settling Delay Time (ms)")
+		promptgroup(GUI_COMMON)
+		special(SPC_MOD)
+		asl(ASL0)
+		initial(0)
+		interest(1)
+	}
+	field(HT,DBF_USHORT) {
+		prompt("Holding Current Delay Time (ms)")
+		promptgroup(GUI_COMMON)
+		special(SPC_MOD)
+		asl(ASL0)
+		initial(500)
+		interest(1)
+	}
+	field(ES,DBF_MENU) {
+		prompt("Escape Mode")
+		promptgroup(GUI_COMMON)
+		menu(imsES)
+		special(SPC_MOD)
+		asl(ASL0)
+		initial("ESC")
+		interest(1)
+	}
+	field(RC,DBF_SHORT) {
+		prompt("Running Current")
+		promptgroup(GUI_COMMON)
+		special(SPC_MOD)
+		asl(ASL0)
+		initial(5)
+		interest(1)
+	}
+	field(HC,DBF_SHORT) {
+		prompt("Holding Current")
 		promptgroup(GUI_COMMON)
 		special(SPC_MOD)
 		asl(ASL0)
@@ -510,10 +542,6 @@ recordtype(ims) {
 	}
 	field(RHLS,DBF_SHORT) {
 		prompt("Raw High Limit Switch")
-		special(SPC_NOMOD)
-	}
-	field(HMLS,DBF_SHORT) {
-		prompt("Home Limit Switch")
 		special(SPC_NOMOD)
 	}
 	field(LLS,DBF_SHORT) {
