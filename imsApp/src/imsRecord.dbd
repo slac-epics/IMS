@@ -146,7 +146,14 @@ recordtype(ims) {
 		prompt("Stall Severity")
 		promptgroup(GUI_COMMON)
 		menu(menuAlarmSevr)
-		initial("NO_ALARM")
+		initial("MINOR")
+		interest(1)
+	}
+	field(ERSV,DBF_MENU) {
+		prompt("Error Severity")
+		promptgroup(GUI_COMMON)
+		menu(menuAlarmSevr)
+		initial("MINOR")
 		interest(1)
 	}
 	field(EE,DBF_MENU) {

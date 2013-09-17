@@ -543,16 +543,13 @@ static long init_motor( imsRecord *prec )
     finished:
     mInfo->cMutex->unlock();
 
-    if      ( msta.Bits.RA_PROBLEM                       )           // hardware
+    if      ( msta.Bits.RA_PROBLEM )                                 // hardware
         recGblSetSevr( (dbCommon *)prec, COMM_ALARM,  INVALID_ALARM );
-    else if ( msta.Bits.RA_NE      || msta.Bits.NOT_INIT )   // NE=1 or NOT_INIT
+    else if ( msta.Bits.NOT_INIT   )                                 // NOT_INIT
     {
         recGblSetSevr( (dbCommon *)prec, STATE_ALARM, MAJOR_ALARM   );
 
-        if ( msta.Bits.RA_NE )
-            log_msg( prec, 0, "Numeric Enable is set"        );
-        else
-            log_msg( prec, 0, "wait for first status update" );
+        log_msg( prec, 0, "wait for first status update" );
     }
 
     prec->msta = msta.All;
@@ -980,7 +977,7 @@ static long process( dbCommon *precord )
     }
     else if ( msta.Bits.RA_POWERUP ||
               (msta.Bits.RA_STALL && (! msta.Bits.RA_SM)) ||
-              msta.Bits.RA_ERR || msta.Bits.EA_SLIP_STALL        )
+              msta.Bits.EA_SLIP_STALL                             )
     {
         recGblSetSevr( (dbCommon *)prec, STATE_ALARM, MINOR_ALARM   );
 
@@ -988,15 +985,20 @@ static long process( dbCommon *precord )
             log_msg( prec, 0, "power cycled"                   );
         else if ( msta.Bits.RA_STALL && (! msta.Bits.RA_SM) )
             log_msg( prec, 0, "stalled"                        );
-        else if ( msta.Bits.RA_ERR                          )
-            log_msg( prec, 0, "got error %d", msta.Bits.RA_ERR );
     }
-    else if ( msta.Bits.RA_STALL                                 )    // stalled
+    else if ( msta.Bits.RA_STALL                                  )   // stalled
     {
         if ( prec->stsv > NO_ALARM )
         recGblSetSevr( (dbCommon *)prec, STATE_ALARM, prec->stsv    );
 
         log_msg( prec, 0, "stall detected"         );
+    }
+    else if ( msta.Bits.RA_ERR                                    ) // got error
+    {
+        if ( prec->ersv > NO_ALARM )
+        recGblSetSevr( (dbCommon *)prec, STATE_ALARM, prec->ersv    );
+
+        log_msg( prec, 0, "got error %d", msta.Bits.RA_ERR );
     }
     else if ( (! first) && (prec->sevr > NO_ALARM) )// had alarm/warnings before
         log_msg( prec, 0, "alarm/warnings cleared" );
