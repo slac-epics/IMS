@@ -90,7 +90,7 @@ record(calc, "$(MOTOR):SAVED_P") {
   field(INPB, "$(MOTOR).RES       NPP")
   field(INPC, "$(MOTOR).DIR       NPP")
   field(INPD, "$(MOTOR).OFF       NPP")
-  field(CALC, "A*B*(1-2*C)+D")
+  field(CALC, "A*B*(2*C-1)+D")
   field(FLNK, "$(MOTOR):SAVED_TS")
 }
 
@@ -194,5 +194,18 @@ record(longout, "$(MOTOR):SEQ_SELN") {
   field(DESC, "Sequencer SELN Mask")
   field(OUT,  "$(MOTOR):SEQ.SELN")
   field(FLNK, "$(MOTOR):SEQ")
+}
+
+record(seq, "$(MOTOR):ZERO_P") {
+  field(DESC, "Set The Position To 0")
+  field(DLY1, "0")
+  field(DO1,  "1")
+  field(LNK1, "$(MOTOR).SET")
+  field(DLY2, "0.1")
+  field(DO2,  "0")
+  field(LNK2, "$(MOTOR).VAL")
+  field(DLY3, "0.1")
+  field(DO3,  "0")
+  field(LNK3, "$(MOTOR).SET")
 }
 

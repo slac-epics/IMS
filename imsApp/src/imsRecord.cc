@@ -810,10 +810,10 @@ static long process( dbCommon *precord )
             VM = NINT( prec->hvel / prec->res );
             A  = NINT( (prec->hvel - prec->vbas) / prec->res / prec->hacc );
             if ( prec->dir == imsDIR_Positive )
-                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR -2147483647",
+                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR -9999999",
                               VI, VM, A );
             else
-                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR  2147483647",
+                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR  9999999",
                               VI, VM, A );
 
             send_msg( mInfo, msg    );
@@ -831,10 +831,10 @@ static long process( dbCommon *precord )
             VM = NINT( prec->hvel / prec->res );
             A  = NINT( (prec->hvel - prec->vbas) / prec->res / prec->hacc );
             if ( prec->dir == imsDIR_Positive )
-                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR  2147483647",
+                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR  9999999",
                               VI, VM, A );
             else
-                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR -2147483647",
+                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR -9999999",
                               VI, VM, A );
 
             send_msg( mInfo, msg    );
@@ -1171,7 +1171,7 @@ static long special( dbAddr *pDbAddr, int after )
     ims_info       *mInfo = (ims_info *)prec->dpvt;
     char            MI = (prec->htyp == imsHTYP_Switch) ? 'M' : 'I';
     char            msg[MAX_MSG_SIZE], rbbuf[MAX_MSG_SIZE];
-    long            csr, count, old_rval, new_rval;
+    long            csr, count, old_rval;
     short           old_dmov, old_rcnt, old_lvio;
     double          nval, old_val, old_dval, old_rbv, new_dval, new_eval;
     unsigned short  old_mip, alarm_mask = 0;
@@ -1493,7 +1493,7 @@ static long special( dbAddr *pDbAddr, int after )
         case ( imsRecordDIR  ):
             if ( prec->dir == prec->oval ) break;
 
-            if ( prec->dir == imsDIR_Positive )                  // was negative
+            if ( prec->dir == imsDIR_Positive )
             {
                 prec->llm = prec->off + prec->dllm;
                 prec->hlm = prec->off + prec->dhlm;
@@ -1540,17 +1540,37 @@ static long special( dbAddr *pDbAddr, int after )
             }
             else
             {
-                new_dval = (prec->rbv - prec->off) * (2.*prec->dir - 1.);
-                new_rval = NINT(new_dval / prec->res);
+                new_dval    = (prec->rbv - prec->off) * (2.*prec->dir - 1.);
+                prec->dllm += new_dval - prec->dval;
+                prec->dhlm += new_dval - prec->dval;
+                prec->rval  = NINT(new_dval / prec->res);
+                prec->dval  = new_dval;
 
                 if ( prec->ee == imsAble_Enable )
-                    sprintf( msg, "P %ld\r\nC2 %ld\r\nUs 0", new_rval,
-                                                             new_rval );
+                    sprintf( msg, "P %ld\r\nC2 %ld\r\nUs 0", prec->rval,
+                                                             prec->rval );
                 else
-                    sprintf( msg, "P %ld\r\nUs 0",           new_rval );
+                    sprintf( msg, "P %ld\r\nUs 0",           prec->rval );
 
                 send_msg( mInfo, msg );
+
+                db_post_events( prec, &prec->dllm, DBE_VAL_LOG );
+                db_post_events( prec, &prec->dhlm, DBE_VAL_LOG );
             }
+
+            if ( prec->dir == imsDIR_Positive )
+            {
+                prec->llm = prec->off + prec->dllm;
+                prec->hlm = prec->off + prec->dhlm;
+            }
+            else
+            {
+                prec->llm = prec->off - prec->dhlm;
+                prec->hlm = prec->off - prec->dllm;
+            }
+
+            db_post_events( prec, &prec->llm,  DBE_VAL_LOG );
+            db_post_events( prec, &prec->hlm,  DBE_VAL_LOG );
 
             break;
         case imsRecordHOMF:
@@ -1564,10 +1584,10 @@ static long special( dbAddr *pDbAddr, int after )
                 VM = NINT( prec->velo / prec->res );
                 A  = NINT( (prec->velo - prec->vbas) / prec->res / prec->accl );
                 if ( prec->dir == imsDIR_Positive )
-                    sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR  2147483647",
+                    sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR  9999999",
                                   VI, VM, A );
                 else
-                    sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR -2147483647",
+                    sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR -9999999",
                                   VI, VM, A );
             }
             else
@@ -1622,10 +1642,10 @@ static long special( dbAddr *pDbAddr, int after )
                 VM = NINT( prec->velo / prec->res );
                 A  = NINT( (prec->velo - prec->vbas) / prec->res / prec->accl );
                 if ( prec->dir == imsDIR_Positive )
-                    sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR -2147483647",
+                    sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR -9999999",
                                   VI, VM, A );
                 else
-                    sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR  2147483647",
+                    sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR  9999999",
                                   VI, VM, A );
             }
             else
@@ -2470,7 +2490,7 @@ static void ping_controller( struct ims_info *mInfo )
         }
         else
         {
-            log_msg( prec, 0, "failed to read BY" );
+            log_msg( prec, 0, "can not reach controller" );
             msta.Bits.RA_PROBLEM = 1;
         }
 

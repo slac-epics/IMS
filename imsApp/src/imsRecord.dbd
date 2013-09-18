@@ -14,8 +14,8 @@ menu(imsLM) {
 	choice(imsLM_NoDecelStopProg, "NoDecel, StopProg")
 }
 menu(imsSM) {
-	choice(imsSM_Stop,            "Stop on stall"    )
-	choice(imsSM_NoStop,          "No stop"          )
+	choice(imsSM_Stop,            "Stop On Stall"    )
+	choice(imsSM_NoStop,          "No Stop"          )
 }
 menu(imsES) {
 	choice(imsES_CtrlE,           "Ctrl+E"           )
