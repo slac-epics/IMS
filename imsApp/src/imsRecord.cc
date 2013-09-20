@@ -356,6 +356,11 @@ static long init_motor( imsRecord *prec )
                 sprintf( prec->s2, "%d, %d, %d", s2, a2, d2 );
                 sprintf( prec->s3, "%d, %d, %d", s3, a3, d3 );
                 sprintf( prec->s4, "%d, %d, %d", s4, a4, d4 );
+
+                db_post_events( prec,  prec->s1  , DBE_VAL_LOG );
+                db_post_events( prec,  prec->s2  , DBE_VAL_LOG );
+                db_post_events( prec,  prec->s3  , DBE_VAL_LOG );
+                db_post_events( prec,  prec->s4  , DBE_VAL_LOG );
             }
         }
 
@@ -2587,9 +2592,15 @@ static long log_msg( imsRecord *prec, int dlvl, const char *fmt, ... )
     {
         mInfo->lMutex->lock();
 
-        if ( mInfo->cIndex > 7 )
-            memmove( mInfo->sAddr,
-                     mInfo->sAddr+mInfo->mLength, mInfo->mLength*7 );
+        if ( mInfo->cIndex > 0 )
+        {
+            if ( strncmp(mInfo->sAddr+mInfo->mLength*(mInfo->cIndex-1)+9,
+                         msg, strlen(msg)                                )==0 )
+                mInfo->cIndex--;
+            else if ( mInfo->cIndex > 7 )
+                memmove( mInfo->sAddr,
+                         mInfo->sAddr+mInfo->mLength, mInfo->mLength*7 );
+        }
 
         snprintf( mInfo->sAddr+mInfo->mLength*min(mInfo->cIndex,7), 61,
                   "%s %s", timestamp+6, msg );
