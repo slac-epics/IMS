@@ -579,16 +579,18 @@ static long process( dbCommon *precord )
     unsigned short  old_mip,  alarm_mask;
     short           old_dmov, old_rcnt, old_miss;
     double          old_val,  old_dval, old_diff, diff;
-    long            count, old_rval, old_msta = prec->msta, nval, status = OK;
+    long            count, old_rval, nval, status = OK;
     int             VI, VM, A;
     status_word     csr;
-    motor_status    msta;
+    motor_status    old_msta, msta;
     bool            first, reset_us = FALSE;
 
     if ( prec->pact ) return( OK );
 
     prec->pact = 1;
     log_msg( prec, 1, "process" );
+
+    old_msta.All = prec->msta;
 
     mInfo->cMutex->lock();
     if ( (mInfo->newData != 1) && (mInfo->newData != 2) )
@@ -805,6 +807,16 @@ static long process( dbCommon *precord )
             else if ( first )                             // first status update
                 log_msg( prec, 0, "initialization completed" );
         }
+        else if ( prec->mip & MIP_STOP  )
+        {
+            log_msg( prec, 0, "stopped" );
+            prec->miss = 0;
+        }
+        else if ( prec->mip & MIP_PAUSE )
+        {
+            log_msg( prec, 0, "paused"  );
+            newval = 0;
+        }
         else if ( prec->mip == (MIP_HOMR | MIP_HOMB) )
         {
             log_msg( prec, 0, "creep to LLS, with HACC & HVEL" );
@@ -864,16 +876,6 @@ static long process( dbCommon *precord )
             }
 
             db_post_events( prec, &prec->athm, DBE_VAL_LOG );
-        }
-        else if ( prec->mip & MIP_STOP  )
-        {
-            log_msg( prec, 0, "stopped" );
-            prec->miss = 0;
-        }
-        else if ( prec->mip & MIP_PAUSE )
-        {
-            log_msg( prec, 0, "paused"  );
-            newval = 0;
         }
         else if ( first )                                 // first status update
             log_msg( prec, 0, "initialization completed" );
@@ -1005,11 +1007,22 @@ static long process( dbCommon *precord )
 
         log_msg( prec, 0, "got error %d", msta.Bits.RA_ERR );
     }
-    else if ( (! first) && (prec->sevr > NO_ALARM) )// had alarm/warnings before
-        log_msg( prec, 0, "alarm/warnings cleared" );
+    else if ( ! first )
+    {
+        if ( prec->sevr > NO_ALARM )                // had alarm/warnings before
+            log_msg( prec, 0, "alarm/warnings cleared" );
+        else
+        {
+            if ( old_msta.Bits.RA_STALL )
+                log_msg( prec, 0, "stall bit cleared" );
+
+            if ( old_msta.Bits.RA_ERR   )
+                log_msg( prec, 0, "error cleared"     );
+        }
+    }
 
     prec->msta = msta.All;
-    if ( old_msta != prec->msta ) MARK( M_MSTA );
+    if ( prec->msta != old_msta.All ) MARK( M_MSTA );
 
     recGblGetTimeStamp( prec );
 
@@ -1065,6 +1078,9 @@ static long process_motor_info( imsRecord *prec, status_word csr, long count )
     msta.Bits.RA_POWERUP = csr.Bits.PU    ;
     msta.Bits.RA_NE      = csr.Bits.NE    ;
     msta.Bits.RA_ERR     = csr.Bits.ERR & 127;
+
+    if ( (msta.Bits.RA_ERR == 83) || (msta.Bits.RA_ERR == 84) )
+        msta.Bits.RA_ERR = 0;
 
     prec->movn = msta.Bits.RA_MOVING;
 

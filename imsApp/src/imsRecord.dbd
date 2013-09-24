@@ -315,6 +315,7 @@ recordtype(ims) {
 	field(HDST,DBF_DOUBLE) {
 		prompt("Homing Distance (EGU)")
 		promptgroup(GUI_COMMON)
+		initial(5)
 		interest(1)
 	}
 	field(DLLM,DBF_DOUBLE) {
