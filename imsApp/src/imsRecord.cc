@@ -2497,6 +2497,9 @@ static void ping_controller( struct ims_info *mInfo )
             epicsThreadSleep( 0.2 );
         } while ( retry++ < 3 );
 
+        msta.Bits.RA_PROBLEM  = 0;
+        msta.Bits.RA_COMM_ERR = 0;
+        msta.Bits.RA_BY0      = 0;
         if ( status == 1 )                                       // read back BY
         {
             if      ( rbby == 0 )                           // MCode not running
