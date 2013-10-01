@@ -626,7 +626,12 @@ static long process( dbCommon *precord )
     if ( (! first) && (prec->mip == MIP_DONE) ) // done moving, check slip_stall
     {
         old_diff   = prec->diff;
-        prec->diff = prec->rbv - prec->val;
+        if ( prec->egag == menuYesNoYES )
+            prec->diff = ( prec->erbv - prec->eval ) * prec->eskl
+                                                     * ( 2.*prec->dir - 1. );
+        else
+            prec->diff =   prec->rbv  - prec->val;
+
         if ( fabs(prec->diff) > prec->pdbd )
         {
             log_msg( prec, 0, "slipped, diff = %.6g", prec->diff );

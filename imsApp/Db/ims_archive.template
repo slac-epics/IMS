@@ -1,72 +1,95 @@
 # IMS archive list
-.VAL	86400		monitor
-.ATHM	86400		monitor
-.BDST	86400           monitor
-.BVEL	86400           monitor
-.DHLM	86400           monitor
-.DIR	86400           monitor
-.DISA	86400           monitor
-.DISP	86400           monitor
-.DLLM	86400           monitor
-.DMOV   86400           monitor
-.DRBV	86400           monitor
-.DVAL	86400           monitor
-.EGU	86400           monitor
-.ERES	86400           monitor
-.HLS	86400           monitor
-.HBAS	86400           monitor
-.HMDR	86400           monitor
-.HMTP	86400           monitor
-.HVEL	86400           monitor
-.LLS	86400           monitor
-.MISS	86400           monitor
-.MOVN   86400           monitor
-.MRES	86400           monitor
-.MSTA	86400           monitor
-.OFF	86400           monitor
-.OMSL	86400           monitor
-.RBV	86400           monitor
-.RCNT	86400           monitor
-.RDBD	86400           monitor
-.RMP	86400           monitor
-.RRES	86400           monitor
-.RTRY	86400           monitor
-.SET	86400           monitor
-.SPMG	86400           monitor
-.SREV	86400           monitor
-.STOP	86400           monitor
-.SYNC	86400           monitor
-.TDIR	86400           monitor
-.TWV	86400           monitor
-.UREV	86400           monitor
-.VBAS	86400           monitor
-.VELO	86400           monitor
-.VMAX	86400           monitor
+$(MOTOR).DESC         86400    monitor
+$(MOTOR).PORT         86400    monitor
+$(MOTOR).EGU          86400    monitor
+$(MOTOR).UREV         86400    monitor
+$(MOTOR).SREV         86400    monitor
+$(MOTOR).LM           86400    monitor
+$(MOTOR).SM           86400    monitor
+$(MOTOR).SF           86400    monitor
+$(MOTOR).STSV         86400    monitor
+$(MOTOR).ERSV         86400    monitor
+$(MOTOR).EE           86400    monitor
+$(MOTOR).EL           86400    monitor
+$(MOTOR).MS           86400    monitor
+$(MOTOR).MT           86400    monitor
+$(MOTOR).HT           86400    monitor
+$(MOTOR).ES           86400    monitor
+$(MOTOR).RC           86400    monitor
+$(MOTOR).HC           86400    monitor
+$(MOTOR).HCSV         86400    monitor
+$(MOTOR).DVER         86400    monitor
+$(MOTOR).MODE         86400    monitor
+$(MOTOR).DIR          86400    monitor
+$(MOTOR).OFF          86400    monitor
+$(MOTOR).FOFF         86400    monitor
+$(MOTOR).BDST         86400    monitor
+$(MOTOR).HDST         86400    monitor
+$(MOTOR).HTYP         86400    monitor
+$(MOTOR).HEGE         86400    monitor
+$(MOTOR).LLM          86400    monitor
+$(MOTOR).HLM          86400    monitor
+$(MOTOR).DLLM         86400    monitor
+$(MOTOR).DHLM         86400    monitor
+$(MOTOR).RTRY         86400    monitor
+$(MOTOR).RDBD         86400    monitor
+$(MOTOR).PDBD         86400    monitor
+$(MOTOR).EGAG         86400    monitor
+$(MOTOR).ERBL         86400    monitor
+$(MOTOR).ESKL         86400    monitor
+$(MOTOR).ETWV         86400    monitor
+$(MOTOR).SBAS         86400    monitor
+$(MOTOR).SMAX         86400    monitor
+$(MOTOR).S            86400    monitor
+$(MOTOR).VBAS         86400    monitor
+$(MOTOR).VMAX         86400    monitor
+$(MOTOR).VELO         86400    monitor
+$(MOTOR).BS           86400    monitor
+$(MOTOR).BVEL         86400    monitor
+$(MOTOR).HS           86400    monitor
+$(MOTOR).HVEL         86400    monitor
+$(MOTOR).ACCL         86400    monitor
+$(MOTOR).BACC         86400    monitor
+$(MOTOR).HACC         86400    monitor
+$(MOTOR).TWV          86400    monitor
 
-# mcode template additional records
-:RC	86400           monitor
-:HC	86400           monitor
-:LM	86400           monitor
-:EE	86400           monitor
-:EL	86400           monitor
-:MS	86400           monitor
-:MT	86400           monitor
-:NS	86400           monitor
-:DB	86400           monitor
-:SM	86400           monitor
-:PM	86400           monitor
-:S1	86400           monitor
-:S2	86400           monitor
-:S3	86400           monitor
-:S4	86400           monitor
-:SF	86400           monitor
-:PN	86400           monitor
-:SD	86400           monitor
-:SN	86400           monitor
-:VE	86400           monitor
-:VR	86400           monitor
+$(MOTOR).DLVL         86400    monitor
 
-# position archiving
-:SAVED_RAW	86400           monitor
-:SAVED_P	86400           monitor
+$(MOTOR).S1           86400    monitor
+$(MOTOR).S2           86400    monitor
+$(MOTOR).S3           86400    monitor
+$(MOTOR).S4           86400    monitor
+
+$(MOTOR).RES          86400    monitor
+
+$(MOTOR).VAL          86400    monitor
+$(MOTOR).DVAL         86400    monitor
+$(MOTOR).RVAL         86400    monitor
+$(MOTOR).RRBV         86400    monitor
+$(MOTOR).DRBV         86400    monitor
+$(MOTOR).RBV          86400    monitor
+
+$(MOTOR).EVAL         86400    monitor
+$(MOTOR).ERBV         86400    monitor
+
+$(MOTOR).DIFF         86400    monitor
+
+$(MOTOR).RCNT         86400    monitor
+$(MOTOR).MISS         86400    monitor
+
+$(MOTOR).LLS          86400    monitor
+$(MOTOR).HLS          86400    monitor
+
+$(MOTOR).ATHM         86400    monitor
+
+$(MOTOR).MIP          86400    monitor
+$(MOTOR).MOVN         86400    monitor
+$(MOTOR).DMOV         86400    monitor
+$(MOTOR).MSTA         86400    monitor
+
+$(MOTOR):SAVED_RAW    86400    monitor
+$(MOTOR):SAVED_P      86400    monitor
+
+$(MOTOR):FWD_MEANS    86400    monitor
+$(MOTOR):REV_MEANS    86400    monitor
 
