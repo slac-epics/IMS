@@ -85,8 +85,11 @@ extern "C" { epicsExportAddress( rset, imsRSET ); }
 #define MIP_HOMB     0x0040    // Back off from the limit switch
 #define MIP_HOMC     0x0080    // Creep to the limit switch
 #define MIP_HOME     (MIP_HOMF | MIP_HOMR)
-#define MIP_PAUSE    0x0100    // Move is being paused
-#define MIP_STOP     0x0800    // We're trying to stop.  If a home command
+#define MIP_JOGF     0x0100    // Jog forward
+#define MIP_JOGR     0x0200    // Jog backward
+#define MIP_JOG      (MIP_JOGF | MIP_JOGR)
+#define MIP_PAUSE    0x1000    // Move is being paused
+#define MIP_STOP     0x8000    // We're trying to stop.  If a home command
                                // is issued when the motor is moving, we
                                // stop the motor first
 
@@ -207,7 +210,7 @@ static long connect_motor( imsRecord *prec )
 
     if ( asyn_rtn != asynSuccess )
     {
-        log_msg( prec, 0, "failed to connect to the port" );
+        log_msg( prec, 0, "Failed to connect to the port" );
 
         msta.Bits.RA_PROBLEM = 1;
     }
@@ -276,7 +279,7 @@ static long init_motor( imsRecord *prec )
 
     if ( status <= 0 )
     {
-        log_msg( prec, 0, "failed to read the part number" );
+        log_msg( prec, 0, "Failed to read the part number" );
 
         msta.Bits.RA_PROBLEM = 1;
         goto finished;
@@ -307,7 +310,7 @@ static long init_motor( imsRecord *prec )
 
     if ( status <= 0 )
     {
-        log_msg( prec, 0, "failed to read the serial number" );
+        log_msg( prec, 0, "Failed to read the serial number" );
 
         msta.Bits.RA_PROBLEM = 1;
         goto finished;
@@ -327,40 +330,72 @@ static long init_motor( imsRecord *prec )
                                     &s1, &a1, &d1, &s2, &a2, &d2, &s3, &a3, &d3, &s4, &a4, &d4 );
             if ( status == 12 )
             {
-                if ( (a1 < 0) || (a1 > 1) ||
-                     (s1 < 0) || ((s1 > 3) && (s1 != 16) && (s1 != 17)) )
-                    status = 0;
-                else if ( (a1 == 1) && (s1 > 1) && (s1 < 4) ) mInfo->S1 = s1;
-                else                                          mInfo->S1 = 0;
+                if      ( (s1 ==  0) && (a1 == 0) && (d1 == 0) )
+                    prec->s1 = imsS14_NotUsed;
+                else if ( (s1 ==  2) && (a1 == 0) && (d1 == 0) )
+                    prec->s1 = imsS14_LMTpL  ;
+                else if ( (s1 ==  2) && (a1 == 1) && (d1 == 0) )
+                    prec->s1 = imsS14_LMTpH  ;
+                else if ( (s1 ==  3) && (a1 == 0) && (d1 == 0) )
+                    prec->s1 = imsS14_LMTmL  ;
+                else if ( (s1 ==  3) && (a1 == 1) && (d1 == 0) )
+                    prec->s1 = imsS14_LMTmH  ;
+                else
+                {
+                    log_msg( prec, 0, "S1 setting invalid" );
 
-                if ( (a2 < 0) || (a2 > 1) ||
-                     (s2 < 0) || ((s2 > 3) && (s2 != 16) && (s2 != 17)) )
-                    status = 0;
-                else if ( (a2 == 1) && (s2 > 1) && (s2 < 4) ) mInfo->S2 = s2;
-                else                                          mInfo->S2 = 0;
+                    prec->s1             = imsS14_Invalid;
+                    msta.Bits.RA_PROBLEM = 1;
+                }
 
-                if ( (a3 < 0) || (a3 > 1) ||
-                     (s3 < 0) || ((s3 > 3) && (s3 != 16) && (s3 != 17)) )
-                    status = 0;
+                if      ( (s2 ==  0) && (a2 == 0) && (d2 == 0) )
+                    prec->s2 = imsS14_NotUsed;
+                else if ( (s2 ==  2) && (a2 == 0) && (d2 == 0) )
+                    prec->s2 = imsS14_LMTpL  ;
+                else if ( (s2 ==  2) && (a2 == 1) && (d2 == 0) )
+                    prec->s2 = imsS14_LMTpH  ;
+                else if ( (s2 ==  3) && (a2 == 0) && (d2 == 0) )
+                    prec->s2 = imsS14_LMTmL  ;
+                else if ( (s2 ==  3) && (a2 == 1) && (d2 == 0) )
+                    prec->s2 = imsS14_LMTmH  ;
+                else
+                {
+                    log_msg( prec, 0, "S2 setting invalid" );
 
-                if ( (a4 < 0) || (a4 > 1) ||
-                     (s4 < 0) || ((s4 > 3) && (s4 != 16) && (s4 != 17)) )
-                    status = 0;
-            }
-            else
-                status = 0;
+                    prec->s2             = imsS14_Invalid;
+                    msta.Bits.RA_PROBLEM = 1;
+                }
 
-            if ( status == 12 )
-            {
-                sprintf( prec->s1, "%d, %d, %d", s1, a1, d1 );
-                sprintf( prec->s2, "%d, %d, %d", s2, a2, d2 );
-                sprintf( prec->s3, "%d, %d, %d", s3, a3, d3 );
-                sprintf( prec->s4, "%d, %d, %d", s4, a4, d4 );
+                if      ( (s3 ==  0) && (a3 == 0) && (d3 == 0) )
+                    prec->s3 = imsS14_NotUsed;
+                else if ( (s3 == 16) && (a3 == 1) && (d3 == 1) )
+                    prec->s3 = imsS14_5VOut  ;
+                else
+                {
+                    log_msg( prec, 0, "S3 setting invalid" );
 
-                db_post_events( prec,  prec->s1  , DBE_VAL_LOG );
-                db_post_events( prec,  prec->s2  , DBE_VAL_LOG );
-                db_post_events( prec,  prec->s3  , DBE_VAL_LOG );
-                db_post_events( prec,  prec->s4  , DBE_VAL_LOG );
+                    prec->s3             = imsS14_Invalid;
+                    msta.Bits.RA_PROBLEM = 1;
+                }
+
+                if      ( (s4 ==  0) && (a4 == 0) && (d4 == 0) )
+                    prec->s4 = imsS14_NotUsed;
+                else if ( (s4 ==  1) && (a4 == 0) && (d4 == 0) )
+                    prec->s4 = imsS14_HomeL  ;
+                else if ( (s4 ==  1) && (a4 == 1) && (d4 == 0) )
+                    prec->s4 = imsS14_HomeH  ;
+                else
+                {
+                    log_msg( prec, 0, "S4 setting invalid" );
+
+                    prec->s4             = imsS14_Invalid;
+                    msta.Bits.RA_PROBLEM = 1;
+                }
+
+                db_post_events( prec, &prec->s1  , DBE_VAL_LOG );
+                db_post_events( prec, &prec->s2  , DBE_VAL_LOG );
+                db_post_events( prec, &prec->s3  , DBE_VAL_LOG );
+                db_post_events( prec, &prec->s4  , DBE_VAL_LOG );
             }
         }
 
@@ -369,7 +404,7 @@ static long init_motor( imsRecord *prec )
 
     if ( status != 12 )
     {
-        log_msg( prec, 0, "failed to read the switch settings" );
+        log_msg( prec, 0, "Failed to read the switch settings" );
 
         msta.Bits.RA_PROBLEM = 1;
         goto finished;
@@ -394,7 +429,7 @@ static long init_motor( imsRecord *prec )
 
     if ( status != 2 )
     {
-        log_msg( prec, 0, "failed to read the MCode version and BY" );
+        log_msg( prec, 0, "Failed to read the MCode version and BY" );
 
         rbve = -999;
         rbby =    0;
@@ -404,7 +439,8 @@ static long init_motor( imsRecord *prec )
     {
         char line[256];
 
-        log_msg( prec, 0, "load MCode ..." );
+        log_msg( prec, 0, "Load MCode ..." );
+        post_msgs( prec );
 
         send_msg( mInfo, "E"  );
         epicsThreadSleep( 1 );
@@ -470,7 +506,7 @@ static long init_motor( imsRecord *prec )
         }
         else
         {
-            log_msg( prec, 0, "failed to start MCode" );
+            log_msg( prec, 0, "Failed to start MCode" );
 
             msta.Bits.RA_PROBLEM = 1;
             goto finished;
@@ -554,7 +590,7 @@ static long init_motor( imsRecord *prec )
     {
         recGblSetSevr( (dbCommon *)prec, STATE_ALARM, MAJOR_ALARM   );
 
-        log_msg( prec, 0, "wait for first status update" );
+        log_msg( prec, 0, "Wait for first status update" );
     }
 
     prec->msta = msta.All;
@@ -583,12 +619,12 @@ static long process( dbCommon *precord )
     int             VI, VM, A;
     status_word     csr;
     motor_status    old_msta, msta;
-    bool            first, reset_us = FALSE;
+    bool            first = FALSE, reset_us = FALSE;
 
     if ( prec->pact ) return( OK );
 
     prec->pact = 1;
-    log_msg( prec, 1, "process" );
+    log_msg( prec, 1, "Process" );
 
     old_msta.All = prec->msta;
 
@@ -612,9 +648,15 @@ static long process( dbCommon *precord )
     count   = mInfo->count;
     first   = ! mInfo->initialized;
 
-    if ( first ) mInfo->initialized = 1;
-    mInfo->newData = 0;
+    if ( first )
+    {
+        mInfo->initialized = 1;
+        log_msg( prec, 0, "Initialization completed" );
 
+        reset_us = TRUE;
+    }
+
+    mInfo->newData = 0;
     mInfo->cMutex->unlock();
 
     process_motor_info( prec, csr, count );
@@ -623,18 +665,19 @@ static long process( dbCommon *precord )
 
     if ( prec->movn ) goto finished;                             // still moving
 
-    if ( (! first) && (prec->mip == MIP_DONE) ) // done moving, check slip_stall
+    if ( prec->egag == menuYesNoYES )
+        diff = ( prec->erbv - prec->eval ) * prec->eskl * ( 2.*prec->dir - 1. );
+    else
+        diff =   prec->rbv  - prec->val;
+
+    if ( prec->mip == MIP_DONE )             // was not moving, check slip_stall
     {
         old_diff   = prec->diff;
-        if ( prec->egag == menuYesNoYES )
-            prec->diff = ( prec->erbv - prec->eval ) * prec->eskl
-                                                     * ( 2.*prec->dir - 1. );
-        else
-            prec->diff =   prec->rbv  - prec->val;
+        prec->diff = diff;
 
         if ( fabs(prec->diff) > prec->pdbd )
         {
-            log_msg( prec, 0, "slipped, diff = %.6g", prec->diff );
+            log_msg( prec, 0, "Slipped, diff = %.6g", prec->diff );
             msta.Bits.EA_SLIP_STALL = 1;
         }
 
@@ -651,13 +694,7 @@ static long process( dbCommon *precord )
     old_dval = prec->dval;
     old_rval = prec->rval;
 
-    if ( prec->egag == menuYesNoYES )
-        diff = ( prec->erbv - prec->eval ) * prec->eskl * ( 2.*prec->dir - 1. );
-    else
-        diff =   prec->rbv  - prec->val;
-
-    if ( first ||                                         // first status update
-         (msta.Bits.RA_STALL && (! msta.Bits.RA_SM)) ||               // stalled
+    if ( (msta.Bits.RA_STALL && (! msta.Bits.RA_SM)) ||               // stalled
          prec->lls || prec->hls ||                         // hit a limit switch
          (prec->mip & MIP_HOME) ||                                 // was homing
          (prec->mip & (MIP_STOP | MIP_PAUSE))           )       // stop or pause
@@ -668,7 +705,7 @@ static long process( dbCommon *precord )
         {
             if ( prec->mip & MIP_HOME )                            // was homing
             {
-                log_msg( prec, 0, "stalled, missed home" );
+                log_msg( prec, 0, "Stalled, missed home" );
                 prec->miss = 1;
             }
             else if ( (prec->mip != MIP_DONE) &&
@@ -676,26 +713,24 @@ static long process( dbCommon *precord )
             {
                 if ( fabs(diff) < prec->rdbd )
                 {
-                    log_msg( prec, 0, "desired %.6g, reached %.6g",
+                    log_msg( prec, 0, "Desired %.6g, reached %.6g",
                                       prec->val, prec->rbv );
                     prec->miss = 0;
                 }
                 else
                 {
-                    log_msg( prec, 0, "desired %.6g, reached %.6g, missed due to ST",
+                    log_msg( prec, 0, "Desired %.6g, reached %.6g, missed due to ST",
                                       prec->val, prec->rbv );
                     prec->miss = 1;
                 }
             }
-            else if ( first )                             // first status update
-                log_msg( prec, 0, "initialization completed" );
         }
         else if ( prec->lls )
         {
             if      ( (prec->htyp == imsHTYP_Limits       ) &&
                       (prec->mip  == MIP_HOMR             )    )  // home to LLS
             {
-                log_msg( prec, 0, "back off from LLS (HDST: %.6g), with ACCL & VELO",
+                log_msg( prec, 0, "Back off from LLS (HDST: %.6g), with ACCL & VELO",
                                   prec->hdst );
 
                 prec->mip  |= MIP_HOMB;
@@ -718,7 +753,7 @@ static long process( dbCommon *precord )
             else if ( (prec->htyp == imsHTYP_Limits       ) &&
                       (prec->mip  == (MIP_HOMR | MIP_HOMC))    ) // creep to LLS
             {
-                log_msg( prec, 0, "homed to LLS" );
+                log_msg( prec, 0, "Homed to LLS" );
 
                 prec->miss = 0;
                 prec->athm = 1;
@@ -729,7 +764,7 @@ static long process( dbCommon *precord )
             }
             else if ( prec->mip & MIP_HOME )                       // was homing
             {
-                log_msg( prec, 0, "hit low limit, missed home" );
+                log_msg( prec, 0, "Hit low limit, missed home" );
                 prec->miss = 1;
             }
             else if ( (prec->mip != MIP_DONE) &&
@@ -737,26 +772,24 @@ static long process( dbCommon *precord )
             {
                 if ( fabs(diff) < prec->rdbd )
                 {
-                    log_msg( prec, 0, "desired %.6g, reached %.6g",
+                    log_msg( prec, 0, "Desired %.6g, reached %.6g",
                                       prec->val, prec->rbv );
                     prec->miss = 0;
                 }
                 else
                 {
-                    log_msg( prec, 0, "desired %.6g, reached %.6g, missed due to LLS",
+                    log_msg( prec, 0, "Desired %.6g, reached %.6g, missed due to LLS",
                                       prec->val, prec->rbv );
                     prec->miss = 1;
                 }
             }
-            else if ( first )                             // first status update
-                log_msg( prec, 0, "initialization completed" );
         }
         else if ( prec->hls )
         {
             if      ( (prec->htyp == imsHTYP_Limits       ) &&
                       (prec->mip  == MIP_HOMF             )    )  // home to HLS
             {
-                log_msg( prec, 0, "back off from HLS (HDST: %.6g), with ACCL & VELO",
+                log_msg( prec, 0, "Back off from HLS (HDST: %.6g), with ACCL & VELO",
                                   prec->hdst );
 
                 prec->mip  |= MIP_HOMB;
@@ -779,7 +812,7 @@ static long process( dbCommon *precord )
             else if ( (prec->htyp == imsHTYP_Limits       ) &&
                       (prec->mip  == (MIP_HOMF | MIP_HOMC))    ) // creep to HLS
             {
-                log_msg( prec, 0, "homed to HLS" );
+                log_msg( prec, 0, "Homed to HLS" );
 
                 prec->miss = 0;
                 prec->athm = 1;
@@ -790,7 +823,7 @@ static long process( dbCommon *precord )
             }
             else if ( prec->mip & MIP_HOME )                       // was homing
             {
-                log_msg( prec, 0, "hit high limit, missed home" );
+                log_msg( prec, 0, "Hit high limit, missed home" );
                 prec->miss = 1;
             }
             else if ( (prec->mip != MIP_DONE) &&
@@ -798,33 +831,31 @@ static long process( dbCommon *precord )
             {
                 if ( fabs(diff) < prec->rdbd )
                 {
-                    log_msg( prec, 0, "desired %.6g, reached %.6g",
+                    log_msg( prec, 0, "Desired %.6g, reached %.6g",
                                       prec->val, prec->rbv );
                     prec->miss = 0;
                 }
                 else
                 {
-                    log_msg( prec, 0, "desired %.6g, reached %.6g, missed due to HLS",
+                    log_msg( prec, 0, "Desired %.6g, reached %.6g, missed due to HLS",
                                       prec->val, prec->rbv );
                     prec->miss = 1;
                 }
             }
-            else if ( first )                             // first status update
-                log_msg( prec, 0, "initialization completed" );
         }
         else if ( prec->mip & MIP_STOP  )
         {
-            log_msg( prec, 0, "stopped" );
+            log_msg( prec, 0, "Stopped" );
             prec->miss = 0;
         }
         else if ( prec->mip & MIP_PAUSE )
         {
-            log_msg( prec, 0, "paused"  );
+            log_msg( prec, 0, "Paused"  );
             newval = 0;
         }
         else if ( prec->mip == (MIP_HOMR | MIP_HOMB) )
         {
-            log_msg( prec, 0, "creep to LLS, with HACC & HVEL" );
+            log_msg( prec, 0, "Creep to LLS, with HACC & HVEL" );
 
             prec->mip  = MIP_HOMR | MIP_HOMC;
 
@@ -832,11 +863,9 @@ static long process( dbCommon *precord )
             VM = NINT( prec->hvel / prec->res );
             A  = NINT( (prec->hvel - prec->vbas) / prec->res / prec->hacc );
             if ( prec->dir == imsDIR_Positive )
-                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR -9999999",
-                              VI, VM, A );
+                sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nSL -%d", VI, A, VM );
             else
-                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR  9999999",
-                              VI, VM, A );
+                sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nSL  %d", VI, A, VM );
 
             send_msg( mInfo, msg    );
             send_msg( mInfo, "Us 0" );
@@ -845,7 +874,7 @@ static long process( dbCommon *precord )
         }
         else if ( prec->mip == (MIP_HOMF | MIP_HOMB) )
         {
-            log_msg( prec, 0, "creep to HLS, with HACC & HVEL" );
+            log_msg( prec, 0, "Creep to HLS, with HACC & HVEL" );
 
             prec->mip  = MIP_HOMF | MIP_HOMC;
 
@@ -853,11 +882,9 @@ static long process( dbCommon *precord )
             VM = NINT( prec->hvel / prec->res );
             A  = NINT( (prec->hvel - prec->vbas) / prec->res / prec->hacc );
             if ( prec->dir == imsDIR_Positive )
-                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR  9999999",
-                              VI, VM, A );
+                sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nSL  %d", VI, A, VM );
             else
-                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR -9999999",
-                              VI, VM, A );
+                sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nSL -%d", VI, A, VM );
 
             send_msg( mInfo, msg    );
             send_msg( mInfo, "Us 0" );
@@ -871,19 +898,17 @@ static long process( dbCommon *precord )
             msta.Bits.RA_HOMED = 1;
             if ( prec->htyp == imsHTYP_Switch )
             {
-                log_msg( prec, 0, "homed to home switch"  );
+                log_msg( prec, 0, "Homed to home switch"  );
                 msta.Bits.RA_HOME = 1;
             }
             else
             {
-                log_msg( prec, 0, "homed to encoder mark" );
+                log_msg( prec, 0, "Homed to encoder mark" );
                 msta.Bits.EA_HOME = 1;
             }
 
             db_post_events( prec, &prec->athm, DBE_VAL_LOG );
         }
-        else if ( first )                                 // first status update
-            log_msg( prec, 0, "initialization completed" );
 
         if ( newval )
         {
@@ -902,7 +927,7 @@ static long process( dbCommon *precord )
     else if ( prec->mip == MIP_NEW ) new_move( prec );
     else if ( prec->mip == MIP_BL  )                              // do backlash
     {
-        log_msg( prec, 0, "move to %.6g (DVAL: %.6g), with BACC & BVEL",
+        log_msg( prec, 0, "Move to %.6g (DVAL: %.6g), with BACC & BVEL",
                           prec->val, prec->dval );
 
         prec->mip  = MIP_MOVE;
@@ -925,7 +950,7 @@ static long process( dbCommon *precord )
 
         if ( prec->egag == menuYesNoYES )
         {
-            log_msg( prec, 0, "desired %.6g, reached %.6g, retrying %d ...",
+            log_msg( prec, 0, "Desired %.6g, reached %.6g, retrying %d ...",
                               prec->eval, prec->erbv, ++prec->rcnt );
 
             sprintf( msg, "MR %d", (prec->eval - prec->erbv) * prec->eskl /
@@ -933,7 +958,7 @@ static long process( dbCommon *precord )
         }
         else
         {
-            log_msg( prec, 0, "desired %.6g, reached %.6g, retrying %d ...",
+            log_msg( prec, 0, "Desired %.6g, reached %.6g, retrying %d ...",
                               prec->val,  prec->rbv,  ++prec->rcnt );
 
             sprintf( msg, "MA %d", prec->rval );
@@ -947,13 +972,13 @@ static long process( dbCommon *precord )
         prec->diff = diff;
         if ( fabs(diff) < prec->rdbd )
         {
-            log_msg( prec, 0, "desired %.6g, reached %.6g",
+            log_msg( prec, 0, "Desired %.6g, reached %.6g",
                               prec->val, prec->rbv             );
             prec->miss = 0;
         }
         else
         {
-            log_msg( prec, 0, "desired %.6g, reached %.6g after %d retries",
+            log_msg( prec, 0, "Desired %.6g, reached %.6g after %d retries",
                               prec->val, prec->rbv, prec->rcnt );
             prec->miss = 1;
         }
@@ -976,7 +1001,7 @@ static long process( dbCommon *precord )
     finished:
     if ( reset_us ) send_msg( mInfo, "Us 18000" );
 
-    if      ( msta.Bits.RA_PROBLEM || msta.Bits.RA_COMM_ERR       )  // hardware
+    if      ( msta.Bits.RA_PROBLEM                                )  // hardware
         recGblSetSevr( (dbCommon *)prec, COMM_ALARM,  INVALID_ALARM );
     else if ( msta.Bits.RA_NE      || msta.Bits.RA_BY0         ||// NE=1 or BY=0
               msta.Bits.NOT_INIT   || (prec->lls && prec->hls)    )  // NOT_INIT
@@ -985,7 +1010,7 @@ static long process( dbCommon *precord )
 
         if (msta.Bits.RA_NE       ) log_msg( prec, 0, "Numeric Enable is set" );
         if (msta.Bits.RA_BY0      ) log_msg( prec, 0, "MCode not running"     );
-        if (prec->lls && prec->hls) log_msg( prec, 0, "both limits hit"       );
+        if (prec->lls && prec->hls) log_msg( prec, 0, "Both limits hit"       );
     }
     else if ( msta.Bits.RA_POWERUP ||
               (msta.Bits.RA_STALL && (! msta.Bits.RA_SM)) ||
@@ -994,35 +1019,35 @@ static long process( dbCommon *precord )
         recGblSetSevr( (dbCommon *)prec, STATE_ALARM, MINOR_ALARM   );
 
         if      ( msta.Bits.RA_POWERUP                      )
-            log_msg( prec, 0, "power cycled"                   );
+            log_msg( prec, 0, "Power cycled"                   );
         else if ( msta.Bits.RA_STALL && (! msta.Bits.RA_SM) )
-            log_msg( prec, 0, "stalled"                        );
+            log_msg( prec, 0, "Stalled"                        );
     }
     else if ( msta.Bits.RA_STALL                                  )   // stalled
     {
         if ( prec->stsv > NO_ALARM )
         recGblSetSevr( (dbCommon *)prec, STATE_ALARM, prec->stsv    );
 
-        log_msg( prec, 0, "stall detected"         );
+        log_msg( prec, 0, "Stall detected"         );
     }
     else if ( msta.Bits.RA_ERR                                    ) // got error
     {
         if ( prec->ersv > NO_ALARM )
         recGblSetSevr( (dbCommon *)prec, STATE_ALARM, prec->ersv    );
 
-        log_msg( prec, 0, "got error %d", msta.Bits.RA_ERR );
+        log_msg( prec, 0, "Got error %d", msta.Bits.RA_ERR );
     }
     else if ( ! first )
     {
         if ( prec->sevr > NO_ALARM )                // had alarm/warnings before
-            log_msg( prec, 0, "alarm/warnings cleared" );
+            log_msg( prec, 0, "Alarm/warnings cleared" );
         else
         {
             if ( old_msta.Bits.RA_STALL )
-                log_msg( prec, 0, "stall bit cleared" );
+                log_msg( prec, 0, "Stall bit cleared" );
 
             if ( old_msta.Bits.RA_ERR   )
-                log_msg( prec, 0, "error cleared"     );
+                log_msg( prec, 0, "Error cleared"     );
         }
     }
 
@@ -1091,11 +1116,15 @@ static long process_motor_info( imsRecord *prec, status_word csr, long count )
 
     prec->rlls = 0;
     prec->rhls = 0;
-    if ( mInfo->S1 == 3 ) prec->rlls = csr.Bits.I1;
-    if ( mInfo->S2 == 3 ) prec->rlls = csr.Bits.I2;
+    if ( (prec->s1 == imsS14_LMTmL) || (prec->s1 == imsS14_LMTmH) )
+        prec->rlls = csr.Bits.I1;
+    if ( (prec->s2 == imsS14_LMTmL) || (prec->s2 == imsS14_LMTmH) )
+        prec->rlls = csr.Bits.I2;
 
-    if ( mInfo->S1 == 2 ) prec->rhls = csr.Bits.I1;
-    if ( mInfo->S2 == 2 ) prec->rhls = csr.Bits.I2;
+    if ( (prec->s1 == imsS14_LMTpL) || (prec->s1 == imsS14_LMTpH) )
+        prec->rhls = csr.Bits.I1;
+    if ( (prec->s2 == imsS14_LMTpL) || (prec->s2 == imsS14_LMTpH) )
+        prec->rhls = csr.Bits.I2;
 
     msta.Bits.RA_MINUS_LS = prec->rlls;
     msta.Bits.RA_PLUS_LS  = prec->rhls;
@@ -1141,7 +1170,7 @@ static void new_move( imsRecord *prec )
              ((prec->bdst < 0) && (prec->drbv < prec->dval)) ||
              (fabs(prec->drbv - prec->dval) > prec->bdst   )    )
         {           // opposite direction, or long move, use ACCL and VELO first
-            log_msg( prec, 0, "move to %.6g (DVAL: %.6g), with ACCL & VELO",
+            log_msg( prec, 0, "Move to %.6g (DVAL: %.6g), with ACCL & VELO",
                               prec->val, prec->dval-prec->bdst );
 
             prec->mip  = MIP_BL  ;
@@ -1155,7 +1184,7 @@ static void new_move( imsRecord *prec )
         }
         else                // same direction and within BDST, use BACC and BVEL
         {
-            log_msg( prec, 0, "move to %.6g (DVAL: %.6g), with BACC & BVEL",
+            log_msg( prec, 0, "Move to %.6g (DVAL: %.6g), with BACC & BVEL",
                               prec->val, prec->dval            );
 
             prec->mip  = MIP_MOVE;
@@ -1170,7 +1199,7 @@ static void new_move( imsRecord *prec )
     }
     else                                       // no backlash, use ACCL and VELO
     {
-        log_msg( prec, 0, "move to %.6g (DVAL: %.6g), with ACCL & VELO",
+        log_msg( prec, 0, "Move to %.6g (DVAL: %.6g), with ACCL & VELO",
                           prec->val, prec->dval );
 
         prec->mip  = MIP_MOVE;
@@ -1264,7 +1293,7 @@ static long special( dbAddr *pDbAddr, int after )
             }
             else
             {
-                log_msg( prec, 0, "erroneous status string" );
+                log_msg( prec, 0, "Erroneous status string" );
 
                 mInfo->cMutex->lock();
 
@@ -1277,7 +1306,7 @@ static long special( dbAddr *pDbAddr, int after )
         case imsRecordSVNG:
             if      ( strcmp(prec->svng, "Save")        == 0 )
             {
-                log_msg( prec, 0, "saving ..." );
+                log_msg( prec, 0, "Saving ..." );
 
                 mInfo->sEvent->wait();
                 send_msg( mInfo, "SV 9", 0 );
@@ -1288,7 +1317,7 @@ static long special( dbAddr *pDbAddr, int after )
 
                 new_dval = count * prec->res;
                 nval     = dir * new_dval + prec->off;
-                log_msg( prec, 0, "saved %.6g (dial: %.6g, count: %d)", nval, new_dval, count );
+                log_msg( prec, 0, "Saved %.6g (dial: %.6g, count: %d)", nval, new_dval, count );
             }
 
             break;
@@ -1298,20 +1327,20 @@ static long special( dbAddr *pDbAddr, int after )
             {
                 prec->val  = prec->oval;
 
-                if      ( msta.Bits.RA_PROBLEM || msta.Bits.RA_COMM_ERR )
-                    log_msg( prec, 0, "no move/set, hardware problem"  );
-                else if ( msta.Bits.RA_NE                               )
-                    log_msg( prec, 0, "no move/set, NE is set"         );
-                else if ( msta.Bits.RA_BY0                              )
-                    log_msg( prec, 0, "no move/set, MCode not running" );
-                else if ( msta.Bits.NOT_INIT                            )
-                    log_msg( prec, 0, "no move/set, init not finished" );
-                else if ( msta.Bits.RA_POWERUP                          )
-                    log_msg( prec, 0, "no move/set, power cycled"      );
-                else if ( prec->spg != imsSPG_Go                        )
-                    log_msg( prec, 0, "no move, SPG is not Go"         );
+                if      ( msta.Bits.RA_PROBLEM   )
+                    log_msg( prec, 0, "No move/set, hardware problem"  );
+                else if ( msta.Bits.RA_NE        )
+                    log_msg( prec, 0, "No move/set, NE is set"         );
+                else if ( msta.Bits.RA_BY0       )
+                    log_msg( prec, 0, "No move/set, MCode not running" );
+                else if ( msta.Bits.NOT_INIT     )
+                    log_msg( prec, 0, "No move/set, init not finished" );
+                else if ( msta.Bits.RA_POWERUP   )
+                    log_msg( prec, 0, "No move/set, power cycled"      );
+                else if ( prec->spg != imsSPG_Go )
+                    log_msg( prec, 0, "No move, SPG is not Go"         );
                 else
-                    log_msg( prec, 0, "no move/set, unknown alarm"     );
+                    log_msg( prec, 0, "No move/set, unknown alarm"     );
 
                 break;
             }
@@ -1326,7 +1355,7 @@ static long special( dbAddr *pDbAddr, int after )
                 prec->lvio = 1;                     // set limit violation alarm
                 prec->val  = prec->oval;
 
-                log_msg( prec, 0, "no move/set, limit violated" );
+                log_msg( prec, 0, "No move/set, limit violated" );
                 break;
             }
 
@@ -1350,20 +1379,20 @@ static long special( dbAddr *pDbAddr, int after )
             {
                 prec->dval = prec->oval;
 
-                if      ( msta.Bits.RA_PROBLEM || msta.Bits.RA_COMM_ERR )
-                    log_msg( prec, 0, "no move/set, hardware problem"  );
-                else if ( msta.Bits.RA_NE                               )
-                    log_msg( prec, 0, "no move/set, NE is set"         );
-                else if ( msta.Bits.RA_BY0                              )
-                    log_msg( prec, 0, "no move/set, MCode not running" );
-                else if ( msta.Bits.NOT_INIT                            )
-                    log_msg( prec, 0, "no move/set, init not finished" );
-                else if ( msta.Bits.RA_POWERUP                          )
-                    log_msg( prec, 0, "no move/set, power cycled"      );
-                else if ( prec->spg != imsSPG_Go                        )
-                    log_msg( prec, 0, "no move, SPG is not Go"         );
+                if      ( msta.Bits.RA_PROBLEM   )
+                    log_msg( prec, 0, "No move/set, hardware problem"  );
+                else if ( msta.Bits.RA_NE        )
+                    log_msg( prec, 0, "No move/set, NE is set"         );
+                else if ( msta.Bits.RA_BY0       )
+                    log_msg( prec, 0, "No move/set, MCode not running" );
+                else if ( msta.Bits.NOT_INIT     )
+                    log_msg( prec, 0, "No move/set, init not finished" );
+                else if ( msta.Bits.RA_POWERUP   )
+                    log_msg( prec, 0, "No move/set, power cycled"      );
+                else if ( prec->spg != imsSPG_Go )
+                    log_msg( prec, 0, "No move, SPG is not Go"         );
                 else
-                    log_msg( prec, 0, "no move/set, unknown alarm"     );
+                    log_msg( prec, 0, "No move/set, unknown alarm"     );
 
                 break;
             }
@@ -1377,7 +1406,7 @@ static long special( dbAddr *pDbAddr, int after )
                 prec->lvio = 1;                     // set limit violation alarm
                 prec->dval = prec->oval;
 
-                log_msg( prec, 0, "no move/set, limit violated" );
+                log_msg( prec, 0, "No move/set, limit violated" );
                 break;
             }
 
@@ -1412,7 +1441,7 @@ static long special( dbAddr *pDbAddr, int after )
             {
                 if ( prec->mip != MIP_NEW )           // stop current move first
                 {
-                    log_msg( prec, 0, "stop current move" );
+                    log_msg( prec, 0, "Stop current move" );
                     prec->mip  = MIP_NEW;
 
                     send_msg( mInfo, "SL 0\r\nUs 0" );
@@ -1434,20 +1463,20 @@ static long special( dbAddr *pDbAddr, int after )
             if ( (prec->sevr >  MINOR_ALARM) || msta.Bits.RA_POWERUP ||
                  (prec->spg  != imsSPG_Go  )                            )
             {
-                if      ( msta.Bits.RA_PROBLEM || msta.Bits.RA_COMM_ERR )
-                    log_msg( prec, 0, "no tweak, hardware problem"  );
-                else if ( msta.Bits.RA_NE                               )
-                    log_msg( prec, 0, "no tweak, NE is set"         );
-                else if ( msta.Bits.RA_BY0                              )
-                    log_msg( prec, 0, "no tweak, MCode not running" );
-                else if ( msta.Bits.NOT_INIT                            )
-                    log_msg( prec, 0, "no tweak, init not finished" );
-                else if ( msta.Bits.RA_POWERUP                          )
-                    log_msg( prec, 0, "no tweak, power cycled"      );
-                else if ( prec->spg != imsSPG_Go                        )
-                    log_msg( prec, 0, "no tweak, SPG is not Go"     );
+                if      ( msta.Bits.RA_PROBLEM   )
+                    log_msg( prec, 0, "No tweak, hardware problem"  );
+                else if ( msta.Bits.RA_NE        )
+                    log_msg( prec, 0, "No tweak, NE is set"         );
+                else if ( msta.Bits.RA_BY0       )
+                    log_msg( prec, 0, "No tweak, MCode not running" );
+                else if ( msta.Bits.NOT_INIT     )
+                    log_msg( prec, 0, "No tweak, init not finished" );
+                else if ( msta.Bits.RA_POWERUP   )
+                    log_msg( prec, 0, "No tweak, power cycled"      );
+                else if ( prec->spg != imsSPG_Go )
+                    log_msg( prec, 0, "No tweak, SPG is not Go"     );
                 else
-                    log_msg( prec, 0, "no tweak, unknown alarm"     );
+                    log_msg( prec, 0, "No tweak, unknown alarm"     );
 
                 break;
             }
@@ -1460,7 +1489,7 @@ static long special( dbAddr *pDbAddr, int after )
                   ((new_dval - prec->bdst) > prec->dhlm)         )    )
             {                                    // violated the software limits
                 prec->lvio = 1;                     // set limit violation alarm
-                log_msg( prec, 0, "no tweak, limit violated" );
+                log_msg( prec, 0, "No tweak, limit violated" );
 
                 break;
             }
@@ -1472,7 +1501,7 @@ static long special( dbAddr *pDbAddr, int after )
 
             if ( prec->spg == imsSPG_Go )
             {
-                log_msg( prec, 0, "resume moving" );
+                log_msg( prec, 0, "Resume moving" );
                 prec->mip &= ~( MIP_STOP | MIP_PAUSE );
 
                 sprintf( msg, "MA %d", prec->rval );
@@ -1484,13 +1513,13 @@ static long special( dbAddr *pDbAddr, int after )
             {
                 if ( prec->spg == imsSPG_Stop )
                 {
-                    log_msg( prec, 0, "stop, with deceleration"  );
+                    log_msg( prec, 0, "Stop, with deceleration"  );
                     prec->mip &= ~MIP_PAUSE;
                     prec->mip |=  MIP_STOP ;
                 }
                 else
                 {
-                    log_msg( prec, 0, "pause, with deceleration" );
+                    log_msg( prec, 0, "Pause, with deceleration" );
                     prec->mip |=  MIP_PAUSE;
                 }
 
@@ -1510,7 +1539,7 @@ static long special( dbAddr *pDbAddr, int after )
             prec->spg   = imsSPG_Stop;
             db_post_events( prec, &prec->spg,  DBE_VAL_LOG );
 
-            log_msg( prec, 0, "emergency stop !!!" );
+            log_msg( prec, 0, "Emergency stop !!!" );
 
             // force a status update
             send_msg( mInfo, "PR \"BOS65536,P=\",P,\"EOS\"" );
@@ -1610,11 +1639,9 @@ static long special( dbAddr *pDbAddr, int after )
                 VM = NINT( prec->velo / prec->res );
                 A  = NINT( (prec->velo - prec->vbas) / prec->res / prec->accl );
                 if ( prec->dir == imsDIR_Positive )
-                    sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR  9999999",
-                                  VI, VM, A );
+                    sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nSL  %d", VI, A, VM );
                 else
-                    sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR -9999999",
-                                  VI, VM, A );
+                    sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nSL -%d", VI, A, VM );
             }
             else
             {
@@ -1650,11 +1677,11 @@ static long special( dbAddr *pDbAddr, int after )
             send_msg( mInfo, msg    );
             send_msg( mInfo, "Us 0" );
             if      ( prec->htyp == imsHTYP_Encoder )
-                log_msg( prec, 0, "homing >> to encoder mark ..." );
+                log_msg( prec, 0, "Homing >> to encoder mark ..." );
             else if ( prec->htyp == imsHTYP_Switch  )
-                log_msg( prec, 0, "homing >> to home switch ..."  );
+                log_msg( prec, 0, "Homing >> to home switch ..."  );
             else
-                log_msg( prec, 0, "homing >> to HLS ..."          );
+                log_msg( prec, 0, "Homing >> to HLS ..."          );
 
             break;
         case imsRecordHOMR:
@@ -1668,11 +1695,9 @@ static long special( dbAddr *pDbAddr, int after )
                 VM = NINT( prec->velo / prec->res );
                 A  = NINT( (prec->velo - prec->vbas) / prec->res / prec->accl );
                 if ( prec->dir == imsDIR_Positive )
-                    sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR -9999999",
-                                  VI, VM, A );
+                    sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nSL -%d", VI, A, VM );
                 else
-                    sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR  9999999",
-                                  VI, VM, A );
+                    sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nSL  %d", VI, A, VM );
             }
             else
             {
@@ -1708,11 +1733,74 @@ static long special( dbAddr *pDbAddr, int after )
             send_msg( mInfo, msg    );
             send_msg( mInfo, "Us 0" );
             if      ( prec->htyp == imsHTYP_Encoder )
-                log_msg( prec, 0, "homing << to encoder mark ..." );
+                log_msg( prec, 0, "Homing << to encoder mark ..." );
             else if ( prec->htyp == imsHTYP_Switch  )
-                log_msg( prec, 0, "homing << to home switch ..."  );
+                log_msg( prec, 0, "Homing << to home switch ..."  );
             else
-                log_msg( prec, 0, "homing << to LLS ..."          );
+                log_msg( prec, 0, "Homing << to LLS ..."          );
+
+            break;
+        case imsRecordCALF:
+        case imsRecordCALR:
+            if ( (prec->sevr >  MINOR_ALARM) || msta.Bits.RA_POWERUP ||
+                 (prec->spg  != imsSPG_Go  )                            )
+            {
+                if      ( msta.Bits.RA_PROBLEM   )
+                    log_msg( prec, 0, "No calib, hardware problem"  );
+                else if ( msta.Bits.RA_NE        )
+                    log_msg( prec, 0, "No calib, NE is set"         );
+                else if ( msta.Bits.RA_BY0       )
+                    log_msg( prec, 0, "No calib, MCode not running" );
+                else if ( msta.Bits.NOT_INIT     )
+                    log_msg( prec, 0, "No calib, init not finished" );
+                else if ( msta.Bits.RA_POWERUP   )
+                    log_msg( prec, 0, "No calib, power cycled"      );
+                else if ( prec->spg != imsSPG_Go )
+                    log_msg( prec, 0, "No calib, SPG is not Go"     );
+                else
+                    log_msg( prec, 0, "No calib, unknown alarm"     );
+
+                break;
+            }
+
+            if ( fieldIndex == imsRecordCALF )
+            {
+                if ( prec->calf == 1 )
+                {
+                    prec->calf = 0;
+
+                    sprintf(msg, "C1 0\r\nC2 0\r\nMR  %d", prec->srev*prec->ms);
+                    send_msg( mInfo, msg );
+                }
+                else
+                {
+                    send_msg( mInfo, "SL 0" );
+
+                    epicsThreadSleep( 0.3 );
+
+                    sprintf( prec->cmd, "PR C2" );
+                    goto cmd_and_response;
+                }
+            }
+            else
+            {
+                if ( prec->calr == 1 )
+                {
+                    prec->calr = 0;
+
+                    sprintf(msg, "C1 0\r\nC2 0\r\nMR -%d", prec->srev*prec->ms);
+                    send_msg( mInfo, msg );
+                }
+                else
+                {
+                    send_msg( mInfo, "SL 0" );
+
+                    epicsThreadSleep( 0.3 );
+
+                    sprintf( prec->cmd, "PR C2" );
+                    goto cmd_and_response;
+                }
+            }
 
             break;
         case imsRecordLLM :
@@ -1799,6 +1887,58 @@ static long special( dbAddr *pDbAddr, int after )
             }
 
             goto check_limit_violation;
+        case imsRecordS1  :
+            if      ( prec->s1 == imsS14_NotUsed) send_msg( mInfo, "S1 0,0,0" );
+            else if ( prec->s1 == imsS14_HomeL  ) send_msg( mInfo, "S1 1,0,0" );
+            else if ( prec->s1 == imsS14_HomeH  ) send_msg( mInfo, "S1 1,1,0" );
+            else if ( prec->s1 == imsS14_LMTpL  ) send_msg( mInfo, "S1 2,0,0" );
+            else if ( prec->s1 == imsS14_LMTpH  ) send_msg( mInfo, "S1 2,1,0" );
+            else if ( prec->s1 == imsS14_LMTmL  ) send_msg( mInfo, "S1 3,0,0" );
+            else if ( prec->s1 == imsS14_LMTmH  ) send_msg( mInfo, "S1 3,1,0" );
+            else if ( prec->s1 == imsS14_5VOut  ) send_msg( mInfo, "S1 16,1,1");
+
+            send_msg( mInfo, "Us 0");
+
+            break;
+        case imsRecordS2  :
+            if      ( prec->s2 == imsS14_NotUsed) send_msg( mInfo, "S2 0,0,0" );
+            else if ( prec->s2 == imsS14_HomeL  ) send_msg( mInfo, "S2 1,0,0" );
+            else if ( prec->s2 == imsS14_HomeH  ) send_msg( mInfo, "S2 1,1,0" );
+            else if ( prec->s2 == imsS14_LMTpL  ) send_msg( mInfo, "S2 2,0,0" );
+            else if ( prec->s2 == imsS14_LMTpH  ) send_msg( mInfo, "S2 2,1,0" );
+            else if ( prec->s2 == imsS14_LMTmL  ) send_msg( mInfo, "S2 3,0,0" );
+            else if ( prec->s2 == imsS14_LMTmH  ) send_msg( mInfo, "S2 3,1,0" );
+            else if ( prec->s2 == imsS14_5VOut  ) send_msg( mInfo, "S2 16,1,1");
+
+            send_msg( mInfo, "Us 0");
+
+            break;
+        case imsRecordS3  :
+            if      ( prec->s3 == imsS14_NotUsed) send_msg( mInfo, "S3 0,0,0" );
+            else if ( prec->s3 == imsS14_HomeL  ) send_msg( mInfo, "S3 1,0,0" );
+            else if ( prec->s3 == imsS14_HomeH  ) send_msg( mInfo, "S3 1,1,0" );
+            else if ( prec->s3 == imsS14_LMTpL  ) send_msg( mInfo, "S3 2,0,0" );
+            else if ( prec->s3 == imsS14_LMTpH  ) send_msg( mInfo, "S3 2,1,0" );
+            else if ( prec->s3 == imsS14_LMTmL  ) send_msg( mInfo, "S3 3,0,0" );
+            else if ( prec->s3 == imsS14_LMTmH  ) send_msg( mInfo, "S3 3,1,0" );
+            else if ( prec->s3 == imsS14_5VOut  ) send_msg( mInfo, "S3 16,1,1");
+
+            send_msg( mInfo, "Us 0");
+
+            break;
+        case imsRecordS4  :
+            if      ( prec->s4 == imsS14_NotUsed) send_msg( mInfo, "S4 0,0,0" );
+            else if ( prec->s4 == imsS14_HomeL  ) send_msg( mInfo, "S4 1,0,0" );
+            else if ( prec->s4 == imsS14_HomeH  ) send_msg( mInfo, "S4 1,1,0" );
+            else if ( prec->s4 == imsS14_LMTpL  ) send_msg( mInfo, "S4 2,0,0" );
+            else if ( prec->s4 == imsS14_LMTpH  ) send_msg( mInfo, "S4 2,1,0" );
+            else if ( prec->s4 == imsS14_LMTmL  ) send_msg( mInfo, "S4 3,0,0" );
+            else if ( prec->s4 == imsS14_LMTmH  ) send_msg( mInfo, "S4 3,1,0" );
+            else if ( prec->s4 == imsS14_5VOut  ) send_msg( mInfo, "S4 16,1,1");
+
+            send_msg( mInfo, "Us 0");
+
+            break;
         case imsRecordEL  :
             if ( prec->el   <= 0 )
             {
@@ -2004,6 +2144,36 @@ static long special( dbAddr *pDbAddr, int after )
             send_msg( mInfo, msg );
 
             break;
+        case imsRecordLM  :
+            sprintf( msg, "LM %d", prec->lm );
+            send_msg( mInfo, msg );
+
+            break;
+        case imsRecordSM  :
+            sprintf( msg, "SM %d", prec->sm );
+            send_msg( mInfo, msg );
+
+            break;
+        case imsRecordSF  :
+            sprintf( msg, "SF %d", prec->sf );
+            send_msg( mInfo, msg );
+
+            break;
+        case imsRecordMT  :
+            sprintf( msg, "MT %d", prec->mt );
+            send_msg( mInfo, msg );
+
+            break;
+        case imsRecordHT  :
+            sprintf( msg, "HT %d", prec->ht );
+            send_msg( mInfo, msg );
+
+            break;
+        case imsRecordES  :
+            sprintf( msg, "ES %d", prec->es );
+            send_msg( mInfo, msg );
+
+            break;
         case imsRecordRC  :
             sprintf( msg, "RC %d", prec->rc );
             send_msg( mInfo, msg );
@@ -2053,6 +2223,7 @@ static long special( dbAddr *pDbAddr, int after )
 
             break;
         case imsRecordCMD :
+            cmd_and_response:
             send_msg( mInfo, prec->cmd );
 
             if ( strstr(prec->cmd, "PR ") || strstr(prec->cmd, "pr ") ||
@@ -2065,6 +2236,11 @@ static long special( dbAddr *pDbAddr, int after )
             else strncpy( prec->resp, "", 61 );
 
             db_post_events( prec,  prec->resp, DBE_VAL_LOG );
+
+            break;
+        case imsRecordEGAG:
+            if ( prec->egag == menuYesNoYES ) send_msg( mInfo, "Us 0" );
+
             break;
         case imsRecordEVAL:
             if ( (prec->egag == menuYesNoNO ) ||
@@ -2074,24 +2250,24 @@ static long special( dbAddr *pDbAddr, int after )
                 prec->eval = prec->oval;
                 db_post_events( prec, &prec->eval, DBE_VAL_LOG );
 
-                if      ( prec->egag == menuYesNoNO                     )
-                    log_msg( prec, 0, "no tweak, no ext. guage"     );
-                else if ( prec->set  == imsSET_Set                      )
-                    log_msg( prec, 0, "no tweak, motor in SET mode" );
-                else if ( msta.Bits.RA_PROBLEM || msta.Bits.RA_COMM_ERR )
-                    log_msg( prec, 0, "no move, hardware problem"  );
-                else if ( msta.Bits.RA_NE                               )
-                    log_msg( prec, 0, "no move, NE is set"         );
-                else if ( msta.Bits.RA_BY0                              )
-                    log_msg( prec, 0, "no move, MCode not running" );
-                else if ( msta.Bits.NOT_INIT                            )
-                    log_msg( prec, 0, "no move, init not finished" );
-                else if ( msta.Bits.RA_POWERUP                          )
-                    log_msg( prec, 0, "no move, power cycled"      );
-                else if ( prec->spg != imsSPG_Go                        )
-                    log_msg( prec, 0, "no move, SPG is not Go"     );
+                if      ( prec->egag == menuYesNoNO )
+                    log_msg( prec, 0, "No move, no ext. guage"     );
+                else if ( prec->set  == imsSET_Set  )
+                    log_msg( prec, 0, "No move, motor in SET mode" );
+                else if ( msta.Bits.RA_PROBLEM      )
+                    log_msg( prec, 0, "No move, hardware problem"  );
+                else if ( msta.Bits.RA_NE           )
+                    log_msg( prec, 0, "No move, NE is set"         );
+                else if ( msta.Bits.RA_BY0          )
+                    log_msg( prec, 0, "No move, MCode not running" );
+                else if ( msta.Bits.NOT_INIT        )
+                    log_msg( prec, 0, "No move, init not finished" );
+                else if ( msta.Bits.RA_POWERUP      )
+                    log_msg( prec, 0, "No move, power cycled"      );
+                else if ( prec->spg != imsSPG_Go    )
+                    log_msg( prec, 0, "No move, SPG is not Go"     );
                 else
-                    log_msg( prec, 0, "no move, unknown alarm"     );
+                    log_msg( prec, 0, "No move, unknown alarm"     );
 
                 break;
             }
@@ -2108,7 +2284,7 @@ static long special( dbAddr *pDbAddr, int after )
                 prec->eval = prec->oval;
                 db_post_events( prec, &prec->eval, DBE_VAL_LOG );
 
-                log_msg( prec, 0, "no move, limit violated" );
+                log_msg( prec, 0, "No move, limit violated" );
                 break;
             }
 
@@ -2127,24 +2303,24 @@ static long special( dbAddr *pDbAddr, int after )
                  (prec->sevr >  MINOR_ALARM) || msta.Bits.RA_POWERUP     ||
                  (prec->set  == imsSET_Set ) || (prec->spg != imsSPG_Go)    )
             {
-                if      ( prec->egag == menuYesNoNO                     )
-                    log_msg( prec, 0, "no tweak, no ext. guage"     );
-                else if ( prec->set  == imsSET_Set                      )
-                    log_msg( prec, 0, "no tweak, motor in SET mode" );
-                else if ( msta.Bits.RA_PROBLEM || msta.Bits.RA_COMM_ERR )
-                    log_msg( prec, 0, "no tweak, hardware problem"  );
-                else if ( msta.Bits.RA_NE                               )
-                    log_msg( prec, 0, "no tweak, NE is set"         );
-                else if ( msta.Bits.RA_BY0                              )
-                    log_msg( prec, 0, "no tweak, MCode not running" );
-                else if ( msta.Bits.NOT_INIT                            )
-                    log_msg( prec, 0, "no tweak, init not finished" );
-                else if ( msta.Bits.RA_POWERUP                          )
-                    log_msg( prec, 0, "no tweak, power cycled"      );
-                else if ( prec->spg != imsSPG_Go                        )
-                    log_msg( prec, 0, "no tweak, SPG is not Go"     );
+                if      ( prec->egag == menuYesNoNO )
+                    log_msg( prec, 0, "No tweak, no ext. guage"     );
+                else if ( prec->set  == imsSET_Set  )
+                    log_msg( prec, 0, "No tweak, motor in SET mode" );
+                else if ( msta.Bits.RA_PROBLEM      )
+                    log_msg( prec, 0, "No tweak, hardware problem"  );
+                else if ( msta.Bits.RA_NE           )
+                    log_msg( prec, 0, "No tweak, NE is set"         );
+                else if ( msta.Bits.RA_BY0          )
+                    log_msg( prec, 0, "No tweak, MCode not running" );
+                else if ( msta.Bits.NOT_INIT        )
+                    log_msg( prec, 0, "No tweak, init not finished" );
+                else if ( msta.Bits.RA_POWERUP      )
+                    log_msg( prec, 0, "No tweak, power cycled"      );
+                else if ( prec->spg != imsSPG_Go    )
+                    log_msg( prec, 0, "No tweak, SPG is not Go"     );
                 else
-                    log_msg( prec, 0, "no tweak, unknown alarm"     );
+                    log_msg( prec, 0, "No tweak, unknown alarm"     );
 
                 break;
             }
@@ -2159,7 +2335,7 @@ static long special( dbAddr *pDbAddr, int after )
             {                                    // violated the software limits
                 prec->lvio = 1;                     // set limit violation alarm
 
-                log_msg( prec, 0, "no tweak, limit violated" );
+                log_msg( prec, 0, "No tweak, limit violated" );
                 break;
             }
 
@@ -2368,13 +2544,13 @@ static void post_fields( imsRecord *prec, unsigned short alarm_mask,
     if ( (field_mask = alarm_mask | (all                  ? DBE_VAL_LOG : 0)) )
     {
         db_post_events( prec, &prec->vers, field_mask );
+        db_post_events( prec,  prec->desc, field_mask );
         db_post_events( prec,  prec->port, field_mask );
         db_post_events( prec,  prec->asyn, field_mask );
         db_post_events( prec,  prec->pn,   field_mask );
         db_post_events( prec, &prec->ee,   field_mask );
         db_post_events( prec, &prec->sm,   field_mask );
         db_post_events( prec,  prec->egu,  field_mask );
-        db_post_events( prec,  prec->desc, field_mask );
         db_post_events( prec, &prec->dllm, field_mask );
         db_post_events( prec, &prec->dhlm, field_mask );
         db_post_events( prec, &prec->llm,  field_mask );
@@ -2502,24 +2678,21 @@ static void ping_controller( struct ims_info *mInfo )
             epicsThreadSleep( 0.2 );
         } while ( retry++ < 3 );
 
-        msta.Bits.RA_PROBLEM  = 0;
-        msta.Bits.RA_COMM_ERR = 0;
-        msta.Bits.RA_BY0      = 0;
         if ( status == 1 )                                       // read back BY
         {
             if      ( rbby == 0 )                           // MCode not running
             {
-                msta.Bits.RA_BY0      = 1;
+                msta.Bits.RA_BY0     = 1;
             }
             else if ( rbby != 1 )                              // wrong BY value
             {
-                log_msg( prec, 0, "invalid BY readback" );
-                msta.Bits.RA_COMM_ERR = 1;
+                log_msg( prec, 0, "Invalid BY readback" );
+                msta.Bits.RA_PROBLEM = 1;
             }
         }
         else
         {
-            log_msg( prec, 0, "can not reach controller" );
+            log_msg( prec, 0, "Can not reach controller" );
             msta.Bits.RA_PROBLEM = 1;
         }
 
@@ -2650,22 +2823,20 @@ static void post_msgs( imsRecord *prec )
 
     mInfo->lMutex->lock();
 
-    if ( mInfo->newMsg == 0 )
+    if ( mInfo->newMsg )
     {
-        mInfo->lMutex->unlock();
-        return;
+        db_post_events( prec,  prec->loga, DBE_VAL_LOG );
+        db_post_events( prec,  prec->logb, DBE_VAL_LOG );
+        db_post_events( prec,  prec->logc, DBE_VAL_LOG );
+        db_post_events( prec,  prec->logd, DBE_VAL_LOG );
+        db_post_events( prec,  prec->loge, DBE_VAL_LOG );
+        db_post_events( prec,  prec->logf, DBE_VAL_LOG );
+        db_post_events( prec,  prec->logg, DBE_VAL_LOG );
+        db_post_events( prec,  prec->logh, DBE_VAL_LOG );
+
+        mInfo->newMsg = 0;
     }
 
-    db_post_events( prec,  prec->loga, DBE_VAL_LOG );
-    db_post_events( prec,  prec->logb, DBE_VAL_LOG );
-    db_post_events( prec,  prec->logc, DBE_VAL_LOG );
-    db_post_events( prec,  prec->logd, DBE_VAL_LOG );
-    db_post_events( prec,  prec->loge, DBE_VAL_LOG );
-    db_post_events( prec,  prec->logf, DBE_VAL_LOG );
-    db_post_events( prec,  prec->logg, DBE_VAL_LOG );
-    db_post_events( prec,  prec->logh, DBE_VAL_LOG );
-
-    mInfo->newMsg = 0;
     mInfo->lMutex->unlock();
 
     return;

@@ -1,9 +1,7 @@
 # IMS archive list
 $(MOTOR).DESC         86400    monitor
+$(MOTOR).TYPE         86400    monitor
 $(MOTOR).PORT         86400    monitor
-$(MOTOR).EGU          86400    monitor
-$(MOTOR).UREV         86400    monitor
-$(MOTOR).SREV         86400    monitor
 $(MOTOR).LM           86400    monitor
 $(MOTOR).SM           86400    monitor
 $(MOTOR).SF           86400    monitor
@@ -17,9 +15,11 @@ $(MOTOR).HT           86400    monitor
 $(MOTOR).ES           86400    monitor
 $(MOTOR).RC           86400    monitor
 $(MOTOR).HC           86400    monitor
-$(MOTOR).HCSV         86400    monitor
 $(MOTOR).DVER         86400    monitor
 $(MOTOR).MODE         86400    monitor
+$(MOTOR).EGU          86400    monitor
+$(MOTOR).UREV         86400    monitor
+$(MOTOR).SREV         86400    monitor
 $(MOTOR).DIR          86400    monitor
 $(MOTOR).OFF          86400    monitor
 $(MOTOR).FOFF         86400    monitor
@@ -27,10 +27,10 @@ $(MOTOR).BDST         86400    monitor
 $(MOTOR).HDST         86400    monitor
 $(MOTOR).HTYP         86400    monitor
 $(MOTOR).HEGE         86400    monitor
-$(MOTOR).LLM          86400    monitor
-$(MOTOR).HLM          86400    monitor
 $(MOTOR).DLLM         86400    monitor
 $(MOTOR).DHLM         86400    monitor
+$(MOTOR).LLM          86400    monitor
+$(MOTOR).HLM          86400    monitor
 $(MOTOR).RTRY         86400    monitor
 $(MOTOR).RDBD         86400    monitor
 $(MOTOR).PDBD         86400    monitor
@@ -86,6 +86,7 @@ $(MOTOR).MIP          86400    monitor
 $(MOTOR).MOVN         86400    monitor
 $(MOTOR).DMOV         86400    monitor
 $(MOTOR).MSTA         86400    monitor
+$(MOTOR).HCSV         86400    monitor
 
 $(MOTOR):SAVED_RAW    86400    monitor
 $(MOTOR):SAVED_P      86400    monitor

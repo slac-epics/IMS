@@ -7,8 +7,6 @@ struct ims_info
     epicsEvent       *sEvent;
     epicsMutex       *cMutex;
     asynUser         *pasynUser;
-    short             S1;                                           // switch S1
-    short             S2;
     bool              initialized;
 
     long              csr;

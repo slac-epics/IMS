@@ -4,6 +4,17 @@ menu(imsAble) {
 	choice(imsAble_Disable,       "Disable"          )
 	choice(imsAble_Enable,        "Enable"           )
 }
+menu(imsS14) {
+	choice(imsS14_NotUsed,        "Not Used"         )
+	choice(imsS14_HomeL,          "Home L"           )
+	choice(imsS14_HomeH,          "Home H"           )
+	choice(imsS14_LMTpL,          "Limit+ L"         )
+	choice(imsS14_LMTpH,          "Limit+ H"         )
+	choice(imsS14_LMTmL,          "Limit- L"         )
+	choice(imsS14_LMTmH,          "Limit- H"         )
+	choice(imsS14_5VOut,          "5V Out"           )
+	choice(imsS14_Invalid,        "Invalid"          )
+}
 menu(imsLM) {
 	choice(imsLM_Invalid,         "Invalid"          )
 	choice(imsLM_DecelHome,       "Decel, CanHome"   )
@@ -73,6 +84,11 @@ recordtype(ims) {
 		special(SPC_NOMOD)
 		interest(1)
 	}
+	field(TYPE,DBF_STRING) {
+		prompt("Type of the Motor")
+		size(61)
+		interest(1)
+	}
 	field(PN,DBF_STRING) {
 		prompt("Part Number")
 		size(61)
@@ -85,34 +101,34 @@ recordtype(ims) {
 		special(SPC_NOMOD)
 		interest(1)
 	}
-	field(S1,DBF_STRING) {
+	field(S1,DBF_MENU) {
 		prompt("S1 Setting")
 		promptgroup(GUI_COMMON)
-		size(61)
+		menu(imsS14)
 		special(SPC_MOD)
 		asl(ASL0)
 		interest(1)
 	}
-	field(S2,DBF_STRING) {
+	field(S2,DBF_MENU) {
 		prompt("S2 Setting")
 		promptgroup(GUI_COMMON)
-		size(61)
+		menu(imsS14)
 		special(SPC_MOD)
 		asl(ASL0)
 		interest(1)
 	}
-	field(S3,DBF_STRING) {
+	field(S3,DBF_MENU) {
 		prompt("S3 Setting")
 		promptgroup(GUI_COMMON)
-		size(61)
+		menu(imsS14)
 		special(SPC_MOD)
 		asl(ASL0)
 		interest(1)
 	}
-	field(S4,DBF_STRING) {
+	field(S4,DBF_MENU) {
 		prompt("S4 Setting")
 		promptgroup(GUI_COMMON)
-		size(61)
+		menu(imsS14)
 		special(SPC_MOD)
 		asl(ASL0)
 		interest(1)
@@ -495,6 +511,26 @@ recordtype(ims) {
 		special(SPC_MOD)
 		interest(1)
 	}
+	field(JOGF,DBF_SHORT) {
+		prompt("Jog Forward")
+		special(SPC_MOD)
+		interest(1)
+	}
+	field(JOGR,DBF_SHORT) {
+		prompt("Jog Reverse")
+		special(SPC_MOD)
+		interest(1)
+	}
+	field(CALF,DBF_SHORT) {
+		prompt("Calibration Forward")
+		special(SPC_MOD)
+		interest(1)
+	}
+	field(CALR,DBF_SHORT) {
+		prompt("Calibration Reverse")
+		special(SPC_MOD)
+		interest(1)
+	}
 	field(LVIO,DBF_SHORT) {
 		prompt("Limit Violation")
 		special(SPC_NOMOD)
@@ -635,6 +671,7 @@ recordtype(ims) {
 		prompt("Use External Guage")
 		promptgroup(GUI_COMMON)
 		menu(menuYesNo)
+		special(SPC_MOD)
 		asl(ASL0)
 		initial("NO")
 		interest(1)
