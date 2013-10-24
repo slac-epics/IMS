@@ -3,8 +3,8 @@ beginScreenProperties
 major 4
 minor 0
 release 1
-x 2045
-y 717
+x 703
+y 778
 w 408
 h 115
 font "helvetica-medium-r-18.0"
@@ -248,7 +248,7 @@ buttonLabel "CNTRL"
 numPvs 4
 numDsps 1
 displayFileName {
-  0 "pcds_motionScreens/motor-control.edl"
+  0 "imsScreens/ims-motor-control.edl"
 }
 setPosition {
   0 "button"
