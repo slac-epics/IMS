@@ -245,9 +245,10 @@ static long init_motor( imsRecord *prec )
 
     char            msg[MAX_MSG_SIZE], rbbuf[MAX_MSG_SIZE];
     int             s1, s2, s3, s4, a1, a2, a3, a4, d1, d2, d3, d4;
-    int             rbve, rbby, retry, status = 0;
+    int             rbve, rbby, retry, status = OK;
     epicsUInt32     old_msta = prec->msta;
     motor_status    msta;
+
     unsigned short  alarm_mask;
 
     mInfo->cMutex->lock();
@@ -615,10 +616,19 @@ static long process( dbCommon *precord )
     unsigned short  old_mip,  alarm_mask;
     short           old_dmov, old_rcnt, old_miss;
     double          old_val,  old_dval, old_diff, diff;
-    long            count, old_rval, nval, status = OK;
+    long            count, old_rval, nval;
     int             VI, VM, A;
     status_word     csr;
     motor_status    old_msta, msta;
+
+//  long            nrq = 1, options = DBR_STATUS|DBR_TIME, status = OK;
+    long            nrq = 1, options = 0, status = OK;
+    struct          {
+//                      DBRstatus
+//                      DBRtime
+                        epicsFloat64 val;
+                    } erb;
+
     bool            first = FALSE, reset_us = FALSE;
 
     if ( prec->pact ) return( OK );
@@ -663,9 +673,39 @@ static long process( dbCommon *precord )
 
     msta.All = prec->msta;
 
+    if ( prec->egag == menuYesNoYES )
+    {
+        status     = dbGetLink( &prec->erbl, DBR_DOUBLE, &erb, &options, &nrq );
+//      printf( "Status: %d, sevr: %d, val: %f\n", status, erb.severity, erb.val );
+        printf( "Status: %d, val: %f\n", status, erb.val );
+//      prec->esta = status | erb.severity;
+        prec->esta = status;
+        if ( prec->esta == 0 )
+        {
+            prec->erbv = erb.val;
+            db_post_events( prec, &prec->erbv, DBE_VALUE | DBE_LOG );
+        }
+        else
+        {
+            log_msg( prec, 0, "Failed to read the external guage" );
+
+            msta.Bits.RA_PROBLEM = 1;
+
+            if ( prec->movn )
+            {
+                prec->mip &= ~MIP_PAUSE;
+                prec->mip |=  MIP_STOP ;
+
+                send_msg( mInfo, "SL 0\r\nUs 0" );
+
+                log_msg( prec, 0, "Stop the motion"  );
+            }
+        }
+    }
+
     if ( prec->movn ) goto finished;                             // still moving
 
-    if ( prec->egag == menuYesNoYES )
+    if ( (prec->egag == menuYesNoYES) && (prec->esta == 0) )
         diff = ( prec->erbv - prec->eval ) * prec->eskl * ( 2.*prec->dir - 1. );
     else
         diff =   prec->rbv  - prec->val;
@@ -944,7 +984,9 @@ static long process( dbCommon *precord )
     else if ( (imsMode_Normal   == prec->mode) &&       // normal mode, not scan
               (fabs(prec->bdst) <= prec->res ) &&      // no backlash, can retry
               (fabs(diff)       >= prec->rdbd) &&           // not closed enough
-              (prec->rtry > 0) && (prec->rcnt < prec->rtry) )  // can retry more
+              (prec->rtry       >  0         ) &&                   // can retry
+              (prec->rcnt       <  prec->rtry) &&              // can retry more
+              ((prec->egag == menuYesNoNO) || (prec->esta == 0)) )
     {
         prec->mip  |= MIP_RETRY;
 
@@ -1147,12 +1189,6 @@ static long process_motor_info( imsRecord *prec, status_word csr, long count )
     if ( old_rrbv != prec->rrbv) MARK( M_RRBV );
     if ( old_drbv != prec->drbv) MARK( M_DRBV );
     if ( old_rbv  != prec->rbv ) MARK( M_RBV  );
-
-    if ( prec->egag == menuYesNoYES )
-    {
-        status = dbGetLink( &prec->erbl, DBR_DOUBLE, &prec->erbv, 0, 0 );
-        db_post_events( prec, &prec->erbv, DBE_VALUE | DBE_LOG );
-    }
 
     return( status );
 }

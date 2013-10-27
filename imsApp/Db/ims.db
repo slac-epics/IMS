@@ -210,3 +210,88 @@ record(seq, "$(MOTOR):ZERO_P") {
   field(LNK3, "$(MOTOR).SET")
 }
 
+record(stringout, "$(MOTOR):COPY_FROM") {
+  field(DESC, "Copy Settings From")
+  field(FLNK, "$(MOTOR):COPY_Seq1")
+}
+
+record(seq, "$(MOTOR):COPY_Seq1") {
+  field(DESC, "Copy Settings Seq 1")
+  field(DLY1, "0")
+  field(DO1,  "1")
+  field(LNK1, "$(MOTOR):COPY_UREV.PROC")
+  field(DLY2, "0.1")
+  field(DO2,  "1")
+  field(LNK2, "$(MOTOR):COPY_SREV.PROC")
+  field(DLY3, "0.1")
+  field(DO3,  "1")
+  field(LNK3, "$(MOTOR):COPY_MS.PROC")
+  field(DLY4, "0.2")
+  field(DO4,  "1")
+  field(LNK4, "$(MOTOR):COPY_EL.PROC")
+  field(DLY5, "0.2")
+  field(DO5,  "1")
+  field(LNK5, "$(MOTOR):COPY_EE.PROC")
+}
+
+record(stringout, "$(MOTOR):COPY_UREV") {
+  field(VAL,  ".UREV")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_SREV") {
+  field(VAL,  ".SREV")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_MS") {
+  field(VAL,  ".MS")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_EL") {
+  field(VAL,  ".EL")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_EE") {
+  field(VAL,  ".EE")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_FIELD") {
+  field(DESC, "Field to Copy")
+  field(FLNK, "$(MOTOR):COPY_DOL")
+}
+
+record(scalcout, "$(MOTOR):COPY_DOL") {
+  field(DESC, "Copy DOL")
+  field(INAA, "$(MOTOR):COPY_FROM" )
+  field(INFF, "$(MOTOR):COPY_FIELD")
+  field(OUT,  "$(MOTOR):COPY_ACT.DOL CA")
+  field(CALC, "AA+FF+' NPP'")
+  field(DOPT, "Use CALC")
+  field(OOPT, "Every Time")
+  field(FLNK, "$(MOTOR):COPY_OUT")
+}
+
+record(scalcout, "$(MOTOR):COPY_OUT") {
+  field(DESC, "Copy OUT")
+  field(INFF, "$(MOTOR):COPY_FIELD")
+  field(OUT,  "$(MOTOR):COPY_ACT.OUT CA")
+  field(CALC, "PRINTF('$(MOTOR)%s NPP',FF)")
+  field(DOPT, "Use CALC")
+  field(OOPT, "Every Time")
+  field(FLNK, "$(MOTOR):COPY_ACT.PROC CA")
+}
+
+record(ao, "$(MOTOR):COPY_ACT") {
+  field(DESC, "Do The Copying")
+  field(OMSL, "closed_loop")
+}
+

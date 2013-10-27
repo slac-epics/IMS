@@ -717,6 +717,10 @@ recordtype(ims) {
 		special(SPC_MOD)
 		asl(ASL0)
 	}
+	field(ESTA,DBF_SHORT) {
+		prompt("Status of External Guage")
+		special(SPC_NOMOD)
+	}
 	field(RCON,DBF_SHORT) {
 		prompt("Re-connect to the Controller")
 		special(SPC_MOD)
