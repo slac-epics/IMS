@@ -616,18 +616,10 @@ static long process( dbCommon *precord )
     unsigned short  old_mip,  alarm_mask;
     short           old_dmov, old_rcnt, old_miss;
     double          old_val,  old_dval, old_diff, diff;
-    long            count, old_rval, nval;
+    long            count, old_rval, nval, status = OK;
     int             VI, VM, A;
     status_word     csr;
     motor_status    old_msta, msta;
-
-//  long            nrq = 1, options = DBR_STATUS|DBR_TIME, status = OK;
-    long            nrq = 1, options = 0, status = OK;
-    struct          {
-//                      DBRstatus
-//                      DBRtime
-                        epicsFloat64 val;
-                    } erb;
 
     bool            first = FALSE, reset_us = FALSE;
 
@@ -675,37 +667,43 @@ static long process( dbCommon *precord )
 
     if ( prec->egag == menuYesNoYES )
     {
-        status     = dbGetLink( &prec->erbl, DBR_DOUBLE, &erb, &options, &nrq );
-//      printf( "Status: %d, sevr: %d, val: %f\n", status, erb.severity, erb.val );
-        printf( "Status: %d, val: %f\n", status, erb.val );
-//      prec->esta = status | erb.severity;
-        prec->esta = status;
-        if ( prec->esta == 0 )
+        status = ! dbIsLinkConnected( &prec->erbl );
+        if ( status == 0 )
         {
-            prec->erbv = erb.val;
-            db_post_events( prec, &prec->erbv, DBE_VALUE | DBE_LOG );
+            status = dbGetLink( &prec->erbl, DBR_DOUBLE, &prec->erbv, 0, 0 );
+            if ( status != 0 )
+            {
+                log_msg( prec, 0, "Failed to read the external guage" );
+                msta.Bits.RA_COMM_ERR = 1;
+            }
+            else if ( prec->nsta == LINK_ALARM )
+            {
+                log_msg( prec, 0, "External guage has problem" );
+                msta.Bits.RA_COMM_ERR = 1;
+            }
         }
         else
         {
-            log_msg( prec, 0, "Failed to read the external guage" );
+            log_msg( prec, 0, "External guage not connected" );
+            msta.Bits.RA_COMM_ERR = 1;
+        }
 
-            msta.Bits.RA_PROBLEM = 1;
+        if ( msta.Bits.RA_COMM_ERR == 0 )
+            db_post_events( prec, &prec->erbv, DBE_VALUE | DBE_LOG );
+        else if ( prec->movn )
+        {
+            prec->mip &= ~MIP_PAUSE;
+            prec->mip |=  MIP_STOP ;
 
-            if ( prec->movn )
-            {
-                prec->mip &= ~MIP_PAUSE;
-                prec->mip |=  MIP_STOP ;
+            send_msg( mInfo, "SL 0\r\nUs 0" );
 
-                send_msg( mInfo, "SL 0\r\nUs 0" );
-
-                log_msg( prec, 0, "Stop the motion"  );
-            }
+            log_msg( prec, 0, "Stop the motion"  );
         }
     }
 
     if ( prec->movn ) goto finished;                             // still moving
 
-    if ( (prec->egag == menuYesNoYES) && (prec->esta == 0) )
+    if ( (prec->egag == menuYesNoYES) && (msta.Bits.RA_COMM_ERR == 0) )
         diff = ( prec->erbv - prec->eval ) * prec->eskl * ( 2.*prec->dir - 1. );
     else
         diff =   prec->rbv  - prec->val;
@@ -986,7 +984,7 @@ static long process( dbCommon *precord )
               (fabs(diff)       >= prec->rdbd) &&           // not closed enough
               (prec->rtry       >  0         ) &&                   // can retry
               (prec->rcnt       <  prec->rtry) &&              // can retry more
-              ((prec->egag == menuYesNoNO) || (prec->esta == 0)) )
+              ((prec->egag == menuYesNoNO) || (msta.Bits.RA_COMM_ERR == 0)) )
     {
         prec->mip  |= MIP_RETRY;
 
@@ -1359,6 +1357,7 @@ static long special( dbAddr *pDbAddr, int after )
             break;
         case imsRecordVAL :
             if ( (prec->sevr >  MINOR_ALARM) || msta.Bits.RA_POWERUP ||
+                 msta.Bits.RA_COMM_ERR ||
                  ((prec->set == imsSET_Use) && (prec->spg != imsSPG_Go)) )
             {
                 prec->val  = prec->oval;
@@ -1373,6 +1372,8 @@ static long special( dbAddr *pDbAddr, int after )
                     log_msg( prec, 0, "No move/set, init not finished" );
                 else if ( msta.Bits.RA_POWERUP   )
                     log_msg( prec, 0, "No move/set, power cycled"      );
+                else if ( msta.Bits.RA_COMM_ERR  )
+                    log_msg( prec, 0, "No move/set, ext guage problem" );
                 else if ( prec->spg != imsSPG_Go )
                     log_msg( prec, 0, "No move, SPG is not Go"         );
                 else
@@ -1395,22 +1396,21 @@ static long special( dbAddr *pDbAddr, int after )
                 break;
             }
 
+            if ( prec->egag == menuYesNoYES )
+            {
+                prec->eval = prec->erbv + (2*prec->dir - 1) *
+                                          (prec->val - prec->oval)/prec->eskl;
+                db_post_events( prec, &prec->eval, DBE_VAL_LOG );
+            }
+
             do_move1:
             if ( prec->set == imsSET_Use )              // do it only when "Use"
-            {
-                if ( prec->egag == menuYesNoYES )
-                {
-                    prec->eval = prec->erbv + (new_dval - prec->dval) /
-                                              prec->eskl;
-                    db_post_events( prec, &prec->eval, DBE_VAL_LOG );
-                }
-
                 prec->dval = new_dval;
-            }
 
             goto do_move2;
         case imsRecordDVAL:
             if ( (prec->sevr >  MINOR_ALARM) || msta.Bits.RA_POWERUP ||
+                 msta.Bits.RA_COMM_ERR ||
                  ((prec->set == imsSET_Use) && (prec->spg != imsSPG_Go)) )
             {
                 prec->dval = prec->oval;
@@ -1425,6 +1425,8 @@ static long special( dbAddr *pDbAddr, int after )
                     log_msg( prec, 0, "No move/set, init not finished" );
                 else if ( msta.Bits.RA_POWERUP   )
                     log_msg( prec, 0, "No move/set, power cycled"      );
+                else if ( msta.Bits.RA_COMM_ERR  )
+                    log_msg( prec, 0, "No move/set, ext guage problem" );
                 else if ( prec->spg != imsSPG_Go )
                     log_msg( prec, 0, "No move, SPG is not Go"         );
                 else
@@ -1448,14 +1450,10 @@ static long special( dbAddr *pDbAddr, int after )
 
             prec->val  = prec->dval * (2.*prec->dir - 1.) + prec->off;
 
-            if ( prec->set == imsSET_Use )              // do it only when "Use"
+            if ( prec->egag == menuYesNoYES )
             {
-                if ( prec->egag == menuYesNoYES )
-                {
-                    prec->eval = prec->erbv + (prec->dval - prec->oval) /
-                                              prec->eskl;
-                    db_post_events( prec, &prec->eval, DBE_VAL_LOG );
-                }
+                prec->eval = prec->erbv + (prec->dval - prec->oval)/prec->eskl;
+                db_post_events( prec, &prec->eval, DBE_VAL_LOG );
             }
 
             do_move2:
@@ -1497,6 +1495,7 @@ static long special( dbAddr *pDbAddr, int after )
 
             tweak:
             if ( (prec->sevr >  MINOR_ALARM) || msta.Bits.RA_POWERUP ||
+                 msta.Bits.RA_COMM_ERR ||
                  (prec->spg  != imsSPG_Go  )                            )
             {
                 if      ( msta.Bits.RA_PROBLEM   )
@@ -1509,6 +1508,8 @@ static long special( dbAddr *pDbAddr, int after )
                     log_msg( prec, 0, "No tweak, init not finished" );
                 else if ( msta.Bits.RA_POWERUP   )
                     log_msg( prec, 0, "No tweak, power cycled"      );
+                else if ( msta.Bits.RA_COMM_ERR  )
+                    log_msg( prec, 0, "No tweak, ext guage problem" );
                 else if ( prec->spg != imsSPG_Go )
                     log_msg( prec, 0, "No tweak, SPG is not Go"     );
                 else
@@ -1531,6 +1532,18 @@ static long special( dbAddr *pDbAddr, int after )
             }
 
             prec->val = nval;
+
+            if ( prec->egag == menuYesNoYES )
+            {
+                if ( fieldIndex == imsRecordTWF )
+                    prec->eval = prec->erbv + (2*prec->dir - 1) *
+                                              prec->twv/prec->eskl;
+                else
+                    prec->eval = prec->erbv - (2*prec->dir - 1) *
+                                              prec->twv/prec->eskl;
+                db_post_events( prec, &prec->eval, DBE_VAL_LOG );
+            }
+
             goto do_move1;
         case imsRecordSPG :
             if ( (prec->spg == prec->oval) || (prec->mip == MIP_DONE) ) break;
@@ -2275,12 +2288,13 @@ static long special( dbAddr *pDbAddr, int after )
 
             break;
         case imsRecordEGAG:
-            if ( prec->egag == menuYesNoYES ) send_msg( mInfo, "Us 0" );
+            send_msg( mInfo, "Us 0" );
 
             break;
         case imsRecordEVAL:
             if ( (prec->egag == menuYesNoNO ) ||
                  (prec->sevr >  MINOR_ALARM ) || msta.Bits.RA_POWERUP     ||
+                 msta.Bits.RA_COMM_ERR ||
                  (prec->set  == imsSET_Set  ) || (prec->spg != imsSPG_Go)    )
             {
                 prec->eval = prec->oval;
@@ -2300,6 +2314,8 @@ static long special( dbAddr *pDbAddr, int after )
                     log_msg( prec, 0, "No move, init not finished" );
                 else if ( msta.Bits.RA_POWERUP      )
                     log_msg( prec, 0, "No move, power cycled"      );
+                else if ( msta.Bits.RA_COMM_ERR     )
+                    log_msg( prec, 0, "No move, ext guage problem" );
                 else if ( prec->spg != imsSPG_Go    )
                     log_msg( prec, 0, "No move, SPG is not Go"     );
                 else
@@ -2337,6 +2353,7 @@ static long special( dbAddr *pDbAddr, int after )
             etweak:
             if ( (prec->egag == menuYesNoNO) ||
                  (prec->sevr >  MINOR_ALARM) || msta.Bits.RA_POWERUP     ||
+                 msta.Bits.RA_COMM_ERR ||
                  (prec->set  == imsSET_Set ) || (prec->spg != imsSPG_Go)    )
             {
                 if      ( prec->egag == menuYesNoNO )
@@ -2353,6 +2370,8 @@ static long special( dbAddr *pDbAddr, int after )
                     log_msg( prec, 0, "No tweak, init not finished" );
                 else if ( msta.Bits.RA_POWERUP      )
                     log_msg( prec, 0, "No tweak, power cycled"      );
+                else if ( msta.Bits.RA_COMM_ERR     )
+                    log_msg( prec, 0, "No tweak, ext guage problem" );
                 else if ( prec->spg != imsSPG_Go    )
                     log_msg( prec, 0, "No tweak, SPG is not Go"     );
                 else
