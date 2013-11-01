@@ -251,15 +251,12 @@ record(seq, "$(MOTOR):COPY_Seq1") {
   field(DLY9, "0.2")
   field(DO9,  "1")
   field(LNK9, "$(MOTOR):COPY_HT.PROC")
-  field(DLYA, "0.2")
-  field(DOA,  "1")
-  field(LNKA, "$(MOTOR):COPY_BDST.PROC")
   field(FLNK, "$(MOTOR):COPY_Seq2")
 }
 
 record(seq, "$(MOTOR):COPY_Seq2") {
   field(DESC, "Copy Settings Seq 2")
-  field(DLY1, "0.1")
+  field(DLY1, "0.2")
   field(DO1,  "1")
   field(LNK1, "$(MOTOR):COPY_S1.PROC")
   field(DLY2, "0.2")
@@ -288,7 +285,7 @@ record(seq, "$(MOTOR):COPY_Seq2") {
   field(LNK9, "$(MOTOR):COPY_ERSV.PROC")
   field(DLYA, "0.1")
   field(DOA,  "1")
-  field(LNKA, "$(MOTOR):COPY_ESKL.PROC")
+  field(LNKA, "$(MOTOR):COPY_BDST.PROC")
   field(FLNK, "$(MOTOR):COPY_Seq3")
 }
 
@@ -308,22 +305,19 @@ record(seq, "$(MOTOR):COPY_Seq3") {
   field(LNK4, "$(MOTOR):COPY_PDBD.PROC")
   field(DLY5, "0.1")
   field(DO5,  "1")
-  field(LNK5, "$(MOTOR):COPY_RC.PROC")
+  field(LNK5, "$(MOTOR):COPY_RCMX.PROC")
   field(DLY6, "0.2")
   field(DO6,  "1")
-  field(LNK6, "$(MOTOR):COPY_HC.PROC")
+  field(LNK6, "$(MOTOR):COPY_RC.PROC")
   field(DLY7, "0.2")
   field(DO7,  "1")
-  field(LNK7, "$(MOTOR):COPY_HCSV.PROC")
-  field(DLY8, "0.1")
+  field(LNK7, "$(MOTOR):COPY_HCMX.PROC")
+  field(DLY8, "0.2")
   field(DO8,  "1")
-  field(LNK8, "$(MOTOR):COPY_SBAS.PROC")
-  field(DLY9, "0.1")
+  field(LNK8, "$(MOTOR):COPY_HC.PROC")
+  field(DLY9, "0.2")
   field(DO9,  "1")
-  field(LNK9, "$(MOTOR):COPY_SMAX.PROC")
-  field(DLYA, "0.1")
-  field(DOA,  "1")
-  field(LNKA, "$(MOTOR):COPY_BS.PROC")
+  field(LNK9, "$(MOTOR):COPY_HCSV.PROC")
   field(FLNK, "$(MOTOR):COPY_Seq4")
 }
 
@@ -331,34 +325,34 @@ record(seq, "$(MOTOR):COPY_Seq4") {
   field(DESC, "Copy Settings Seq 4")
   field(DLY1, "0.1")
   field(DO1,  "1")
-  field(LNK1, "$(MOTOR):COPY_HS.PROC")
+  field(LNK1, "$(MOTOR):COPY_SBAS.PROC")
   field(DLY2, "0.1")
   field(DO2,  "1")
-  field(LNK2, "$(MOTOR):COPY_S.PROC")
+  field(LNK2, "$(MOTOR):COPY_SMAX.PROC")
   field(DLY3, "0.1")
   field(DO3,  "1")
-  field(LNK3, "$(MOTOR):COPY_BACC.PROC")
+  field(LNK3, "$(MOTOR):COPY_BS.PROC")
   field(DLY4, "0.1")
   field(DO4,  "1")
-  field(LNK4, "$(MOTOR):COPY_HACC.PROC")
+  field(LNK4, "$(MOTOR):COPY_HS.PROC")
   field(DLY5, "0.1")
   field(DO5,  "1")
-  field(LNK5, "$(MOTOR):COPY_ACCL.PROC")
+  field(LNK5, "$(MOTOR):COPY_S.PROC")
   field(DLY6, "0.1")
   field(DO6,  "1")
-  field(LNK6, "$(MOTOR):COPY_DIR.PROC")
+  field(LNK6, "$(MOTOR):COPY_BACC.PROC")
   field(DLY7, "0.1")
   field(DO7,  "1")
-  field(LNK7, "$(MOTOR):COPY_OFF.PROC")
+  field(LNK7, "$(MOTOR):COPY_HACC.PROC")
   field(DLY8, "0.1")
   field(DO8,  "1")
-  field(LNK8, "$(MOTOR):COPY_FOFF.PROC")
+  field(LNK8, "$(MOTOR):COPY_ACCL.PROC")
   field(DLY9, "0.1")
   field(DO9,  "1")
-  field(LNK9, "$(MOTOR):COPY_LLM.PROC")
+  field(LNK9, "$(MOTOR):COPY_DIR.PROC")
   field(DLYA, "0.1")
   field(DOA,  "1")
-  field(LNKA, "$(MOTOR):COPY_HLM.PROC")
+  field(LNKA, "$(MOTOR):COPY_OFF.PROC")
   field(FLNK, "$(MOTOR):COPY_Seq5")
 }
 
@@ -366,19 +360,31 @@ record(seq, "$(MOTOR):COPY_Seq5") {
   field(DESC, "Copy Settings Seq 5")
   field(DLY1, "0.1")
   field(DO1,  "1")
-  field(LNK1, "$(MOTOR):COPY_TWV.PROC")
+  field(LNK1, "$(MOTOR):COPY_FOFF.PROC")
   field(DLY2, "0.1")
   field(DO2,  "1")
-  field(LNK2, "$(MOTOR):COPY_FWD_MEANS.PROC")
+  field(LNK2, "$(MOTOR):COPY_LLM.PROC")
   field(DLY3, "0.1")
   field(DO3,  "1")
-  field(LNK3, "$(MOTOR):COPY_REV_MEANS.PROC")
+  field(LNK3, "$(MOTOR):COPY_HLM.PROC")
   field(DLY4, "0.1")
   field(DO4,  "1")
-  field(LNK4, "$(MOTOR):COPY_MODE.PROC")
+  field(LNK4, "$(MOTOR):COPY_TWV.PROC")
   field(DLY5, "0.1")
   field(DO5,  "1")
-  field(LNK5, "$(MOTOR):SAVE_NOW.PROC")
+  field(LNK5, "$(MOTOR):COPY_ESKL.PROC")
+  field(DLY6, "0.1")
+  field(DO6,  "1")
+  field(LNK6, "$(MOTOR):COPY_FWD_MEANS.PROC")
+  field(DLY7, "0.1")
+  field(DO7,  "1")
+  field(LNK7, "$(MOTOR):COPY_REV_MEANS.PROC")
+  field(DLY8, "0.1")
+  field(DO8,  "1")
+  field(LNK8, "$(MOTOR):COPY_MODE.PROC")
+  field(DLY9, "0.1")
+  field(DO9,  "1")
+  field(LNK9, "$(MOTOR):SAVE_NOW.PROC")
 }
 
 record(stringout, "$(MOTOR):COPY_TYPE") {
@@ -431,12 +437,6 @@ record(stringout, "$(MOTOR):COPY_MT") {
 
 record(stringout, "$(MOTOR):COPY_HT") {
   field(VAL,  ".HT")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
-  field(OMSL, "closed_loop")
-}
-
-record(stringout, "$(MOTOR):COPY_BDST") {
-  field(VAL,  ".BDST")
   field(OUT,  "$(MOTOR):COPY_FIELD CPP")
   field(OMSL, "closed_loop")
 }
@@ -495,8 +495,8 @@ record(stringout, "$(MOTOR):COPY_ERSV") {
   field(OMSL, "closed_loop")
 }
 
-record(stringout, "$(MOTOR):COPY_ESKL") {
-  field(VAL,  ".ESKL")
+record(stringout, "$(MOTOR):COPY_BDST") {
+  field(VAL,  ".BDST")
   field(OUT,  "$(MOTOR):COPY_FIELD CPP")
   field(OMSL, "closed_loop")
 }
@@ -525,8 +525,20 @@ record(stringout, "$(MOTOR):COPY_PDBD") {
   field(OMSL, "closed_loop")
 }
 
+record(stringout, "$(MOTOR):COPY_RCMX") {
+  field(VAL,  ".RCMX")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
 record(stringout, "$(MOTOR):COPY_RC") {
   field(VAL,  ".RC")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_HCMX") {
+  field(VAL,  ".HCMX")
   field(OUT,  "$(MOTOR):COPY_FIELD CPP")
   field(OMSL, "closed_loop")
 }
@@ -623,6 +635,12 @@ record(stringout, "$(MOTOR):COPY_HLM") {
 
 record(stringout, "$(MOTOR):COPY_TWV") {
   field(VAL,  ".TWV")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_ESKL") {
+  field(VAL,  ".ESKL")
   field(OUT,  "$(MOTOR):COPY_FIELD CPP")
   field(OMSL, "closed_loop")
 }

@@ -13,7 +13,9 @@ $(MOTOR).MS           86400    monitor
 $(MOTOR).MT           86400    monitor
 $(MOTOR).HT           86400    monitor
 $(MOTOR).ES           86400    monitor
+$(MOTOR).RCMX         86400    monitor
 $(MOTOR).RC           86400    monitor
+$(MOTOR).HCMX         86400    monitor
 $(MOTOR).HC           86400    monitor
 $(MOTOR).DVER         86400    monitor
 $(MOTOR).MODE         86400    monitor
@@ -37,7 +39,6 @@ $(MOTOR).PDBD         86400    monitor
 $(MOTOR).EGAG         86400    monitor
 $(MOTOR).ERBL         86400    monitor
 $(MOTOR).ESKL         86400    monitor
-$(MOTOR).ETWV         86400    monitor
 $(MOTOR).SBAS         86400    monitor
 $(MOTOR).SMAX         86400    monitor
 $(MOTOR).S            86400    monitor

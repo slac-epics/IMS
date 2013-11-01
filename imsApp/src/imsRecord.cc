@@ -665,49 +665,9 @@ static long process( dbCommon *precord )
 
     msta.All = prec->msta;
 
-    if ( prec->egag == menuYesNoYES )
-    {
-        status = ! dbIsLinkConnected( &prec->erbl );
-        if ( status == 0 )
-        {
-            status = dbGetLink( &prec->erbl, DBR_DOUBLE, &prec->erbv, 0, 0 );
-            if ( status != 0 )
-            {
-                log_msg( prec, 0, "Failed to read the external guage" );
-                msta.Bits.RA_COMM_ERR = 1;
-            }
-            else if ( prec->nsta == LINK_ALARM )
-            {
-                log_msg( prec, 0, "External guage has problem" );
-                msta.Bits.RA_COMM_ERR = 1;
-            }
-        }
-        else
-        {
-            log_msg( prec, 0, "External guage not connected" );
-            msta.Bits.RA_COMM_ERR = 1;
-        }
-
-        if ( msta.Bits.RA_COMM_ERR == 0 )
-            db_post_events( prec, &prec->erbv, DBE_VALUE | DBE_LOG );
-        else if ( prec->movn )
-        {
-            prec->mip &= ~MIP_PAUSE;
-            prec->mip |=  MIP_STOP ;
-
-            send_msg( mInfo, "SL 0\r\nUs 0" );
-
-            log_msg( prec, 0, "Stop the motion"  );
-        }
-    }
-
     if ( prec->movn ) goto finished;                             // still moving
 
-    if ( (prec->egag == menuYesNoYES) && (msta.Bits.RA_COMM_ERR == 0) )
-        diff = ( prec->erbv - prec->eval ) * prec->eskl * ( 2.*prec->dir - 1. );
-    else
-        diff =   prec->rbv  - prec->val;
-
+    diff = prec->rbv  - prec->val;
     if ( prec->mip == MIP_DONE )             // was not moving, check slip_stall
     {
         old_diff   = prec->diff;
@@ -988,21 +948,13 @@ static long process( dbCommon *precord )
     {
         prec->mip  |= MIP_RETRY;
 
+        log_msg( prec, 0, "Desired %.6g, reached %.6g, retrying %d ...",
+                          prec->val,  prec->rbv,  ++prec->rcnt );
+
         if ( prec->egag == menuYesNoYES )
-        {
-            log_msg( prec, 0, "Desired %.6g, reached %.6g, retrying %d ...",
-                              prec->eval, prec->erbv, ++prec->rcnt );
-
-            sprintf( msg, "MR %d", (prec->eval - prec->erbv) * prec->eskl /
-                                   prec->res                                );
-        }
+            sprintf( msg, "MR %d", int((prec->dval - prec->drbv) / prec->res) );
         else
-        {
-            log_msg( prec, 0, "Desired %.6g, reached %.6g, retrying %d ...",
-                              prec->val,  prec->rbv,  ++prec->rcnt );
-
             sprintf( msg, "MA %d", prec->rval );
-        }
 
         send_msg( mInfo, msg    );
         send_msg( mInfo, "Us 0" );
@@ -1116,6 +1068,7 @@ static long process_motor_info( imsRecord *prec, status_word csr, long count )
     short         old_movn, old_rlls, old_rhls, old_lls, old_hls;
     double        old_drbv, old_rbv;
     long          old_rrbv, status = 0;
+
     motor_status  msta;
 
     int           dir = (prec->dir == imsDIR_Positive) ? 1 : -1;
@@ -1173,9 +1126,51 @@ static long process_motor_info( imsRecord *prec, status_word csr, long count )
     prec->hls  = (dir == 1) ? prec->rhls : prec->rlls;
 
     prec->rrbv = count;
-    prec->drbv = prec->rrbv * prec->res;
+    if ( prec->egag == menuYesNoNO )
+    {
+        prec->drbv = prec->rrbv * prec->res;
+        prec->rbv  = dir * prec->drbv + prec->off;
+    }
+    else
+    {
+        status = ! dbIsLinkConnected( &prec->erbl );
+        if ( status == 0 )
+        {
+            status = dbGetLink( &prec->erbl, DBR_DOUBLE, &prec->erbv, 0, 0 );
+            if ( status != 0 )
+            {
+                log_msg( prec, 0, "Failed to read the external guage" );
+                msta.Bits.RA_COMM_ERR = 1;
+            }
+            else if ( prec->nsta == LINK_ALARM )
+            {
+                log_msg( prec, 0, "External guage has problem" );
+                msta.Bits.RA_COMM_ERR = 1;
+            }
+            else
+            {
+                prec->drbv = prec->erbv * prec->eskl;
+                prec->rbv  = dir * prec->drbv + prec->off;
 
-    prec->rbv  = dir * prec->drbv + prec->off;
+                db_post_events( prec, &prec->erbv, DBE_VAL_LOG );
+            }
+        }
+        else
+        {
+            log_msg( prec, 0, "External guage not connected" );
+            msta.Bits.RA_COMM_ERR = 1;
+        }
+
+        if ( msta.Bits.RA_COMM_ERR && prec->movn )
+        {
+            prec->mip &= ~MIP_PAUSE;
+            prec->mip |=  MIP_STOP ;
+
+            send_msg( mInfo, "SL 0\r\nUs 0" );
+
+            log_msg( prec, 0, "Stop the motion"  );
+        }
+    }
 
     prec->msta = msta.All;
 
@@ -1207,12 +1202,12 @@ static void new_move( imsRecord *prec )
             log_msg( prec, 0, "Move to %.6g (DVAL: %.6g), with ACCL & VELO",
                               prec->val, prec->dval-prec->bdst );
 
-            prec->mip  = MIP_BL  ;
-            prec->rval = NINT((prec->dval - prec->bdst) / prec->res);
-
             VI = NINT( prec->vbas / prec->res );
             VM = NINT( prec->velo / prec->res );
             A  = NINT( (prec->velo - prec->vbas) / prec->res / prec->accl );
+
+            prec->mip  = MIP_BL  ;
+            prec->rval = NINT((prec->dval - prec->bdst) / prec->res);
             sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMA %d",
                           VI, VM, A, prec->rval );
         }
@@ -1221,12 +1216,12 @@ static void new_move( imsRecord *prec )
             log_msg( prec, 0, "Move to %.6g (DVAL: %.6g), with BACC & BVEL",
                               prec->val, prec->dval            );
 
-            prec->mip  = MIP_MOVE;
-            prec->rval = NINT(prec->dval                / prec->res);
-
             VI = NINT( prec->vbas / prec->res );
             VM = NINT( prec->bvel / prec->res );
             A  = NINT( (prec->bvel - prec->vbas) / prec->res / prec->bacc );
+
+            prec->mip  = MIP_MOVE;
+            prec->rval = NINT(prec->dval                / prec->res);
             sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMA %d",
                           VI, VM, A, prec->rval );
         }
@@ -1236,12 +1231,16 @@ static void new_move( imsRecord *prec )
         log_msg( prec, 0, "Move to %.6g (DVAL: %.6g), with ACCL & VELO",
                           prec->val, prec->dval );
 
-        prec->mip  = MIP_MOVE;
-        prec->rval = NINT(prec->dval / prec->res);
-
         VI = NINT( prec->vbas / prec->res );
         VM = NINT( prec->velo / prec->res );
         A  = NINT( (prec->velo - prec->vbas) / prec->res / prec->accl );
+
+        prec->mip  = MIP_MOVE;
+        if ( prec->egag == menuYesNoNO )
+            prec->rval = NINT(prec->dval / prec->res);
+        else
+            prec->rval = prec->rrbv + NINT((prec->dval-prec->drbv) / prec->res);
+
         sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMA %d",
                       VI, VM, A, prec->rval );
     }
@@ -1287,8 +1286,11 @@ static long special( dbAddr *pDbAddr, int after )
         else if ( fieldIndex == imsRecordUREV ) prec->oval = prec->urev;
         else if ( fieldIndex == imsRecordSREV ) prec->oval = prec->srev;
         else if ( fieldIndex == imsRecordEE   ) prec->oval = prec->ee  ;
+        else if ( fieldIndex == imsRecordRCMX ) prec->oval = prec->rcmx;
+        else if ( fieldIndex == imsRecordRC   ) prec->oval = prec->rc  ;
+        else if ( fieldIndex == imsRecordHCMX ) prec->oval = prec->hcmx;
+        else if ( fieldIndex == imsRecordHC   ) prec->oval = prec->hc  ;
         else if ( fieldIndex == imsRecordMODE ) prec->oval = prec->mode;
-        else if ( fieldIndex == imsRecordEVAL ) prec->oval = prec->eval;
 
         return( OK );
     }
@@ -1396,13 +1398,6 @@ static long special( dbAddr *pDbAddr, int after )
                 break;
             }
 
-            if ( prec->egag == menuYesNoYES )
-            {
-                prec->eval = prec->erbv + (2*prec->dir - 1) *
-                                          (prec->val - prec->oval)/prec->eskl;
-                db_post_events( prec, &prec->eval, DBE_VAL_LOG );
-            }
-
             do_move1:
             if ( prec->set == imsSET_Use )              // do it only when "Use"
                 prec->dval = new_dval;
@@ -1450,12 +1445,6 @@ static long special( dbAddr *pDbAddr, int after )
 
             prec->val  = prec->dval * (2.*prec->dir - 1.) + prec->off;
 
-            if ( prec->egag == menuYesNoYES )
-            {
-                prec->eval = prec->erbv + (prec->dval - prec->oval)/prec->eskl;
-                db_post_events( prec, &prec->eval, DBE_VAL_LOG );
-            }
-
             do_move2:
             if ( prec->set == imsSET_Set ) break;                     // no move
 
@@ -1488,10 +1477,10 @@ static long special( dbAddr *pDbAddr, int after )
 
             break;
         case imsRecordTWF :
-            nval = prec->val + prec->twv;
+            nval = prec->rbv + prec->twv;
             goto tweak;
         case imsRecordTWR :
-            nval = prec->val - prec->twv;
+            nval = prec->rbv - prec->twv;
 
             tweak:
             if ( (prec->sevr >  MINOR_ALARM) || msta.Bits.RA_POWERUP ||
@@ -1532,17 +1521,6 @@ static long special( dbAddr *pDbAddr, int after )
             }
 
             prec->val = nval;
-
-            if ( prec->egag == menuYesNoYES )
-            {
-                if ( fieldIndex == imsRecordTWF )
-                    prec->eval = prec->erbv + (2*prec->dir - 1) *
-                                              prec->twv/prec->eskl;
-                else
-                    prec->eval = prec->erbv - (2*prec->dir - 1) *
-                                              prec->twv/prec->eskl;
-                db_post_events( prec, &prec->eval, DBE_VAL_LOG );
-            }
 
             goto do_move1;
         case imsRecordSPG :
@@ -1637,7 +1615,8 @@ static long special( dbAddr *pDbAddr, int after )
                  (prec->set == imsSET_Set)    ) break;
 
             prec->rbv  = prec->val;
-            if ( prec->foff == imsOFF_Variable )
+            if ( (prec->foff == imsOFF_Variable) ||
+                 (prec->egag == menuYesNoYES   )    )
             {
                 prec->off  = prec->rbv - prec->drbv * (2.*prec->dir - 1.);
                 db_post_events( prec, &prec->off,  DBE_VAL_LOG );
@@ -2223,12 +2202,60 @@ static long special( dbAddr *pDbAddr, int after )
             send_msg( mInfo, msg );
 
             break;
+        case imsRecordRCMX:
+            if ( (prec->rcmx < 0) || (prec->rcmx > 100) )
+            {
+                prec->rcmx = prec->oval;
+                db_post_events( prec, &prec->rcmx, DBE_VAL_LOG );
+
+                break;
+            }
+
+            if ( prec->rc <= prec->rcmx ) break;
+
+            prec->rc = prec->rcmx;
+            db_post_events( prec, &prec->rc  , DBE_VAL_LOG );
         case imsRecordRC  :
+            if ( (prec->rc   < 0) || (prec->rc   > prec->rcmx) )
+            {
+                prec->rc   = prec->oval;
+                db_post_events( prec, &prec->rc  , DBE_VAL_LOG );
+
+                break;
+            }
+
             sprintf( msg, "RC %d", prec->rc );
             send_msg( mInfo, msg );
 
             break;
+        case imsRecordHCMX:
+            if ( (prec->hcmx < 0) || (prec->hcmx > 100) )
+            {
+                prec->hcmx = prec->oval;
+                db_post_events( prec, &prec->hcmx, DBE_VAL_LOG );
+
+                break;
+            }
+
+            if ( prec->hcsv > prec->hcmx )
+            {
+                prec->hcsv = prec->hcmx;
+                db_post_events( prec, &prec->hcsv, DBE_VAL_LOG );
+            }
+
+            if ( prec->hc <= prec->hcmx ) break;
+
+            prec->hc = prec->hcmx;
+            db_post_events( prec, &prec->hc  , DBE_VAL_LOG );
         case imsRecordHC  :
+            if ( (prec->hc   < 0) || (prec->hc   > prec->hcmx) )
+            {
+                prec->hc   = prec->oval;
+                db_post_events( prec, &prec->hc  , DBE_VAL_LOG );
+
+                break;
+            }
+
             sprintf( msg, "HC %d", prec->hc );
             send_msg( mInfo, msg );
 
@@ -2287,120 +2314,10 @@ static long special( dbAddr *pDbAddr, int after )
             db_post_events( prec,  prec->resp, DBE_VAL_LOG );
 
             break;
-        case imsRecordEGAG:
+        case imsRecordEGAG: // dhz
             send_msg( mInfo, "Us 0" );
 
             break;
-        case imsRecordEVAL:
-            if ( (prec->egag == menuYesNoNO ) ||
-                 (prec->sevr >  MINOR_ALARM ) || msta.Bits.RA_POWERUP     ||
-                 msta.Bits.RA_COMM_ERR ||
-                 (prec->set  == imsSET_Set  ) || (prec->spg != imsSPG_Go)    )
-            {
-                prec->eval = prec->oval;
-                db_post_events( prec, &prec->eval, DBE_VAL_LOG );
-
-                if      ( prec->egag == menuYesNoNO )
-                    log_msg( prec, 0, "No move, no ext. guage"     );
-                else if ( prec->set  == imsSET_Set  )
-                    log_msg( prec, 0, "No move, motor in SET mode" );
-                else if ( msta.Bits.RA_PROBLEM      )
-                    log_msg( prec, 0, "No move, hardware problem"  );
-                else if ( msta.Bits.RA_NE           )
-                    log_msg( prec, 0, "No move, NE is set"         );
-                else if ( msta.Bits.RA_BY0          )
-                    log_msg( prec, 0, "No move, MCode not running" );
-                else if ( msta.Bits.NOT_INIT        )
-                    log_msg( prec, 0, "No move, init not finished" );
-                else if ( msta.Bits.RA_POWERUP      )
-                    log_msg( prec, 0, "No move, power cycled"      );
-                else if ( msta.Bits.RA_COMM_ERR     )
-                    log_msg( prec, 0, "No move, ext guage problem" );
-                else if ( prec->spg != imsSPG_Go    )
-                    log_msg( prec, 0, "No move, SPG is not Go"     );
-                else
-                    log_msg( prec, 0, "No move, unknown alarm"     );
-
-                break;
-            }
-
-            new_dval = prec->dval + (prec->eval - prec->erbv) * prec->eskl;
-            nval     = new_dval * (2.*prec->dir - 1.) + prec->off;
-            if ( (nval < prec->llm) || (nval > prec->hlm) ||
-                 ((prec->bdst > 0) && (prec->drbv > new_dval) &&
-                  ((new_dval - prec->bdst) < prec->dllm)         ) ||
-                 ((prec->bdst < 0) && (prec->drbv < new_dval) &&
-                  ((new_dval - prec->bdst) > prec->dhlm)         )    )
-            {                                    // violated the software limits
-                prec->lvio = 1;                     // set limit violation alarm
-                prec->eval = prec->oval;
-                db_post_events( prec, &prec->eval, DBE_VAL_LOG );
-
-                log_msg( prec, 0, "No move, limit violated" );
-                break;
-            }
-
-            prec->val  = nval;
-            prec->dval = new_dval;
-
-            goto do_move2;
-        case imsRecordETWF:
-            new_eval = prec->eval + prec->etwv;
-            goto etweak;
-        case imsRecordETWR:
-            new_eval = prec->eval - prec->etwv;
-
-            etweak:
-            if ( (prec->egag == menuYesNoNO) ||
-                 (prec->sevr >  MINOR_ALARM) || msta.Bits.RA_POWERUP     ||
-                 msta.Bits.RA_COMM_ERR ||
-                 (prec->set  == imsSET_Set ) || (prec->spg != imsSPG_Go)    )
-            {
-                if      ( prec->egag == menuYesNoNO )
-                    log_msg( prec, 0, "No tweak, no ext. guage"     );
-                else if ( prec->set  == imsSET_Set  )
-                    log_msg( prec, 0, "No tweak, motor in SET mode" );
-                else if ( msta.Bits.RA_PROBLEM      )
-                    log_msg( prec, 0, "No tweak, hardware problem"  );
-                else if ( msta.Bits.RA_NE           )
-                    log_msg( prec, 0, "No tweak, NE is set"         );
-                else if ( msta.Bits.RA_BY0          )
-                    log_msg( prec, 0, "No tweak, MCode not running" );
-                else if ( msta.Bits.NOT_INIT        )
-                    log_msg( prec, 0, "No tweak, init not finished" );
-                else if ( msta.Bits.RA_POWERUP      )
-                    log_msg( prec, 0, "No tweak, power cycled"      );
-                else if ( msta.Bits.RA_COMM_ERR     )
-                    log_msg( prec, 0, "No tweak, ext guage problem" );
-                else if ( prec->spg != imsSPG_Go    )
-                    log_msg( prec, 0, "No tweak, SPG is not Go"     );
-                else
-                    log_msg( prec, 0, "No tweak, unknown alarm"     );
-
-                break;
-            }
-
-            new_dval = prec->dval + (new_eval - prec->erbv) * prec->eskl;
-            nval     = new_dval * (2.*prec->dir - 1.) + prec->off;
-            if ( (nval < prec->llm) || (nval > prec->hlm) ||
-                 ((prec->bdst > 0) && (prec->drbv > new_dval) &&
-                  ((new_dval - prec->bdst) < prec->dllm)         ) ||
-                 ((prec->bdst < 0) && (prec->drbv < new_dval) &&
-                  ((new_dval - prec->bdst) > prec->dhlm)         )    )
-            {                                    // violated the software limits
-                prec->lvio = 1;                     // set limit violation alarm
-
-                log_msg( prec, 0, "No tweak, limit violated" );
-                break;
-            }
-
-            prec->eval = new_eval;
-            db_post_events( prec, &prec->eval, DBE_VAL_LOG );
-
-            prec->val  = nval;
-            prec->dval = new_dval;
-
-            goto do_move2;
         case imsRecordRINI:
             init_motor( prec );
 

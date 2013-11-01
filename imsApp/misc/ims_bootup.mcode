@@ -10,7 +10,7 @@ VA Sk     ' Scan or not
 VA X1
 VA X2
 
-Ve 3      ' Version 3
+Ve 1      ' Version 3
 Ne 0      ' Disable numeric cmd
 p1 P      ' Start with current position
 Sd Db*4   ' Set save deadband
@@ -65,6 +65,7 @@ PG 1
     CL Rp
 
     R1 0            ' Clear the moving flag
+    R2 Us-50        ' Clear the moving flag
     R3 1            ' Delay started by a move
     R4 1            ' Start the delay counter for saving
     RT

@@ -221,12 +221,28 @@ recordtype(ims) {
 		initial("ESC")
 		interest(1)
 	}
+	field(RCMX,DBF_SHORT) {
+		prompt("Max Running Current")
+		promptgroup(GUI_COMMON)
+		special(SPC_MOD)
+		asl(ASL0)
+		initial(5)
+		interest(1)
+	}
 	field(RC,DBF_SHORT) {
 		prompt("Running Current")
 		promptgroup(GUI_COMMON)
 		special(SPC_MOD)
 		asl(ASL0)
 		initial(5)
+		interest(1)
+	}
+	field(HCMX,DBF_SHORT) {
+		prompt("Max Holding Current")
+		promptgroup(GUI_COMMON)
+		special(SPC_MOD)
+		asl(ASL0)
+		initial(0)
 		interest(1)
 	}
 	field(HC,DBF_SHORT) {
@@ -693,29 +709,6 @@ recordtype(ims) {
 		promptgroup(GUI_COMMON)
 		special(SPC_NOMOD)
 		interest(1)
-	}
-	field(EVAL,DBF_DOUBLE) {
-		prompt("External Guage Target")
-		promptgroup(GUI_COMMON)
-		special(SPC_MOD)
-		interest(1)
-	}
-	field(ETWV,DBF_DOUBLE) {
-		prompt("External Guage Tweak Amount")
-		promptgroup(GUI_COMMON)
-		asl(ASL0)
-		initial(1)
-		interest(1)
-	}
-	field(ETWF,DBF_SHORT) {
-		prompt("External Guage Tweak Forward")
-		special(SPC_MOD)
-		asl(ASL0)
-	}
-	field(ETWR,DBF_SHORT) {
-		prompt("External Guage Tweak Reverse")
-		special(SPC_MOD)
-		asl(ASL0)
 	}
 	field(RCON,DBF_SHORT) {
 		prompt("Re-connect to the Controller")
