@@ -163,7 +163,10 @@ static long init_record( dbCommon *precord, int pass )
     prec->logg       = mInfo->sAddr + mInfo->mLength * 6;
     prec->logh       = mInfo->sAddr + mInfo->mLength * 7;
 
-    prec->dpvt = mInfo;
+    prec->dpvt       = mInfo;
+
+    gethostname( prec->host, 60            );
+    strcpy     ( prec->iocn, getenv("IOC") );
 
     connect_motor ( prec );
     init_motor    ( prec );
@@ -443,10 +446,10 @@ static long init_motor( imsRecord *prec )
         log_msg( prec, 0, "Load MCode ..." );
         post_msgs( prec );
 
-        send_msg( mInfo, "E"  );
+        send_msg( mInfo, "E" );
         epicsThreadSleep( 1 );
 
-        send_msg( mInfo, "CP" );
+        send_msg( mInfo, "CP 0,1" );
         epicsThreadSleep( 1 );
 
         strcpy( line, getenv("IMS") );
@@ -939,8 +942,8 @@ static long process( dbCommon *precord )
         send_msg( mInfo, msg    );
         send_msg( mInfo, "Us 0" );
     }
-    else if ( (imsMode_Normal   == prec->mode) &&       // normal mode, not scan
-              (fabs(prec->bdst) <= prec->res ) &&      // no backlash, can retry
+//  else if ( (imsMode_Normal   == prec->mode) &&       // normal mode, not scan
+    else if ( (fabs(prec->bdst) <= prec->res ) &&      // no backlash, can retry
               (fabs(diff)       >= prec->rdbd) &&           // not closed enough
               (prec->rtry       >  0         ) &&                   // can retry
               (prec->rcnt       <  prec->rtry) &&              // can retry more
@@ -1317,6 +1320,9 @@ static long special( dbAddr *pDbAddr, int after )
             log_msg( prec, 1, "%s", prec->sstr  );
 
             status = sscanf( prec->sstr, "%ld,P=%ldEOS", &csr, &count );
+            if ( status != 2 )
+            status = sscanf( prec->sstr, "%ldP,=%ldEOS", &csr, &count );
+
             if ( status == 2 )
             {
                 log_msg( prec, 2, "CSR=%d,P=%d", csr, count );
@@ -2319,6 +2325,7 @@ static long special( dbAddr *pDbAddr, int after )
 
             break;
         case imsRecordRINI:
+            log_msg( prec, 0, "Re-initialize ..." );
             init_motor( prec );
 
             prec->rini = 0;

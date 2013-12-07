@@ -73,6 +73,18 @@ recordtype(ims) {
 		special(SPC_NOMOD)
 		initial(1)
 	}
+	field(HOST,DBF_STRING) {
+		prompt("Name of Host Machine")
+		special(SPC_NOMOD)
+		size(61)
+		interest(1)
+	}
+	field(IOCN,DBF_STRING) {
+		prompt("Linux Name of IOC")
+		special(SPC_NOMOD)
+		size(61)
+		interest(1)
+	}
 	field(PORT,DBF_STRING) {
 		prompt("Serial Port")
 		size(61)
