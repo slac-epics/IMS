@@ -10,13 +10,13 @@ VA Sk     ' Scan or not
 VA X1
 VA X2
 
-Ve 1      ' Version 3
+Ve 1      ' Version 1
 Ne 0      ' Disable numeric cmd
 p1 P      ' Start with current position
 Sd Db*4   ' Set save deadband
 Sv 0
-Us 18000
 Sk 0
+Us 18000
 
 PG 1
   LB SU	            ' Run at power up

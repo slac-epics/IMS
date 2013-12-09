@@ -1,0 +1,712 @@
+record(ims, "$(MOTOR)") {
+  field(DESC, "$(DESC)")
+  field(TYPE, "$(TYPE)")
+  field(PORT, "$(PORT)")
+  field(ASYN, "$(ASYN)")
+  field(EGU,  "$(EGU)" )
+  field(DIR,  "$(DIR)" )
+  field(SREV, "$(SREV)")
+  field(UREV, "$(UREV)")
+  field(BDST, "$(BDST)")
+  field(RDBD, "$(RDBD)")
+  field(PDBD, "$(PDBD)")
+  field(SBAS, "$(SBAS)")
+  field(S,    "$(S)"   )
+  field(BS,   "$(BS)"  )
+  field(HS,   "$(HS)"  )
+  field(ACCL, "$(ACCL)")
+  field(BACC, "$(BACC)")
+  field(HACC, "$(HACC)")
+  field(ERBL, "$(ERBL)")
+  field(DVER, "$(DVER)")
+  field(MPGM, "ims_bootup.mcode")
+  field(FLNK, "$(MOTOR):TS")
+}
+
+record(stringin, "$(MOTOR):TS") {
+  field(DESC, "Time Stamp of Last Update")
+  field(DTYP, "Soft Timestamp")
+  field(TSEL, "$(MOTOR).TIME")
+  field(INP,  "@%b %d %R:%S %Y")
+  field(FLNK, "$(MOTOR):UTCS")
+}
+
+record(stringin, "$(MOTOR):UTCS") {
+  field(DESC, "UTC String of Last Update")
+  field(DTYP, "Soft Timestamp")
+  field(TSEL, "$(MOTOR).TIME")
+  field(INP,  "@%s")
+  field(FLNK, "$(MOTOR):UTC")
+}
+
+record(scalcout, "$(MOTOR):UTC") {
+  field(DESC, "UTC Seconds of Last Update")
+  field(INAA, "$(MOTOR):UTCS")
+  field(CALC, "INT(AA)")
+}
+
+record(stringin, "$(MOTOR):STATUS") {
+  field(DESC, "Status From Controller")
+  field(DTYP, "stream")
+  field(INP,  "@report.proto STATUS $(ASYN) 1")
+  field(SCAN, "I/O Intr")
+  field(MPST, "Always")
+  field(FLNK, "$(MOTOR):UPDATE")
+}
+
+record(stringout, "$(MOTOR):UPDATE") {
+  field(DESC, "Update Motor Status")
+  field(DOL,  "$(MOTOR):STATUS")
+  field(OUT,  "$(MOTOR).SSTR PP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringin, "$(MOTOR):WANT2SAVE") {
+  field(DESC, "Want To Save Signal")
+  field(DTYP, "stream")
+  field(INP,  "@report.proto SAVING  $(ASYN) 1")
+  field(SCAN, "I/O Intr")
+  field(MPST, "Always")
+  field(FLNK, "$(MOTOR):SAVING")
+}
+
+record(stringout, "$(MOTOR):SAVING") {
+  field(DESC, "Controller To Save")
+  field(DOL,  "$(MOTOR):WANT2SAVE")
+  field(OUT,  "$(MOTOR).SVNG")
+  field(OMSL, "closed_loop")
+}
+
+record(stringin, "$(MOTOR):SAVED_STR") {
+  field(DESC, "Saved Raw Position")
+  field(DTYP, "stream")
+  field(INP,  "@report.proto SAVED_P $(ASYN) 1")
+  field(SCAN, "I/O Intr")
+  field(MPST, "Always")
+  field(FLNK, "$(MOTOR):SAVED")
+}
+
+record(stringout, "$(MOTOR):SAVED") {
+  field(DESC, "Controller Saved")
+  field(DOL,  "$(MOTOR):SAVED_STR")
+  field(OUT,  "$(MOTOR).SVNG")
+  field(OMSL, "closed_loop")
+  field(FLNK, "$(MOTOR):SAVED_RAW")
+}
+
+record(scalcout, "$(MOTOR):SAVED_RAW") {
+  field(DESC, "Saved Raw Position")
+  field(INDD, "$(MOTOR):SAVED_STR NPP")
+  field(CALC, "INT(DD)")
+  field(FLNK, "$(MOTOR):SAVED_P")
+}
+
+record(calc, "$(MOTOR):SAVED_P") {
+  field(DESC, "Saved Position")
+  field(INPA, "$(MOTOR):SAVED_RAW NPP")
+  field(INPB, "$(MOTOR).RES       NPP")
+  field(INPC, "$(MOTOR).DIR       NPP")
+  field(INPD, "$(MOTOR).OFF       NPP")
+  field(CALC, "A*B*(2*C-1)+D")
+  field(FLNK, "$(MOTOR):SAVED_TS")
+}
+
+record(stringin, "$(MOTOR):SAVED_TS") {
+  field(DESC, "Time Stamp of Last Save")
+  field(DTYP, "Soft Timestamp")
+  field(TSEL, "$(MOTOR):SAVED_RAW.TIME")
+  field(INP,  "@%R:%S %b %d %Y")
+}
+
+record(stringout, "$(MOTOR):FWD_MEANS") {
+  field(DESC, "Meaning of Forward")
+  field(VAL,  "$(FWD_MEANS)")
+  field(PINI, "YES")
+}
+
+record(stringout, "$(MOTOR):REV_MEANS") {
+  field(DESC, "Meaning of Reverse")
+  field(VAL,  "$(REV_MEANS)")
+  field(PINI, "YES")
+}
+
+record(calcout, "$(MOTOR):CheckUpdate") {
+  field(DESC, "Check Update Time")
+  field(INPA, "$(MOTOR):UTC           NPP")
+  field(INPB, "$(IOC):CheckUpdate:UTC NPP")
+  field(OUT,  "$(MOTOR).PING CPP"         )
+  field(CALC, "(B-A)>450 ? 1 : 0")
+  field(OOPT, "When Non-zero")
+  field(DOPT, "Use CALC")
+  field(SCAN, "Event")
+  field(EVNT, "9")
+}
+
+record(stringout, "$(MOTOR):P1P") {
+  field(DESC, "P1 = P")
+  field(OMSL, "closed_loop")
+  field(VAL,  "p1 P")
+  field(OUT,  "$(MOTOR).CMD")
+}
+
+record(stringout, "$(MOTOR):EXE_PG") {
+  field(DESC, "Start The MCode Program")
+  field(OMSL, "closed_loop")
+  field(VAL,  "EX 1")
+  field(OUT,  "$(MOTOR).CMD")
+}
+
+record(stringout, "$(MOTOR):CLEAR_PU") {
+  field(DESC, "Clear The Power-Up Flag")
+  field(OMSL, "closed_loop")
+  field(VAL,  "PU 0")
+  field(OUT,  "$(MOTOR).CMD")
+}
+
+record(stringout, "$(MOTOR):CLEAR_ST") {
+  field(DESC, "Clear The Stall Flag")
+  field(OMSL, "closed_loop")
+  field(VAL,  "ST 0")
+  field(OUT,  "$(MOTOR).CMD")
+}
+
+record(stringout, "$(MOTOR):CLEAR_ER") {
+  field(DESC, "Clear The Error Code")
+  field(OMSL, "closed_loop")
+  field(VAL,  "ER 0")
+  field(OUT,  "$(MOTOR).CMD")
+}
+
+record(stringout, "$(MOTOR):UPDATE_NOW") {
+  field(DESC, "Update The Status Now")
+  field(OMSL, "closed_loop")
+  field(VAL,  "US 0")
+  field(OUT,  "$(MOTOR).CMD")
+}
+
+record(stringout, "$(MOTOR):SAVE_NOW") {
+  field(DESC, "Save The State Now")
+  field(OMSL, "closed_loop")
+  field(VAL,  "Save")
+  field(OUT,  "$(MOTOR).SVNG")
+}
+
+record(seq, "$(MOTOR):SEQ") {
+  field(DESC, "Various Sequences")
+  field(SELM, "Mask")
+  field(DLY1, "0")
+  field(DO1,  "1")
+  field(LNK1, "$(MOTOR):P1P.PROC"     )
+  field(DLY2, "0.1")
+  field(DO2,  "1")
+  field(LNK2, "$(MOTOR):EXE_PG.PROC"  )
+  field(DLY3, "3.0")
+  field(DO3,  "1")
+  field(LNK3, "$(MOTOR):CLEAR_PU.PROC")
+  field(DLY4, "0.1")
+  field(DO4,  "1")
+  field(LNK4, "$(MOTOR):CLEAR_ST.PROC")
+  field(DLY5, "0.1")
+  field(DO5,  "1")
+  field(LNK5, "$(MOTOR):CLEAR_ER.PROC")
+  field(DLY6, "0.1")
+  field(DO6,  "1")
+  field(LNK6, "$(MOTOR):UPDATE_NOW.PROC")
+}
+
+record(longout, "$(MOTOR):SEQ_SELN") {
+  field(DESC, "Sequencer SELN Mask")
+  field(OUT,  "$(MOTOR):SEQ.SELN")
+  field(FLNK, "$(MOTOR):SEQ")
+}
+
+record(seq, "$(MOTOR):ZERO_P") {
+  field(DESC, "Set The Position To 0")
+  field(DLY1, "0")
+  field(DO1,  "1")
+  field(LNK1, "$(MOTOR).SET")
+  field(DLY2, "0.1")
+  field(DO2,  "0")
+  field(LNK2, "$(MOTOR).VAL")
+  field(DLY3, "0.1")
+  field(DO3,  "0")
+  field(LNK3, "$(MOTOR).SET")
+}
+
+record(stringout, "$(MOTOR):COPY_FROM") {
+  field(DESC, "Copy Settings From")
+  field(FLNK, "$(MOTOR):COPY_Seq1")
+}
+
+record(seq, "$(MOTOR):COPY_Seq1") {
+  field(DESC, "Copy Settings Seq 1")
+  field(DLY1, "0")
+  field(DO1,  "1")
+  field(LNK1, "$(MOTOR):COPY_TYPE.PROC")
+  field(DLY2, "0.1")
+  field(DO2,  "1")
+  field(LNK2, "$(MOTOR):COPY_EGU.PROC")
+  field(DLY3, "0.1")
+  field(DO3,  "1")
+  field(LNK3, "$(MOTOR):COPY_UREV.PROC")
+  field(DLY4, "0.1")
+  field(DO4,  "1")
+  field(LNK4, "$(MOTOR):COPY_SREV.PROC")
+  field(DLY5, "0.1")
+  field(DO5,  "1")
+  field(LNK5, "$(MOTOR):COPY_MS.PROC")
+  field(DLY6, "0.2")
+  field(DO6,  "1")
+  field(LNK6, "$(MOTOR):COPY_EL.PROC")
+  field(DLY7, "0.2")
+  field(DO7,  "1")
+  field(LNK7, "$(MOTOR):COPY_EE.PROC")
+  field(DLY8, "0.2")
+  field(DO8,  "1")
+  field(LNK8, "$(MOTOR):COPY_MT.PROC")
+  field(DLY9, "0.2")
+  field(DO9,  "1")
+  field(LNK9, "$(MOTOR):COPY_HT.PROC")
+  field(FLNK, "$(MOTOR):COPY_Seq2")
+}
+
+record(seq, "$(MOTOR):COPY_Seq2") {
+  field(DESC, "Copy Settings Seq 2")
+  field(DLY1, "0.2")
+  field(DO1,  "1")
+  field(LNK1, "$(MOTOR):COPY_S1.PROC")
+  field(DLY2, "0.2")
+  field(DO2,  "1")
+  field(LNK2, "$(MOTOR):COPY_S2.PROC")
+  field(DLY3, "0.2")
+  field(DO3,  "1")
+  field(LNK3, "$(MOTOR):COPY_S3.PROC")
+  field(DLY4, "0.2")
+  field(DO4,  "1")
+  field(LNK4, "$(MOTOR):COPY_S4.PROC")
+  field(DLY5, "0.2")
+  field(DO5,  "1")
+  field(LNK5, "$(MOTOR):COPY_LM.PROC")
+  field(DLY6, "0.2")
+  field(DO6,  "1")
+  field(LNK6, "$(MOTOR):COPY_SM.PROC")
+  field(DLY7, "0.2")
+  field(DO7,  "1")
+  field(LNK7, "$(MOTOR):COPY_SF.PROC")
+  field(DLY8, "0.2")
+  field(DO8,  "1")
+  field(LNK8, "$(MOTOR):COPY_STSV.PROC")
+  field(DLY9, "0.1")
+  field(DO9,  "1")
+  field(LNK9, "$(MOTOR):COPY_ERSV.PROC")
+  field(DLYA, "0.1")
+  field(DOA,  "1")
+  field(LNKA, "$(MOTOR):COPY_BDST.PROC")
+  field(FLNK, "$(MOTOR):COPY_Seq3")
+}
+
+record(seq, "$(MOTOR):COPY_Seq3") {
+  field(DESC, "Copy Settings Seq 3")
+  field(DLY1, "0.1")
+  field(DO1,  "1")
+  field(LNK1, "$(MOTOR):COPY_HTYP.PROC")
+  field(DLY2, "0.1")
+  field(DO2,  "1")
+  field(LNK2, "$(MOTOR):COPY_HDST.PROC")
+  field(DLY3, "0.1")
+  field(DO3,  "1")
+  field(LNK3, "$(MOTOR):COPY_RDBD.PROC")
+  field(DLY4, "0.1")
+  field(DO4,  "1")
+  field(LNK4, "$(MOTOR):COPY_PDBD.PROC")
+  field(DLY5, "0.1")
+  field(DO5,  "1")
+  field(LNK5, "$(MOTOR):COPY_RCMX.PROC")
+  field(DLY6, "0.2")
+  field(DO6,  "1")
+  field(LNK6, "$(MOTOR):COPY_RC.PROC")
+  field(DLY7, "0.2")
+  field(DO7,  "1")
+  field(LNK7, "$(MOTOR):COPY_HCMX.PROC")
+  field(DLY8, "0.2")
+  field(DO8,  "1")
+  field(LNK8, "$(MOTOR):COPY_HC.PROC")
+  field(DLY9, "0.2")
+  field(DO9,  "1")
+  field(LNK9, "$(MOTOR):COPY_HCSV.PROC")
+  field(FLNK, "$(MOTOR):COPY_Seq4")
+}
+
+record(seq, "$(MOTOR):COPY_Seq4") {
+  field(DESC, "Copy Settings Seq 4")
+  field(DLY1, "0.1")
+  field(DO1,  "1")
+  field(LNK1, "$(MOTOR):COPY_SBAS.PROC")
+  field(DLY2, "0.1")
+  field(DO2,  "1")
+  field(LNK2, "$(MOTOR):COPY_SMAX.PROC")
+  field(DLY3, "0.1")
+  field(DO3,  "1")
+  field(LNK3, "$(MOTOR):COPY_BS.PROC")
+  field(DLY4, "0.1")
+  field(DO4,  "1")
+  field(LNK4, "$(MOTOR):COPY_HS.PROC")
+  field(DLY5, "0.1")
+  field(DO5,  "1")
+  field(LNK5, "$(MOTOR):COPY_S.PROC")
+  field(DLY6, "0.1")
+  field(DO6,  "1")
+  field(LNK6, "$(MOTOR):COPY_BACC.PROC")
+  field(DLY7, "0.1")
+  field(DO7,  "1")
+  field(LNK7, "$(MOTOR):COPY_HACC.PROC")
+  field(DLY8, "0.1")
+  field(DO8,  "1")
+  field(LNK8, "$(MOTOR):COPY_ACCL.PROC")
+  field(DLY9, "0.1")
+  field(DO9,  "1")
+  field(LNK9, "$(MOTOR):COPY_DIR.PROC")
+  field(DLYA, "0.1")
+  field(DOA,  "1")
+  field(LNKA, "$(MOTOR):COPY_OFF.PROC")
+  field(FLNK, "$(MOTOR):COPY_Seq5")
+}
+
+record(seq, "$(MOTOR):COPY_Seq5") {
+  field(DESC, "Copy Settings Seq 5")
+  field(DLY1, "0.1")
+  field(DO1,  "1")
+  field(LNK1, "$(MOTOR):COPY_FOFF.PROC")
+  field(DLY2, "0.1")
+  field(DO2,  "1")
+  field(LNK2, "$(MOTOR):COPY_LLM.PROC")
+  field(DLY3, "0.1")
+  field(DO3,  "1")
+  field(LNK3, "$(MOTOR):COPY_HLM.PROC")
+  field(DLY4, "0.1")
+  field(DO4,  "1")
+  field(LNK4, "$(MOTOR):COPY_TWV.PROC")
+  field(DLY5, "0.1")
+  field(DO5,  "1")
+  field(LNK5, "$(MOTOR):COPY_ESKL.PROC")
+  field(DLY6, "0.1")
+  field(DO6,  "1")
+  field(LNK6, "$(MOTOR):COPY_FWD_MEANS.PROC")
+  field(DLY7, "0.1")
+  field(DO7,  "1")
+  field(LNK7, "$(MOTOR):COPY_REV_MEANS.PROC")
+  field(DLY8, "0.1")
+  field(DO8,  "1")
+  field(LNK8, "$(MOTOR):COPY_MODE.PROC")
+  field(DLY9, "0.1")
+  field(DO9,  "1")
+  field(LNK9, "$(MOTOR):SAVE_NOW.PROC")
+}
+
+record(stringout, "$(MOTOR):COPY_TYPE") {
+  field(VAL,  ".TYPE")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_EGU") {
+  field(VAL,  ".EGU")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_UREV") {
+  field(VAL,  ".UREV")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_SREV") {
+  field(VAL,  ".SREV")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_MS") {
+  field(VAL,  ".MS")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_EL") {
+  field(VAL,  ".EL")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_EE") {
+  field(VAL,  ".EE")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_MT") {
+  field(VAL,  ".MT")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_HT") {
+  field(VAL,  ".HT")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_S1") {
+  field(VAL,  ".S1")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_S2") {
+  field(VAL,  ".S2")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_S3") {
+  field(VAL,  ".S3")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_S4") {
+  field(VAL,  ".S4")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_LM") {
+  field(VAL,  ".LM")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_SM") {
+  field(VAL,  ".SM")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_SF") {
+  field(VAL,  ".SF")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_STSV") {
+  field(VAL,  ".STSV")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_ERSV") {
+  field(VAL,  ".ERSV")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_BDST") {
+  field(VAL,  ".BDST")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_HTYP") {
+  field(VAL,  ".HTYP")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_HDST") {
+  field(VAL,  ".HDST")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_RDBD") {
+  field(VAL,  ".RDBD")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_PDBD") {
+  field(VAL,  ".PDBD")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_RCMX") {
+  field(VAL,  ".RCMX")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_RC") {
+  field(VAL,  ".RC")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_HCMX") {
+  field(VAL,  ".HCMX")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_HC") {
+  field(VAL,  ".HC")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_HCSV") {
+  field(VAL,  ".HCSV")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_SBAS") {
+  field(VAL,  ".SBAS")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_SMAX") {
+  field(VAL,  ".SMAX")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_BS") {
+  field(VAL,  ".BS")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_HS") {
+  field(VAL,  ".HS")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_S") {
+  field(VAL,  ".S")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_BACC") {
+  field(VAL,  ".BACC")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_HACC") {
+  field(VAL,  ".HACC")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_ACCL") {
+  field(VAL,  ".ACCL")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_DIR") {
+  field(VAL,  ".DIR")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_OFF") {
+  field(VAL,  ".OFF")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_FOFF") {
+  field(VAL,  ".FOFF")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_LLM") {
+  field(VAL,  ".LLM")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_HLM") {
+  field(VAL,  ".HLM")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_TWV") {
+  field(VAL,  ".TWV")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_ESKL") {
+  field(VAL,  ".ESKL")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_FWD_MEANS") {
+  field(VAL,  ":FWD_MEANS")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_REV_MEANS") {
+  field(VAL,  ":REV_MEANS")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_MODE") {
+  field(VAL,  ".MODE")
+  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OMSL, "closed_loop")
+}
+
+record(stringout, "$(MOTOR):COPY_FIELD") {
+  field(DESC, "Field to Copy")
+  field(FLNK, "$(MOTOR):COPY_DOL")
+}
+
+record(scalcout, "$(MOTOR):COPY_DOL") {
+  field(DESC, "Copy DOL")
+  field(INAA, "$(MOTOR):COPY_FROM" )
+  field(INFF, "$(MOTOR):COPY_FIELD")
+  field(OUT,  "$(MOTOR):COPY_ACT.DOL CA")
+  field(CALC, "AA+FF+' NPP'")
+  field(DOPT, "Use CALC")
+  field(OOPT, "Every Time")
+  field(FLNK, "$(MOTOR):COPY_OUT")
+}
+
+record(scalcout, "$(MOTOR):COPY_OUT") {
+  field(DESC, "Copy OUT")
+  field(INFF, "$(MOTOR):COPY_FIELD")
+  field(OUT,  "$(MOTOR):COPY_ACT.OUT CA")
+  field(CALC, "PRINTF('$(MOTOR)%s NPP',FF)")
+  field(DOPT, "Use CALC")
+  field(OOPT, "Every Time")
+  field(FLNK, "$(MOTOR):COPY_ACT.PROC CA")
+}
+
+record(ao, "$(MOTOR):COPY_ACT") {
+  field(DESC, "Do The Copying")
+  field(OMSL, "closed_loop")
+}
+

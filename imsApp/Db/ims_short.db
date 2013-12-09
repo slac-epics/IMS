@@ -1,9 +1,9 @@
 record(ims, "$(MOTOR)") {
   field(PORT, "$(PORT)")
   field(ASYN, "$(ASYN)")
+  field(ERBL, "$(ERBL)")
   field(DVER, "$(DVER)")
   field(MPGM, "ims_bootup.mcode")
-  field(ERBL, "$(ERBL)")
   field(FLNK, "$(MOTOR):TS")
 }
 
