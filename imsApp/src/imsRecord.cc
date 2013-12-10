@@ -743,7 +743,7 @@ static long process( dbCommon *precord )
                 VI = NINT( prec->vbas / prec->res );
                 VM = NINT( prec->velo / prec->res );
                 A  = NINT( (prec->velo - prec->vbas) / prec->res / prec->accl );
-                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR %d",
+                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR %ld",
                               VI, VM, A, nval );
 
                 send_msg( mInfo, msg    );
@@ -802,7 +802,7 @@ static long process( dbCommon *precord )
                 VI = NINT( prec->vbas / prec->res );
                 VM = NINT( prec->velo / prec->res );
                 A  = NINT( (prec->velo - prec->vbas) / prec->res / prec->accl );
-                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR %d",
+                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR %ld",
                               VI, VM, A, nval );
 
                 send_msg( mInfo, msg    );
@@ -1264,7 +1264,7 @@ static long special( dbAddr *pDbAddr, int after )
     char            msg[MAX_MSG_SIZE], rbbuf[MAX_MSG_SIZE];
     long            csr, count, old_rval;
     short           old_dmov, old_rcnt, old_lvio;
-    double          nval, old_val, old_dval, old_rbv, new_dval, new_eval;
+    double          nval, old_val, old_dval, old_rbv, new_dval;
     unsigned short  old_mip, alarm_mask = 0;
     motor_status    msta;
 
@@ -1594,7 +1594,7 @@ static long special( dbAddr *pDbAddr, int after )
 
             nval       = prec->lls;
             prec->lls  = prec->hls;
-            prec->hls  = nval;
+            prec->hls  = (epicsInt16)nval;
             if ( prec->lls != nval )
             {
                 db_post_events( prec, &prec->lls,  DBE_VAL_LOG );
@@ -1636,10 +1636,10 @@ static long special( dbAddr *pDbAddr, int after )
                 prec->dval  = new_dval;
 
                 if ( prec->ee == imsAble_Enable )
-                    sprintf( msg, "P %ld\r\nC2 %ld\r\nUs 0", prec->rval,
-                                                             prec->rval );
+                    sprintf( msg, "P %ld\r\nC2 %ld\r\nUs 0", (long)prec->rval,
+                                                             (long)prec->rval );
                 else
-                    sprintf( msg, "P %ld\r\nUs 0",           prec->rval );
+                    sprintf( msg, "P %ld\r\nUs 0",           (long)prec->rval );
 
                 send_msg( mInfo, msg );
 
@@ -1976,7 +1976,7 @@ static long special( dbAddr *pDbAddr, int after )
         case imsRecordEL  :
             if ( prec->el   <= 0 )
             {
-                prec->el   = prec->oval;
+                prec->el   = (epicsInt16)prec->oval;
                 db_post_events( prec, &prec->el  , DBE_VAL_LOG );
                 break;
             }
@@ -1990,7 +1990,7 @@ static long special( dbAddr *pDbAddr, int after )
         case imsRecordMS  :
             if ( prec->ms   <= 0 )
             {
-                prec->ms   = prec->oval;
+                prec->ms   = (epicsInt16)prec->oval;
                 db_post_events( prec, &prec->ms  , DBE_VAL_LOG );
                 break;
             }
@@ -2043,7 +2043,7 @@ static long special( dbAddr *pDbAddr, int after )
         case imsRecordSREV:
             if ( prec->srev <= 0 )
             {
-                prec->srev = prec->oval;
+                prec->srev = (epicsInt16)prec->oval;
                 db_post_events( prec, &prec->srev, DBE_VAL_LOG );
                 break;
             }
@@ -2170,10 +2170,10 @@ static long special( dbAddr *pDbAddr, int after )
             prec->rval = NINT(prec->dval / prec->res);
 
             if ( prec->ee == imsAble_Enable )
-                sprintf( msg, "P %ld\r\nC2 %ld\r\nUs 0", prec->rval,
-                                                         prec->rval );
+                sprintf( msg, "P %ld\r\nC2 %ld\r\nUs 0", (long)prec->rval,
+                                                         (long)prec->rval );
             else
-                sprintf( msg, "P %ld\r\nUs 0",           prec->rval );
+                sprintf( msg, "P %ld\r\nUs 0",           (long)prec->rval );
 
             send_msg( mInfo, msg );
 
@@ -2211,7 +2211,7 @@ static long special( dbAddr *pDbAddr, int after )
         case imsRecordRCMX:
             if ( (prec->rcmx < 0) || (prec->rcmx > 100) )
             {
-                prec->rcmx = prec->oval;
+                prec->rcmx = (epicsInt16)prec->oval;
                 db_post_events( prec, &prec->rcmx, DBE_VAL_LOG );
 
                 break;
@@ -2224,7 +2224,7 @@ static long special( dbAddr *pDbAddr, int after )
         case imsRecordRC  :
             if ( (prec->rc   < 0) || (prec->rc   > prec->rcmx) )
             {
-                prec->rc   = prec->oval;
+                prec->rc   = (epicsInt16)prec->oval;
                 db_post_events( prec, &prec->rc  , DBE_VAL_LOG );
 
                 break;
@@ -2237,7 +2237,7 @@ static long special( dbAddr *pDbAddr, int after )
         case imsRecordHCMX:
             if ( (prec->hcmx < 0) || (prec->hcmx > 100) )
             {
-                prec->hcmx = prec->oval;
+                prec->hcmx = (epicsInt16)prec->oval;
                 db_post_events( prec, &prec->hcmx, DBE_VAL_LOG );
 
                 break;
@@ -2256,7 +2256,7 @@ static long special( dbAddr *pDbAddr, int after )
         case imsRecordHC  :
             if ( (prec->hc   < 0) || (prec->hc   > prec->hcmx) )
             {
-                prec->hc   = prec->oval;
+                prec->hc   = (epicsInt16)prec->oval;
                 db_post_events( prec, &prec->hc  , DBE_VAL_LOG );
 
                 break;
