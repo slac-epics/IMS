@@ -88,6 +88,7 @@ extern "C" { epicsExportAddress( rset, imsRSET ); }
 #define MIP_JOGF     0x0100    // Jog forward
 #define MIP_JOGR     0x0200    // Jog backward
 #define MIP_JOG      (MIP_JOGF | MIP_JOGR)
+#define MIP_CALI     0x0400    // Calibration
 #define MIP_PAUSE    0x1000    // Move is being paused
 #define MIP_STOP     0x8000    // We're trying to stop.  If a home command
                                // is issued when the motor is moving, we
@@ -315,6 +316,37 @@ static long init_motor( imsRecord *prec )
     if ( status <= 0 )
     {
         log_msg( prec, 0, "Failed to read the serial number" );
+
+        msta.Bits.RA_PROBLEM = 1;
+        goto finished;
+    }
+
+    // read the firmware version
+    retry = 1;
+    do
+    {
+        flush_asyn( mInfo );
+
+        send_msg( mInfo, "PR \"VR=\",VR" );
+        status = recv_reply( mInfo, rbbuf );
+        if ( (status > 0) && (strlen(rbbuf) > 3) )
+        {
+            if      ( strncmp(rbbuf,                   "VR=", 3) == 0 )
+                strncpy( prec->vr, rbbuf+3, 61              );
+            else if ( strncmp(rbbuf+(strlen(rbbuf)-3), "VR=", 3) == 0 )
+                strncpy( prec->vr, rbbuf,   strlen(rbbuf)-3 );
+            else
+                status = 0;
+        }
+        else
+            status = 0;
+
+        epicsThreadSleep( 0.2 );
+    } while ( (status <= 0) && (retry++ < 3) );
+
+    if ( status <= 0 )
+    {
+        log_msg( prec, 0, "Failed to read the firmware version" );
 
         msta.Bits.RA_PROBLEM = 1;
         goto finished;
@@ -698,6 +730,7 @@ static long process( dbCommon *precord )
     if ( (msta.Bits.RA_STALL && (! msta.Bits.RA_SM)) ||               // stalled
          prec->lls || prec->hls ||                         // hit a limit switch
          (prec->mip & MIP_HOME) ||                                 // was homing
+         (prec->mip & MIP_CALI) ||                            // was calibrating
          (prec->mip & (MIP_STOP | MIP_PAUSE))           )       // stop or pause
     {
         short newval = 1;
@@ -708,6 +741,10 @@ static long process( dbCommon *precord )
             {
                 log_msg( prec, 0, "Stalled, missed home" );
                 prec->miss = 1;
+            }
+            else if ( prec->mip & MIP_CALI )                  // was calibrating
+            {
+                log_msg( prec, 0, "Stalled, failed to calibrate" );
             }
             else if ( (prec->mip != MIP_DONE) &&
                       !(prec->mip & (MIP_STOP | MIP_PAUSE)) )      // was moving
@@ -768,6 +805,10 @@ static long process( dbCommon *precord )
                 log_msg( prec, 0, "Hit low limit, missed home" );
                 prec->miss = 1;
             }
+            else if ( prec->mip & MIP_CALI )                  // was calibrating
+            {
+                log_msg( prec, 0, "Hit low limit, failed to calibrate" );
+            }
             else if ( (prec->mip != MIP_DONE) &&
                       !(prec->mip & (MIP_STOP | MIP_PAUSE)) )      // was moving
             {
@@ -826,6 +867,10 @@ static long process( dbCommon *precord )
             {
                 log_msg( prec, 0, "Hit high limit, missed home" );
                 prec->miss = 1;
+            }
+            else if ( prec->mip & MIP_CALI )                  // was calibrating
+            {
+                log_msg( prec, 0, "Hit high limit, failed to calibrate" );
             }
             else if ( (prec->mip != MIP_DONE) &&
                       !(prec->mip & (MIP_STOP | MIP_PAUSE)) )      // was moving
@@ -909,6 +954,10 @@ static long process( dbCommon *precord )
             }
 
             db_post_events( prec, &prec->athm, DBE_VAL_LOG );
+        }
+        else if ( prec->mip & MIP_CALI )                      // was calibrating
+        {
+            log_msg( prec, 0, "Calibration finished" );
         }
 
         if ( newval )
@@ -1801,16 +1850,23 @@ static long special( dbAddr *pDbAddr, int after )
             {
                 if ( prec->calf == 1 )
                 {
+                    log_msg( prec, 0, "Start calibration" );
                     prec->calf = 0;
 
+                    prec->dmov = 0;
+                    prec->mip  = MIP_CALI;
+
                     sprintf(msg, "C1 0\r\nC2 0\r\nMR  %d", prec->srev*prec->ms);
-                    send_msg( mInfo, msg );
+                    send_msg( mInfo, msg    );
+                    send_msg( mInfo, "Us 0" );
                 }
                 else
                 {
-                    send_msg( mInfo, "SL 0" );
-
-                    epicsThreadSleep( 0.3 );
+                    if ( prec->dmov == 0 )                       // still moving
+                    {
+                        send_msg( mInfo, "SL 0" );
+                        epicsThreadSleep( 0.5 );
+                    }
 
                     sprintf( prec->cmd, "PR C2" );
                     goto cmd_and_response;
@@ -1820,16 +1876,23 @@ static long special( dbAddr *pDbAddr, int after )
             {
                 if ( prec->calr == 1 )
                 {
+                    log_msg( prec, 0, "Start calibration" );
                     prec->calr = 0;
 
+                    prec->dmov = 0;
+                    prec->mip  = MIP_CALI;
+
                     sprintf(msg, "C1 0\r\nC2 0\r\nMR -%d", prec->srev*prec->ms);
-                    send_msg( mInfo, msg );
+                    send_msg( mInfo, msg    );
+                    send_msg( mInfo, "Us 0" );
                 }
                 else
                 {
-                    send_msg( mInfo, "SL 0" );
-
-                    epicsThreadSleep( 0.3 );
+                    if ( prec->dmov == 0 )                       // still moving
+                    {
+                        send_msg( mInfo, "SL 0" );
+                        epicsThreadSleep( 0.5 );
+                    }
 
                     sprintf( prec->cmd, "PR C2" );
                     goto cmd_and_response;

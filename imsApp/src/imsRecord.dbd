@@ -113,6 +113,12 @@ recordtype(ims) {
 		special(SPC_NOMOD)
 		interest(1)
 	}
+	field(VR,DBF_STRING) {
+		prompt("Firmware Version")
+		size(61)
+		special(SPC_NOMOD)
+		interest(1)
+	}
 	field(S1,DBF_MENU) {
 		prompt("S1 Setting")
 		promptgroup(GUI_COMMON)
