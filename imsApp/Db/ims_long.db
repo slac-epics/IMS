@@ -11,6 +11,7 @@ record(ims, "$(MOTOR)") {
   field(RDBD, "$(RDBD)")
   field(PDBD, "$(PDBD)")
   field(SBAS, "$(SBAS)")
+  field(SMAX, "$(SMAX)")
   field(S,    "$(S)"   )
   field(BS,   "$(BS)"  )
   field(HS,   "$(HS)"  )
