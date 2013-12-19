@@ -185,6 +185,19 @@ static long init_record( dbCommon *precord, int pass )
     enforce_BS( prec );
     enforce_HS( prec );
 
+    if ( prec->dhlm < prec->dllm ) prec->dhlm = prec->dllm;
+
+    if ( prec->dir == imsDIR_Positive )
+    {
+        prec->llm  = prec->off + prec->dllm;
+        prec->hlm  = prec->off + prec->dhlm;
+    }
+    else
+    {
+        prec->llm  = prec->off - prec->dhlm;
+        prec->hlm  = prec->off - prec->dllm;
+    }
+
     return( status );
 }
 
@@ -1311,7 +1324,7 @@ static long special( dbAddr *pDbAddr, int after )
     ims_info       *mInfo = (ims_info *)prec->dpvt;
     char            MI = (prec->htyp == imsHTYP_Switch) ? 'M' : 'I';
     char            msg[MAX_MSG_SIZE], rbbuf[MAX_MSG_SIZE];
-    long            csr, count, old_rval;
+    long            csr, count, old_rval, new_rval;
     short           old_dmov, old_rcnt, old_lvio;
     double          nval, old_val, old_dval, old_rbv, new_dval;
     unsigned short  old_mip, alarm_mask = 0;
@@ -1821,6 +1834,21 @@ static long special( dbAddr *pDbAddr, int after )
                 log_msg( prec, 0, "Homing << to home switch ..."  );
             else
                 log_msg( prec, 0, "Homing << to LLS ..."          );
+
+            break;
+        case imsRecordHOMS:
+            if ( (prec->athm == 0) || (prec->homs == 0) ) break;
+
+            new_rval   = NINT(prec->homd / prec->res);
+            prec->val  = prec->homd * (2.*prec->dir - 1.) + prec->off;
+            prec->homs = 0;
+
+            if ( prec->ee == imsAble_Enable )
+                sprintf( msg, "P %ld\r\nC2 %ld\r\nUs 0", new_rval, new_rval );
+            else
+                sprintf( msg, "P %ld\r\nUs 0",           new_rval           );
+
+            send_msg( mInfo, msg );
 
             break;
         case imsRecordCALF:

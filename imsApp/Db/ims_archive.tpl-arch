@@ -25,10 +25,10 @@ $(MOTOR).SREV         86400    monitor
 $(MOTOR).DIR          86400    monitor
 $(MOTOR).OFF          86400    monitor
 $(MOTOR).FOFF         86400    monitor
-$(MOTOR).BDST         86400    monitor
-$(MOTOR).HDST         86400    monitor
 $(MOTOR).HTYP         86400    monitor
 $(MOTOR).HEGE         86400    monitor
+$(MOTOR).BDST         86400    monitor
+$(MOTOR).HDST         86400    monitor
 $(MOTOR).DLLM         86400    monitor
 $(MOTOR).DHLM         86400    monitor
 $(MOTOR).LLM          86400    monitor
@@ -36,9 +36,6 @@ $(MOTOR).HLM          86400    monitor
 $(MOTOR).RTRY         86400    monitor
 $(MOTOR).RDBD         86400    monitor
 $(MOTOR).PDBD         86400    monitor
-$(MOTOR).EGAG         86400    monitor
-$(MOTOR).ERBL         86400    monitor
-$(MOTOR).ESKL         86400    monitor
 $(MOTOR).SBAS         86400    monitor
 $(MOTOR).SMAX         86400    monitor
 $(MOTOR).S            86400    monitor
@@ -53,6 +50,10 @@ $(MOTOR).ACCL         86400    monitor
 $(MOTOR).BACC         86400    monitor
 $(MOTOR).HACC         86400    monitor
 $(MOTOR).TWV          86400    monitor
+$(MOTOR).HOMD         86400    monitor
+$(MOTOR).EGAG         86400    monitor
+$(MOTOR).ERBL         86400    monitor
+$(MOTOR).ESKL         86400    monitor
 
 $(MOTOR).DLVL         86400    monitor
 
@@ -70,7 +71,6 @@ $(MOTOR).RRBV         86400    monitor
 $(MOTOR).DRBV         86400    monitor
 $(MOTOR).RBV          86400    monitor
 
-$(MOTOR).EVAL         86400    monitor
 $(MOTOR).ERBV         86400    monitor
 
 $(MOTOR).DIFF         86400    monitor
