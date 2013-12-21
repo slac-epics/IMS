@@ -166,8 +166,8 @@ static long init_record( dbCommon *precord, int pass )
 
     prec->dpvt       = mInfo;
 
-    gethostname( prec->host, 60            );
-    strcpy     ( prec->iocn, getenv("IOC") );
+    gethostname( prec->host, 60                   );
+    strcpy     ( prec->iocn, getenv("EPICS_NAME") );
 
     connect_motor ( prec );
     init_motor    ( prec );
@@ -606,24 +606,6 @@ static long init_motor( imsRecord *prec )
     else
         prec->res  = prec->urev / prec->ms / prec->srev;
 
-    // make sure the limits are consistent
-    if ( prec->dir == imsDIR_Positive )
-    {
-        prec->dllm = prec->llm - prec->off;
-        prec->dhlm = prec->hlm - prec->off;
-    }
-    else
-    {
-        prec->dllm = prec->off - prec->hlm;
-        prec->dhlm = prec->off - prec->llm;
-    }
-
-    // make sure the accelerations and velocities are consistent
-    if ( prec->vbas > prec->vmax ) prec->vbas = prec->vmax;
-    if ( prec->velo > prec->vmax ) prec->velo = prec->vmax;
-    if ( prec->hvel > prec->vmax ) prec->hvel = prec->vmax;
-    if ( prec->bvel > prec->vmax ) prec->bvel = prec->vmax;
-
     prec->dmov = 1;
     prec->mip  = MIP_DONE;
 
@@ -793,11 +775,11 @@ static long process( dbCommon *precord )
                 VI = NINT( prec->vbas / prec->res );
                 VM = NINT( prec->velo / prec->res );
                 A  = NINT( (prec->velo - prec->vbas) / prec->res / prec->accl );
-                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR %ld",
+                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nR2 0\r\nMR %ld",
                               VI, VM, A, nval );
 
                 send_msg( mInfo, msg    );
-                send_msg( mInfo, "Us 0" );
+//              send_msg( mInfo, "Us 0" );
 
                 newval = 0;
             }
@@ -856,11 +838,11 @@ static long process( dbCommon *precord )
                 VI = NINT( prec->vbas / prec->res );
                 VM = NINT( prec->velo / prec->res );
                 A  = NINT( (prec->velo - prec->vbas) / prec->res / prec->accl );
-                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMR %ld",
+                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nR2 0\r\nMR %ld",
                               VI, VM, A, nval );
 
                 send_msg( mInfo, msg    );
-                send_msg( mInfo, "Us 0" );
+//              send_msg( mInfo, "Us 0" );
 
                 newval = 0;
             }
@@ -922,12 +904,12 @@ static long process( dbCommon *precord )
             VM = NINT( prec->hvel / prec->res );
             A  = NINT( (prec->hvel - prec->vbas) / prec->res / prec->hacc );
             if ( prec->dir == imsDIR_Positive )
-                sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nSL -%d", VI, A, VM );
+                sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nR2 0\r\nSL -%d", VI, A, VM );
             else
-                sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nSL  %d", VI, A, VM );
+                sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nR2 0\r\nSL  %d", VI, A, VM );
 
             send_msg( mInfo, msg    );
-            send_msg( mInfo, "Us 0" );
+//          send_msg( mInfo, "Us 0" );
 
             newval = 0;
         }
@@ -941,12 +923,12 @@ static long process( dbCommon *precord )
             VM = NINT( prec->hvel / prec->res );
             A  = NINT( (prec->hvel - prec->vbas) / prec->res / prec->hacc );
             if ( prec->dir == imsDIR_Positive )
-                sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nSL  %d", VI, A, VM );
+                sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nR2 0\r\nSL  %d", VI, A, VM );
             else
-                sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nSL -%d", VI, A, VM );
+                sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nR2 0\r\nSL -%d", VI, A, VM );
 
             send_msg( mInfo, msg    );
-            send_msg( mInfo, "Us 0" );
+//          send_msg( mInfo, "Us 0" );
 
             newval = 0;
         }
@@ -999,10 +981,10 @@ static long process( dbCommon *precord )
         VI = NINT( prec->vbas / prec->res );
         VM = NINT( prec->bvel / prec->res );
         A  = NINT( (prec->bvel - prec->vbas) / prec->res / prec->bacc );
-        sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMA %d",
+        sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nR2 0\r\nMA %d",
                       VI, VM, A, prec->rval );
         send_msg( mInfo, msg    );
-        send_msg( mInfo, "Us 0" );
+//      send_msg( mInfo, "Us 0" );
     }
 //  else if ( (imsMode_Normal   == prec->mode) &&       // normal mode, not scan
     else if ( (fabs(prec->bdst) <= prec->res ) &&      // no backlash, can retry
@@ -1108,7 +1090,10 @@ static long process( dbCommon *precord )
         }
     }
 
-    prec->msta = msta.All;
+    msta.Bits.RA_DONE   = prec->dmov;
+    msta.Bits.RA_MOVING = prec->movn;
+
+    prec->msta          = msta.All;
     if ( prec->msta != old_msta.All ) MARK( M_MSTA );
 
     recGblGetTimeStamp( prec );
@@ -1762,6 +1747,7 @@ static long special( dbAddr *pDbAddr, int after )
             }
  
             prec->mip  = MIP_HOMF;
+            prec->dmov = 0;
 
             prec->athm = 0;
             msta.Bits.RA_HOMED = 0;
@@ -1818,6 +1804,7 @@ static long special( dbAddr *pDbAddr, int after )
             }
  
             prec->mip  = MIP_HOMR;
+            prec->dmov = 0;
 
             prec->athm = 0;
             msta.Bits.RA_HOMED = 0;
@@ -2417,6 +2404,8 @@ static long special( dbAddr *pDbAddr, int after )
             break;
         case imsRecordRINI:
             log_msg( prec, 0, "Re-initialize ..." );
+            post_msgs ( prec );
+
             init_motor( prec );
 
             prec->rini = 0;

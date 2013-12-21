@@ -553,7 +553,7 @@ recordtype(ims) {
 	field(HOMS,DBF_SHORT) {
 		prompt("Set Dial Position For Home")
 		special(SPC_MOD)
-		interest(1)
+		asl(ASL0)
 	}
 	field(JOGF,DBF_SHORT) {
 		prompt("Jog Forward")
