@@ -678,6 +678,12 @@ recordtype(ims) {
 		pp(TRUE)
 		interest(1)
 	}
+	field(OSTR,DBF_STRING) {
+		prompt("Previous Status String")
+		size(61)
+		special(SPC_NOMOD)
+		interest(1)
+	}
 	field(SVNG,DBF_STRING) {
 		prompt("Controller To Save")
 		promptgroup(GUI_COMMON)

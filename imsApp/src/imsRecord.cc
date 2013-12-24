@@ -697,6 +697,11 @@ static long process( dbCommon *precord )
 
     if ( prec->movn ) goto finished;                             // still moving
 
+    if ( (prec->dmov == 0) && (strcmp(prec->sstr, prec->ostr) == 0) )
+        goto finished;                                           // stale status
+
+    strcpy( prec->ostr, prec->sstr );
+
     diff = prec->rbv  - prec->val;
     if ( prec->mip == MIP_DONE )             // was not moving, check slip_stall
     {
