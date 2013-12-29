@@ -186,14 +186,14 @@ record(stringout, "$(MOTOR):CLEAR_ER") {
   field(OUT,  "$(MOTOR).CMD")
 }
 
-record(stringout, "$(MOTOR):UPDATE_NOW") {
+record(stringout, "$(MOTOR):UPDATE_STATUS") {
   field(DESC, "Update The Status Now")
   field(OMSL, "closed_loop")
   field(VAL,  "US 0")
   field(OUT,  "$(MOTOR).CMD")
 }
 
-record(stringout, "$(MOTOR):SAVE_NOW") {
+record(stringout, "$(MOTOR):SAVE_STATE") {
   field(DESC, "Save The State Now")
   field(OMSL, "closed_loop")
   field(VAL,  "Save")
@@ -220,7 +220,7 @@ record(seq, "$(MOTOR):SEQ") {
   field(LNK5, "$(MOTOR):CLEAR_ER.PROC")
   field(DLY6, "0.1")
   field(DO6,  "1")
-  field(LNK6, "$(MOTOR):UPDATE_NOW.PROC")
+  field(LNK6, "$(MOTOR):UPDATE_STATUS.PROC")
 }
 
 record(longout, "$(MOTOR):SEQ_SELN") {
@@ -409,7 +409,7 @@ record(seq, "$(MOTOR):COPY_Seq5") {
   field(LNK8, "$(MOTOR):COPY_MODE.PROC")
   field(DLY9, "0.1")
   field(DO9,  "1")
-  field(LNK9, "$(MOTOR):SAVE_NOW.PROC")
+  field(LNK9, "$(MOTOR):SAVE_STATE.PROC")
 }
 
 record(stringout, "$(MOTOR):COPY_TYPE") {

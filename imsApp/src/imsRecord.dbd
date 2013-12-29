@@ -593,10 +593,9 @@ recordtype(ims) {
 		special(SPC_MOD)
 		asl(ASL0)
 	}
-	field(MIP,DBF_USHORT) {
-		prompt("Motion In Progress")
+	field(SMOV,DBF_SHORT) {
+		prompt("Started Move")
 		special(SPC_NOMOD)
-		interest(3)
 	}
 	field(MOVN,DBF_SHORT) {
 		prompt("Moving or Not")
@@ -607,6 +606,11 @@ recordtype(ims) {
 		promptgroup(GUI_COMMON)
 		special(SPC_NOMOD)
 		initial(1)
+	}
+	field(MIP,DBF_USHORT) {
+		prompt("Motion In Progress")
+		special(SPC_NOMOD)
+		interest(3)
 	}
 	field(RRBV,DBF_LONG) {
 		prompt("Raw Readback Value")
@@ -678,11 +682,9 @@ recordtype(ims) {
 		pp(TRUE)
 		interest(1)
 	}
-	field(OSTR,DBF_STRING) {
-		prompt("Previous Status String")
-		size(61)
+	field(OCSR,DBF_ULONG) {
+		prompt("Previous CSR")
 		special(SPC_NOMOD)
-		interest(1)
 	}
 	field(SVNG,DBF_STRING) {
 		prompt("Controller To Save")

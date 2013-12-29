@@ -646,7 +646,7 @@ static long process( dbCommon *precord )
     unsigned short  old_mip,  alarm_mask;
     short           old_dmov, old_rcnt, old_miss;
     double          old_val,  old_dval, old_diff, diff;
-    long            count, old_rval, nval, status = OK;
+    long            count, old_rrbv, old_rval, nval, status = OK;
     int             VI, VM, A;
     status_word     csr;
     motor_status    old_msta, msta;
@@ -691,16 +691,23 @@ static long process( dbCommon *precord )
     mInfo->newData = 0;
     mInfo->cMutex->unlock();
 
+    old_rrbv = prec->rrbv;
+
     process_motor_info( prec, csr, count );
 
     msta.All = prec->msta;
 
     if ( prec->movn ) goto finished;                             // still moving
 
-    if ( (prec->dmov == 0) && (strcmp(prec->sstr, prec->ostr) == 0) )
+    if ( (prec->smov ==       1) && (prec->dmov           == 0) &&
+         (prec->ocsr == csr.All) && (labs(old_rrbv-count) <  5)    )
+    {
+        prec->smov = 0;
         goto finished;                                           // stale status
+    }
 
-    strcpy( prec->ostr, prec->sstr );
+    prec->smov =       0;
+    prec->ocsr = csr.All;
 
     diff = prec->rbv  - prec->val;
     if ( prec->mip == MIP_DONE )             // was not moving, check slip_stall
@@ -771,6 +778,7 @@ static long process( dbCommon *precord )
                 log_msg( prec, 0, "Back off from LLS (HDST: %.6g), with ACCL & VELO",
                                   prec->hdst );
 
+                prec->smov  =        1;
                 prec->mip  |= MIP_HOMB;
                 if ( prec->dir == imsDIR_Positive )
                     nval = NINT(       prec->hdst / prec->res );
@@ -834,6 +842,7 @@ static long process( dbCommon *precord )
                 log_msg( prec, 0, "Back off from HLS (HDST: %.6g), with ACCL & VELO",
                                   prec->hdst );
 
+                prec->smov  =        1;
                 prec->mip  |= MIP_HOMB;
                 if ( prec->dir == imsDIR_Positive )
                     nval = NINT( -1. * prec->hdst / prec->res );
@@ -903,6 +912,7 @@ static long process( dbCommon *precord )
         {
             log_msg( prec, 0, "Creep to LLS, with HACC & HVEL" );
 
+            prec->smov = 1;
             prec->mip  = MIP_HOMR | MIP_HOMC;
 
             VI = NINT( prec->vbas / prec->res );
@@ -922,6 +932,7 @@ static long process( dbCommon *precord )
         {
             log_msg( prec, 0, "Creep to HLS, with HACC & HVEL" );
 
+            prec->smov = 1;
             prec->mip  = MIP_HOMF | MIP_HOMC;
 
             VI = NINT( prec->vbas / prec->res );
@@ -980,6 +991,7 @@ static long process( dbCommon *precord )
         log_msg( prec, 0, "Move to %.6g (DVAL: %.6g), with BACC & BVEL",
                           prec->val, prec->dval );
 
+        prec->smov = 1;
         prec->mip  = MIP_MOVE;
         prec->rval = NINT(prec->dval / prec->res);
 
@@ -998,6 +1010,7 @@ static long process( dbCommon *precord )
               (prec->rcnt       <  prec->rtry) &&              // can retry more
               ((prec->egag == menuYesNoNO) || (msta.Bits.RA_COMM_ERR == 0)) )
     {
+        prec->smov  = 1;
         prec->mip  |= MIP_RETRY;
 
         log_msg( prec, 0, "Desired %.6g, reached %.6g, retrying %d ...",
@@ -1009,7 +1022,7 @@ static long process( dbCommon *precord )
             sprintf( msg, "MA %d", prec->rval );
 
         send_msg( mInfo, msg    );
-        send_msg( mInfo, "Us 0" );
+//      send_msg( mInfo, "Us 0" );
     }
     else          // finished backlash, close enough, or no (more) retry allowed
     {
@@ -1300,9 +1313,10 @@ static void new_move( imsRecord *prec )
                       VI, VM, A, prec->rval );
     }
 
+    prec->smov = 1;
     prec->dmov = 0;
     send_msg( mInfo, msg    );
-    send_msg( mInfo, "Us 0" );
+//  send_msg( mInfo, "Us 0" );
 
     return;
 }
@@ -1751,10 +1765,12 @@ static long special( dbAddr *pDbAddr, int after )
                                   VI, VM, A, MI );
             }
  
-            prec->mip  = MIP_HOMF;
+            prec->smov = 1;
             prec->dmov = 0;
+            prec->mip  = MIP_HOMF;
 
             prec->athm = 0;
+            prec->homf = 0;
             msta.Bits.RA_HOMED = 0;
             msta.Bits.RA_HOME  = 0;
             msta.Bits.EA_HOME  = 0;
@@ -1762,7 +1778,7 @@ static long special( dbAddr *pDbAddr, int after )
             db_post_events( prec, &prec->athm, DBE_VAL_LOG );
 
             send_msg( mInfo, msg    );
-            send_msg( mInfo, "Us 0" );
+//          send_msg( mInfo, "Us 0" );
             if      ( prec->htyp == imsHTYP_Encoder )
                 log_msg( prec, 0, "Homing >> to encoder mark ..." );
             else if ( prec->htyp == imsHTYP_Switch  )
@@ -1808,10 +1824,12 @@ static long special( dbAddr *pDbAddr, int after )
                                   VI, VM, A, MI );
             }
  
-            prec->mip  = MIP_HOMR;
+            prec->smov = 1;
             prec->dmov = 0;
+            prec->mip  = MIP_HOMR;
 
             prec->athm = 0;
+            prec->homr = 0;
             msta.Bits.RA_HOMED = 0;
             msta.Bits.RA_HOME  = 0;
             msta.Bits.EA_HOME  = 0;
@@ -1819,7 +1837,7 @@ static long special( dbAddr *pDbAddr, int after )
             db_post_events( prec, &prec->athm, DBE_VAL_LOG );
 
             send_msg( mInfo, msg    );
-            send_msg( mInfo, "Us 0" );
+//          send_msg( mInfo, "Us 0" );
             if      ( prec->htyp == imsHTYP_Encoder )
                 log_msg( prec, 0, "Homing << to encoder mark ..." );
             else if ( prec->htyp == imsHTYP_Switch  )
@@ -1873,12 +1891,13 @@ static long special( dbAddr *pDbAddr, int after )
                     log_msg( prec, 0, "Start calibration" );
                     prec->calf = 0;
 
+                    prec->smov = 1;
                     prec->dmov = 0;
                     prec->mip  = MIP_CALI;
 
                     sprintf(msg, "C1 0\r\nC2 0\r\nMR  %d", prec->srev*prec->ms);
                     send_msg( mInfo, msg    );
-                    send_msg( mInfo, "Us 0" );
+//                  send_msg( mInfo, "Us 0" );
                 }
                 else
                 {
@@ -1899,12 +1918,13 @@ static long special( dbAddr *pDbAddr, int after )
                     log_msg( prec, 0, "Start calibration" );
                     prec->calr = 0;
 
+                    prec->smov = 1;
                     prec->dmov = 0;
                     prec->mip  = MIP_CALI;
 
                     sprintf(msg, "C1 0\r\nC2 0\r\nMR -%d", prec->srev*prec->ms);
                     send_msg( mInfo, msg    );
-                    send_msg( mInfo, "Us 0" );
+//                  send_msg( mInfo, "Us 0" );
                 }
                 else
                 {
@@ -2403,7 +2423,7 @@ static long special( dbAddr *pDbAddr, int after )
             db_post_events( prec,  prec->resp, DBE_VAL_LOG );
 
             break;
-        case imsRecordEGAG: // dhz
+        case imsRecordEGAG:
             send_msg( mInfo, "Us 0" );
 
             break;
