@@ -706,8 +706,7 @@ static long process( dbCommon *precord )
         goto finished;                                           // stale status
     }
 
-    prec->smov =       0;
-    prec->ocsr = csr.All;
+    prec->smov = 0;
 
     diff = prec->rbv  - prec->val;
     if ( prec->mip == MIP_DONE )             // was not moving, check slip_stall
@@ -1056,6 +1055,8 @@ static long process( dbCommon *precord )
     if ( old_rval != prec->rval ) MARK( M_RVAL );
 
     finished:
+    prec->ocsr = csr.All;
+
     if ( reset_us ) send_msg( mInfo, "Us 18000" );
 
     if      ( msta.Bits.RA_PROBLEM                                )  // hardware
@@ -1729,6 +1730,8 @@ static long special( dbAddr *pDbAddr, int after )
 
             break;
         case imsRecordHOMF:
+            prec->homf = 0;
+
             if ( (prec->htyp == imsHTYP_None) ||
                  (prec->mip  != MIP_DONE    ) ||
                  (prec->spg  != imsSPG_Go   )    ) break;
@@ -1736,6 +1739,12 @@ static long special( dbAddr *pDbAddr, int after )
             VI = NINT( prec->vbas / prec->res );
             if ( prec->htyp == imsHTYP_Limits )
             {
+                if ( prec->mode == imsMode_Scan )
+                {
+                    log_msg( prec, 0, "No homing to LS in scan mode" );
+                    break;
+                }
+
                 VM = NINT( prec->velo / prec->res );
                 A  = NINT( (prec->velo - prec->vbas) / prec->res / prec->accl );
                 if ( prec->dir == imsDIR_Positive )
@@ -1770,7 +1779,6 @@ static long special( dbAddr *pDbAddr, int after )
             prec->mip  = MIP_HOMF;
 
             prec->athm = 0;
-            prec->homf = 0;
             msta.Bits.RA_HOMED = 0;
             msta.Bits.RA_HOME  = 0;
             msta.Bits.EA_HOME  = 0;
@@ -1788,6 +1796,8 @@ static long special( dbAddr *pDbAddr, int after )
 
             break;
         case imsRecordHOMR:
+            prec->homr = 0;
+
             if ( (prec->htyp == imsHTYP_None) ||
                  (prec->mip  != MIP_DONE    ) ||
                  (prec->spg  != imsSPG_Go   )    ) break;
@@ -1795,6 +1805,12 @@ static long special( dbAddr *pDbAddr, int after )
             VI = NINT( prec->vbas / prec->res );
             if ( prec->htyp == imsHTYP_Limits )
             {
+                if ( prec->mode == imsMode_Scan )
+                {
+                    log_msg( prec, 0, "No homing to LS in scan mode" );
+                    break;
+                }
+
                 VM = NINT( prec->velo / prec->res );
                 A  = NINT( (prec->velo - prec->vbas) / prec->res / prec->accl );
                 if ( prec->dir == imsDIR_Positive )
@@ -1829,7 +1845,6 @@ static long special( dbAddr *pDbAddr, int after )
             prec->mip  = MIP_HOMR;
 
             prec->athm = 0;
-            prec->homr = 0;
             msta.Bits.RA_HOMED = 0;
             msta.Bits.RA_HOME  = 0;
             msta.Bits.EA_HOME  = 0;
