@@ -1630,16 +1630,19 @@ static long special( dbAddr *pDbAddr, int after )
         case ( imsRecordSTOP ):
             prec->stop = 0;
 
-            if ( prec->mip == MIP_DONE ) break;
-
             send_msg( mInfo, "\e" );
 
-            prec->mip  &= ~MIP_PAUSE;
-            prec->mip  |=  MIP_STOP ;
-            prec->spg   = imsSPG_Stop;
-            db_post_events( prec, &prec->spg,  DBE_VAL_LOG );
+            if ( prec->mip != MIP_DONE )
+            {
+                prec->mip  &= ~MIP_PAUSE;
+                prec->mip  |=  MIP_STOP ;
+                prec->spg   = imsSPG_Stop;
+                db_post_events( prec, &prec->spg,  DBE_VAL_LOG );
 
-            log_msg( prec, 0, "Emergency stop !!!" );
+                log_msg( prec, 0, "Emergency stop !!!" );
+            }
+            else
+                log_msg( prec, 0, "Reset controller"   );
 
             // force a status update
             send_msg( mInfo, "PR \"BOS65536,P=\",P,\"EOS\"" );
@@ -2285,13 +2288,16 @@ static long special( dbAddr *pDbAddr, int after )
             if ( prec->res  != nval )
                 db_post_events( prec, &prec->res,  DBE_VAL_LOG );
 
-            prec->rval = NINT(prec->dval / prec->res);
+            prec->rval = NINT( prec->dval / prec->res );
+            VI         = NINT( prec->vbas / prec->res );
+            VM         = NINT( prec->velo / prec->res );
 
             if ( prec->ee == imsAble_Enable )
-                sprintf( msg, "P %ld\r\nC2 %ld\r\nUs 0", (long)prec->rval,
-                                                         (long)prec->rval );
+                sprintf( msg, "P %ld\r\nC2 %ld\r\nVI %d\r\nVM %d\r\nUs 0",
+                              (long)prec->rval, (long)prec->rval, VI, VM );
             else
-                sprintf( msg, "P %ld\r\nUs 0",           (long)prec->rval );
+                sprintf( msg, "P %ld\r\nVM %d\r\nVI %d\r\nUs 0",
+                              (long)prec->rval,                   VM, VI );
 
             send_msg( mInfo, msg );
 
