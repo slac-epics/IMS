@@ -459,6 +459,40 @@ static long init_motor( imsRecord *prec )
         goto finished;
     }
 
+    // read MS and ES
+    retry = 1;
+    do
+    {
+        flush_asyn( mInfo );
+
+        send_msg( mInfo, "PR \"MS=\",MS,\", ES=\",ES" );
+        status = recv_reply( mInfo, rbbuf );
+        if ( status > 0 )
+        {
+            status = sscanf( rbbuf, "MS=%d, ES=%d", &s1, &s2 );
+            if ( (status == 2) && (s2 >= 0) && (s2 <= 3) )
+            {
+                prec->ms = s1;
+                prec->es = s2;
+
+                db_post_events( prec, &prec->ms  , DBE_VAL_LOG );
+                db_post_events( prec, &prec->es  , DBE_VAL_LOG );
+            }
+            else
+                status = 0;
+        }
+
+        epicsThreadSleep( 0.2 );
+    } while ( (status != 2) && (retry++ < 3) );
+
+    if ( status != 2 )
+    {
+        log_msg( prec, 0, "Failed to read MS and ES" );
+
+        msta.Bits.RA_PROBLEM = 1;
+        goto finished;
+    }
+
     // check the MCode version and running status
     retry = 1;
     do
@@ -572,17 +606,17 @@ static long init_motor( imsRecord *prec )
 
     epicsThreadSleep( 0.1 );
 
-    sprintf( msg, "EE %d\r\nEL %d\r\nMS %d", prec->ee, prec->el, prec->ms   );
+    sprintf( msg, "EE %d\r\nEL %d\r\nMT %d", prec->ee, prec->el, prec->mt   );
     send_msg( mInfo, msg );
 
     epicsThreadSleep( 0.1 );
 
-    sprintf( msg, "MT %d\r\nHT %d\r\nES %d", prec->mt, prec->ht, prec->es   );
+    sprintf( msg, "RC %d\r\nHC %d\r\nHT %d", prec->rc, prec->hc, prec->ht   );
     send_msg( mInfo, msg );
 
     epicsThreadSleep( 0.1 );
 
-    sprintf( msg, "RC %d\r\nHC %d\r\nSk %d", prec->rc, prec->hc, prec->mode );
+    sprintf( msg, "Sk %d",                   prec->mode                     );
     send_msg( mInfo, msg );
 
     if ( prec->hc > 0 )
@@ -1316,8 +1350,8 @@ static void new_move( imsRecord *prec )
 
     prec->smov = 1;
     prec->dmov = 0;
-    send_msg( mInfo, msg    );
-//  send_msg( mInfo, "Us 0" );
+    send_msg( mInfo, msg             );
+    send_msg( mInfo, "R2 0\r\nUs 30" );
 
     return;
 }
@@ -2324,11 +2358,6 @@ static long special( dbAddr *pDbAddr, int after )
             break;
         case imsRecordHT  :
             sprintf( msg, "HT %d", prec->ht );
-            send_msg( mInfo, msg );
-
-            break;
-        case imsRecordES  :
-            sprintf( msg, "ES %d", prec->es );
             send_msg( mInfo, msg );
 
             break;

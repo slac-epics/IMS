@@ -234,8 +234,7 @@ recordtype(ims) {
 		prompt("Escape Mode")
 		promptgroup(GUI_COMMON)
 		menu(imsES)
-		special(SPC_MOD)
-		asl(ASL0)
+		special(SPC_NOMOD)
 		initial("ESC")
 		interest(1)
 	}
