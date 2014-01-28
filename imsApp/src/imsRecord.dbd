@@ -415,6 +415,7 @@ recordtype(ims) {
 	field(PREC,DBF_SHORT) {
 		prompt("Display Precision")
 		promptgroup(GUI_COMMON)
+		initial(4)
 		interest(1)
 	}
 	field(ACCL,DBF_DOUBLE) {

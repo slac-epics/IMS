@@ -2591,33 +2591,187 @@ static long cvt_dbaddr( dbAddr *pDbAddr )
 }
 
 /******************************************************************************/
-static long get_units( dbAddr *paddr, char *units)
+static long get_units( dbAddr *paddr, char *units )
 {
-    return (0);
+    imsRecord *prec = (imsRecord *)paddr->precord;
+    int  size = dbr_units_size - 1;       /* "dbr_units_size" from dbAccess.h */
+    char s[30];
+
+    int  fieldIndex = dbGetFieldIndex( paddr );
+
+    switch ( fieldIndex )
+    {
+        case imsRecordSREV:
+            strcpy ( s, "full steps/rev" );
+
+            break;
+        case imsRecordUREV:
+            strncpy( s, prec->egu, DB_UNITS_SIZE );
+            strcat ( s, "/rev" );
+
+            break;
+        case imsRecordACCL:
+        case imsRecordBACC:
+        case imsRecordHACC:
+            strcpy ( s, "sec" );
+
+            break;
+        case imsRecordSBAS:
+        case imsRecordSMAX:
+        case imsRecordS:
+        case imsRecordBS:
+        case imsRecordHS:
+            strcpy ( s, "rev/sec" );
+
+            break;
+        case imsRecordVBAS:
+        case imsRecordVMAX:
+        case imsRecordVELO:
+        case imsRecordBVEL:
+        case imsRecordHVEL:
+            strncpy( s, prec->egu, DB_UNITS_SIZE );
+            strcat ( s, "/sec" );
+
+            break;
+        default:
+            strncpy( s, prec->egu, DB_UNITS_SIZE );
+            break;
+    }
+
+    s[size] = '\0';
+    strncpy( units, s, size+1 );
+
+    return( 0 );
 }
 
 /******************************************************************************/
-static long get_graphic_double( dbAddr *paddr, struct dbr_grDouble * pgd)
+static long get_precision( dbAddr *paddr, long *precision )
 {
-    return (0);
+    int fieldIndex = dbGetFieldIndex( paddr );
+
+    switch ( fieldIndex )
+    {
+        case imsRecordVERS:
+            *precision = 2;
+
+            break;
+        case imsRecordRVAL:
+        case imsRecordRRBV:
+            *precision = 0;
+
+            break;
+        default:
+            recGblGetPrec( (dbAddr *)paddr, precision );
+
+            break;
+    }
+
+    return( 0 );
 }
 
 /******************************************************************************/
-static long get_control_double( dbAddr *paddr, struct dbr_ctrlDouble * pcd)
+static long get_graphic_double( dbAddr *paddr, struct dbr_grDouble *pgd )
 {
-    return (0);
+    imsRecord *prec = (imsRecord *)paddr->precord;
+
+    int fieldIndex = dbGetFieldIndex( paddr );
+
+    switch ( fieldIndex )
+    {
+        case imsRecordVAL:
+        case imsRecordRBV:
+            pgd->upper_disp_limit = prec->hlm;
+            pgd->lower_disp_limit = prec->llm;
+
+            break;
+        case imsRecordDVAL:
+        case imsRecordDRBV:
+            pgd->upper_disp_limit = prec->dhlm;
+            pgd->lower_disp_limit = prec->dllm;
+
+            break;
+        case imsRecordRVAL:
+        case imsRecordRRBV:
+            pgd->upper_disp_limit = prec->dhlm / prec->res;
+            pgd->lower_disp_limit = prec->dllm / prec->res;
+
+            break;
+        case imsRecordS :
+        case imsRecordBS:
+        case imsRecordHS:
+            pgd->upper_disp_limit = prec->smax;
+            pgd->lower_disp_limit = prec->sbas;
+
+            break;
+        case imsRecordVELO:
+        case imsRecordBVEL:
+        case imsRecordHVEL:
+            pgd->upper_disp_limit = prec->vmax;
+            pgd->lower_disp_limit = prec->vbas;
+
+            break;
+        default:
+            recGblGetGraphicDouble( (dbAddr *)paddr, pgd );
+
+            break;
+    }
+
+    return( 0 );
 }
 
 /******************************************************************************/
-static long get_precision( dbAddr *paddr, long *precision)
+static long get_control_double( dbAddr *paddr, struct dbr_ctrlDouble *pcd )
 {
-    return (0);
+    imsRecord *prec = (imsRecord *)paddr->precord;
+
+    int fieldIndex = dbGetFieldIndex( paddr );
+
+    switch ( fieldIndex )
+    {
+        case imsRecordVAL:
+        case imsRecordRBV:
+            pcd->upper_ctrl_limit = prec->hlm;
+            pcd->lower_ctrl_limit = prec->llm;
+
+            break;
+        case imsRecordDVAL:
+        case imsRecordDRBV:
+            pcd->upper_ctrl_limit = prec->dhlm;
+            pcd->lower_ctrl_limit = prec->dllm;
+
+            break;
+        case imsRecordRVAL:
+        case imsRecordRRBV:
+            pcd->upper_ctrl_limit = prec->dhlm / prec->res;
+            pcd->lower_ctrl_limit = prec->dllm / prec->res;
+
+            break;
+        case imsRecordS :
+        case imsRecordBS:
+        case imsRecordHS:
+            pcd->upper_ctrl_limit = prec->smax;
+            pcd->lower_ctrl_limit = prec->sbas;
+
+            break;
+        case imsRecordVELO:
+        case imsRecordBVEL:
+        case imsRecordHVEL:
+            pcd->upper_ctrl_limit = prec->vmax;
+            pcd->lower_ctrl_limit = prec->vbas;
+
+            break;
+        default:
+            recGblGetControlDouble( (dbAddr *)paddr, pcd );
+            break;
+    }
+
+    return( 0 );
 }
 
 /******************************************************************************/
-static long get_alarm_double( dbAddr  *paddr, struct dbr_alDouble * pad)
+static long get_alarm_double( dbAddr *paddr, struct dbr_alDouble *pad )
 {
-    return (0);
+    return( 0 );
 }
 
 /******************************************************************************/
