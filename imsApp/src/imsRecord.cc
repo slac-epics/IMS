@@ -2647,6 +2647,7 @@ static long get_units( dbAddr *paddr, char *units )
 /******************************************************************************/
 static long get_precision( dbAddr *paddr, long *precision )
 {
+    imsRecord *prec = (imsRecord *)paddr->precord;
     int fieldIndex = dbGetFieldIndex( paddr );
 
     switch ( fieldIndex )
@@ -2661,7 +2662,7 @@ static long get_precision( dbAddr *paddr, long *precision )
 
             break;
         default:
-            recGblGetPrec( (dbAddr *)paddr, precision );
+            *precision = prec->prec;
 
             break;
     }
