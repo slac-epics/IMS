@@ -187,7 +187,7 @@ static long init_record( dbCommon *precord, int pass )
 
     if ( prec->dhlm < prec->dllm ) prec->dhlm = prec->dllm;
 
-    if ( prec->dir == imsDIR_Positive )
+    if ( prec->dir == imsDIR_Pos )
     {
         prec->llm  = prec->off + prec->dllm;
         prec->hlm  = prec->off + prec->dhlm;
@@ -525,7 +525,10 @@ static long init_motor( imsRecord *prec )
         log_msg( prec, 0, "Load MCode ..." );
         post_msgs( prec );
 
-        send_msg( mInfo, "E" );
+        send_msg( mInfo, "E"      );
+        epicsThreadSleep( 1 );
+
+        send_msg( mInfo, "CP"     );
         epicsThreadSleep( 1 );
 
         send_msg( mInfo, "CP 0,1" );
@@ -606,7 +609,8 @@ static long init_motor( imsRecord *prec )
 
     epicsThreadSleep( 0.1 );
 
-    sprintf( msg, "EE %d\r\nEL %d\r\nMT %d", prec->ee, prec->el, prec->mt   );
+    sprintf( msg, "EE %d\r\nEL %d\r\nMT %d", prec->ee, int(prec->el+0.5),
+                                                                 prec->mt   );
     send_msg( mInfo, msg );
 
     epicsThreadSleep( 0.1 );
@@ -813,7 +817,7 @@ static long process( dbCommon *precord )
 
                 prec->smov  =        1;
                 prec->mip  |= MIP_HOMB;
-                if ( prec->dir == imsDIR_Positive )
+                if ( prec->dir == imsDIR_Pos )
                     nval = NINT(       prec->hdst / prec->res );
                 else
                     nval = NINT( -1. * prec->hdst / prec->res );
@@ -877,7 +881,7 @@ static long process( dbCommon *precord )
 
                 prec->smov  =        1;
                 prec->mip  |= MIP_HOMB;
-                if ( prec->dir == imsDIR_Positive )
+                if ( prec->dir == imsDIR_Pos )
                     nval = NINT( -1. * prec->hdst / prec->res );
                 else
                     nval = NINT(       prec->hdst / prec->res );
@@ -951,7 +955,7 @@ static long process( dbCommon *precord )
             VI = NINT( prec->vbas / prec->res );
             VM = NINT( prec->hvel / prec->res );
             A  = NINT( (prec->hvel - prec->vbas) / prec->res / prec->hacc );
-            if ( prec->dir == imsDIR_Positive )
+            if ( prec->dir == imsDIR_Pos )
                 sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nR2 0\r\nSL -%d", VI, A, VM );
             else
                 sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nR2 0\r\nSL  %d", VI, A, VM );
@@ -971,7 +975,7 @@ static long process( dbCommon *precord )
             VI = NINT( prec->vbas / prec->res );
             VM = NINT( prec->hvel / prec->res );
             A  = NINT( (prec->hvel - prec->vbas) / prec->res / prec->hacc );
-            if ( prec->dir == imsDIR_Positive )
+            if ( prec->dir == imsDIR_Pos )
                 sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nR2 0\r\nSL  %d", VI, A, VM );
             else
                 sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nR2 0\r\nSL -%d", VI, A, VM );
@@ -1037,11 +1041,13 @@ static long process( dbCommon *precord )
 //      send_msg( mInfo, "Us 0" );
     }
 //  else if ( (imsMode_Normal   == prec->mode) &&       // normal mode, not scan
-    else if ( (fabs(prec->bdst) <= prec->res ) &&      // no backlash, can retry
-              (fabs(diff)       >= prec->rdbd) &&           // not closed enough
-              (prec->rtry       >  0         ) &&                   // can retry
-              (prec->rcnt       <  prec->rtry) &&              // can retry more
-              ((prec->egag == menuYesNoNO) || (msta.Bits.RA_COMM_ERR == 0)) )
+    else if ( (fabs(diff) >= prec->rdbd) &&                 // not closed enough
+              (prec->rtry >  0         ) &&                         // can retry
+              (prec->rcnt <  prec->rtry) &&                    // can retry more
+              (((prec->egag == menuYesNoYES) && (msta.Bits.RA_COMM_ERR == 0)) ||
+               ((prec->egag == menuYesNoNO ) &&
+                ((prec->ee  == imsAble_Enable  ) ||
+                 (prec->res >= fabs(prec->bdst))    ) ) ) )
     {
         prec->smov  = 1;
         prec->mip  |= MIP_RETRY;
@@ -1174,7 +1180,7 @@ static long process_motor_info( imsRecord *prec, status_word csr, long count )
 
     motor_status  msta;
 
-    int           dir = (prec->dir == imsDIR_Positive) ? 1 : -1;
+    int           dir = (prec->dir == imsDIR_Pos) ? 1 : -1;
 
     if ( csr.Bits.BY0 )
     {
@@ -1296,7 +1302,9 @@ static void new_move( imsRecord *prec )
     char            msg[MAX_MSG_SIZE];
     int             VI, VM, A;
 
-    if ( fabs(prec->bdst) > prec->res )                              // backlash
+    if ( (prec->ee   == imsAble_Disable ) &&
+         (prec->egag == menuYesNoNO     ) &&
+         (prec->res   < fabs(prec->bdst))    )                       // backlash
     {
         if ( ((prec->bdst > 0) && (prec->drbv > prec->dval)) ||
              ((prec->bdst < 0) && (prec->drbv < prec->dval)) ||
@@ -1369,7 +1377,7 @@ static long special( dbAddr *pDbAddr, int after )
     unsigned short  old_mip, alarm_mask = 0;
     motor_status    msta;
 
-    int             dir = (prec->dir == imsDIR_Positive) ? 1 : -1;
+    int             dir = (prec->dir == imsDIR_Pos) ? 1 : -1;
     int             VI, VM, A, fieldIndex = dbGetFieldIndex( pDbAddr );
     int             status = OK;
 
@@ -1388,6 +1396,7 @@ static long special( dbAddr *pDbAddr, int after )
         else if ( fieldIndex == imsRecordEL   ) prec->oval = prec->el  ;
         else if ( fieldIndex == imsRecordMS   ) prec->oval = prec->ms  ;
         else if ( fieldIndex == imsRecordUREV ) prec->oval = prec->urev;
+        else if ( fieldIndex == imsRecordFREV ) prec->oval = prec->frev;
         else if ( fieldIndex == imsRecordSREV ) prec->oval = prec->srev;
         else if ( fieldIndex == imsRecordEE   ) prec->oval = prec->ee  ;
         else if ( fieldIndex == imsRecordRCMX ) prec->oval = prec->rcmx;
@@ -1491,7 +1500,7 @@ static long special( dbAddr *pDbAddr, int after )
                 break;
             }
 
-            new_dval = (prec->val - prec->off) * (2.*prec->dir - 1.);
+            new_dval = (prec->val - prec->off) * (1. - 2.*prec->dir);
             if ( (prec->val < prec->llm) || (prec->val > prec->hlm) ||
                  ((prec->bdst > 0) && (prec->drbv > new_dval) &&
                   ((new_dval - prec->bdst) < prec->dllm)         ) ||
@@ -1550,7 +1559,7 @@ static long special( dbAddr *pDbAddr, int after )
                 break;
             }
 
-            prec->val  = prec->dval * (2.*prec->dir - 1.) + prec->off;
+            prec->val  = prec->dval * (1. - 2.*prec->dir) + prec->off;
 
             do_move2:
             if ( prec->set == imsSET_Set ) break;                     // no move
@@ -1614,7 +1623,7 @@ static long special( dbAddr *pDbAddr, int after )
                 break;
             }
 
-            new_dval = (nval - prec->off) * (2.*prec->dir - 1.);
+            new_dval = (nval - prec->off) * (1. - 2.*prec->dir);
             if ( (nval < prec->llm) || (nval > prec->hlm)          ||
                  ((prec->bdst > 0) && (prec->drbv > new_dval) &&
                   ((new_dval - prec->bdst) < prec->dllm)         ) ||
@@ -1685,7 +1694,7 @@ static long special( dbAddr *pDbAddr, int after )
         case ( imsRecordDIR  ):
             if ( prec->dir == prec->oval ) break;
 
-            if ( prec->dir == imsDIR_Positive )
+            if ( prec->dir == imsDIR_Pos )
             {
                 prec->llm = prec->off + prec->dllm;
                 prec->hlm = prec->off + prec->dhlm;
@@ -1714,7 +1723,7 @@ static long special( dbAddr *pDbAddr, int after )
             db_post_events( prec, &prec->llm,  DBE_VAL_LOG );
             db_post_events( prec, &prec->hlm,  DBE_VAL_LOG );
 
-            prec->rbv  = prec->drbv * (2.*prec->dir - 1.) + prec->off;
+            prec->rbv  = prec->drbv * (1. - 2.*prec->dir) + prec->off;
             prec->val  = prec->rbv;
 
 //          check_software_limits( prec );
@@ -1728,12 +1737,12 @@ static long special( dbAddr *pDbAddr, int after )
             if ( (prec->foff == imsOFF_Variable) ||
                  (prec->egag == menuYesNoYES   )    )
             {
-                prec->off  = prec->rbv - prec->drbv * (2.*prec->dir - 1.);
+                prec->off  = prec->rbv - prec->drbv * (1. - 2.*prec->dir);
                 db_post_events( prec, &prec->off,  DBE_VAL_LOG );
             }
             else
             {
-                new_dval    = (prec->rbv - prec->off) * (2.*prec->dir - 1.);
+                new_dval    = (prec->rbv - prec->off) * (1. - 2.*prec->dir);
                 prec->dllm += new_dval - prec->dval;
                 prec->dhlm += new_dval - prec->dval;
                 prec->rval  = NINT(new_dval / prec->res);
@@ -1751,7 +1760,7 @@ static long special( dbAddr *pDbAddr, int after )
                 db_post_events( prec, &prec->dhlm, DBE_VAL_LOG );
             }
 
-            if ( prec->dir == imsDIR_Positive )
+            if ( prec->dir == imsDIR_Pos )
             {
                 prec->llm = prec->off + prec->dllm;
                 prec->hlm = prec->off + prec->dhlm;
@@ -1784,7 +1793,7 @@ static long special( dbAddr *pDbAddr, int after )
 
                 VM = NINT( prec->velo / prec->res );
                 A  = NINT( (prec->velo - prec->vbas) / prec->res / prec->accl );
-                if ( prec->dir == imsDIR_Positive )
+                if ( prec->dir == imsDIR_Pos )
                     sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nSL  %d", VI, A, VM );
                 else
                     sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nSL -%d", VI, A, VM );
@@ -1793,20 +1802,20 @@ static long special( dbAddr *pDbAddr, int after )
             {
                 VM = NINT( prec->hvel / prec->res );
                 A  = NINT( (prec->hvel - prec->vbas) / prec->res / prec->hacc );
-                if      ( (prec->dir  == imsDIR_Positive) &&
-                          (prec->hege == imsDIR_Positive)    )
+                if      ( (prec->dir  == imsDIR_Pos) &&
+                          (prec->hege == imsDIR_Pos)    )
                     sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 4",
                                   VI, VM, A, MI );
-                else if ( (prec->dir  == imsDIR_Positive) &&
-                          (prec->hege == imsDIR_Negative)    )
+                else if ( (prec->dir  == imsDIR_Pos) &&
+                          (prec->hege == imsDIR_Neg)    )
                     sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 3",
                                   VI, VM, A, MI );
-                else if ( (prec->dir  == imsDIR_Negative) &&
-                          (prec->hege == imsDIR_Positive)    )
+                else if ( (prec->dir  == imsDIR_Neg) &&
+                          (prec->hege == imsDIR_Pos)    )
                     sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 2",
                                   VI, VM, A, MI );
-                else if ( (prec->dir  == imsDIR_Negative) &&
-                          (prec->hege == imsDIR_Negative)    )
+                else if ( (prec->dir  == imsDIR_Neg) &&
+                          (prec->hege == imsDIR_Neg)    )
                     sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 1",
                                   VI, VM, A, MI );
             }
@@ -1850,7 +1859,7 @@ static long special( dbAddr *pDbAddr, int after )
 
                 VM = NINT( prec->velo / prec->res );
                 A  = NINT( (prec->velo - prec->vbas) / prec->res / prec->accl );
-                if ( prec->dir == imsDIR_Positive )
+                if ( prec->dir == imsDIR_Pos )
                     sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nSL -%d", VI, A, VM );
                 else
                     sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nSL  %d", VI, A, VM );
@@ -1859,20 +1868,20 @@ static long special( dbAddr *pDbAddr, int after )
             {
                 VM = NINT( prec->hvel / prec->res );
                 A  = NINT( (prec->hvel - prec->vbas) / prec->res / prec->hacc );
-                if      ( (prec->dir  == imsDIR_Positive) &&
-                          (prec->hege == imsDIR_Positive)    )
+                if      ( (prec->dir  == imsDIR_Pos) &&
+                          (prec->hege == imsDIR_Pos)    )
                     sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 1",
                                   VI, VM, A, MI );
-                else if ( (prec->dir  == imsDIR_Positive) &&
-                          (prec->hege == imsDIR_Negative)    )
+                else if ( (prec->dir  == imsDIR_Pos) &&
+                          (prec->hege == imsDIR_Neg)    )
                     sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 2",
                                   VI, VM, A, MI );
-                else if ( (prec->dir  == imsDIR_Negative) &&
-                          (prec->hege == imsDIR_Positive)    )
+                else if ( (prec->dir  == imsDIR_Neg) &&
+                          (prec->hege == imsDIR_Pos)    )
                     sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 3",
                                   VI, VM, A, MI );
-                else if ( (prec->dir  == imsDIR_Negative) &&
-                          (prec->hege == imsDIR_Negative)    )
+                else if ( (prec->dir  == imsDIR_Neg) &&
+                          (prec->hege == imsDIR_Neg)    )
                     sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 4",
                                   VI, VM, A, MI );
             }
@@ -1902,7 +1911,7 @@ static long special( dbAddr *pDbAddr, int after )
             if ( (prec->athm == 0) || (prec->homs == 0) ) break;
 
             new_rval   = NINT(prec->homd / prec->res);
-            prec->val  = prec->homd * (2.*prec->dir - 1.) + prec->off;
+            prec->val  = prec->homd * (1. - 2.*prec->dir) + prec->off;
             prec->homs = 0;
 
             if ( prec->ee == imsAble_Enable )
@@ -2000,7 +2009,7 @@ static long special( dbAddr *pDbAddr, int after )
                 break;
             }
 
-            if ( prec->dir == imsDIR_Positive )
+            if ( prec->dir == imsDIR_Pos )
             {
                 prec->dllm = prec->llm - prec->off;
                 db_post_events( prec, &prec->dllm, DBE_VAL_LOG );
@@ -2024,7 +2033,7 @@ static long special( dbAddr *pDbAddr, int after )
                 break;
             }
 
-            if ( prec->dir == imsDIR_Positive )
+            if ( prec->dir == imsDIR_Pos )
             {
                 prec->dhlm = prec->hlm - prec->off;
                 db_post_events( prec, &prec->dhlm, DBE_VAL_LOG );
@@ -2044,7 +2053,7 @@ static long special( dbAddr *pDbAddr, int after )
                 break;
             }
 
-            if ( prec->dir == imsDIR_Positive )
+            if ( prec->dir == imsDIR_Pos )
             {
                 prec->llm  = prec->off + prec->dllm;
                 db_post_events( prec, &prec->llm,  DBE_VAL_LOG );
@@ -2064,7 +2073,7 @@ static long special( dbAddr *pDbAddr, int after )
                 break;
             }
 
-            if ( prec->dir == imsDIR_Positive )
+            if ( prec->dir == imsDIR_Pos )
             {
                 prec->hlm  = prec->off + prec->dhlm;
                 db_post_events( prec, &prec->hlm,  DBE_VAL_LOG );
@@ -2128,34 +2137,6 @@ static long special( dbAddr *pDbAddr, int after )
             send_msg( mInfo, "Us 0");
 
             break;
-        case imsRecordEL  :
-            if ( prec->el   <= 0 )
-            {
-                prec->el   = (epicsInt16)prec->oval;
-                db_post_events( prec, &prec->el  , DBE_VAL_LOG );
-                break;
-            }
-
-            sprintf( msg, "EL %d", prec->el );
-            send_msg( mInfo, msg );
-
-            if ( prec->ee == imsAble_Enable ) goto set_res;
-
-            break;
-        case imsRecordMS  :
-            if ( prec->ms   <= 0 )
-            {
-                prec->ms   = (epicsInt16)prec->oval;
-                db_post_events( prec, &prec->ms  , DBE_VAL_LOG );
-                break;
-            }
-
-            sprintf( msg, "MS %d", prec->ms );
-            send_msg( mInfo, msg );
-
-            if ( prec->ee != imsAble_Enable ) goto set_res;
-
-            break;
         case imsRecordUREV:
             if ( prec->urev <= 0. )
             {
@@ -2164,6 +2145,12 @@ static long special( dbAddr *pDbAddr, int after )
                 break;
             }
 
+            prec->mres = prec->urev / prec->srev;
+            prec->eres = prec->urev / prec->el   / 4;
+            db_post_events( prec, &prec->mres, DBE_VAL_LOG );
+            db_post_events( prec, &prec->eres, DBE_VAL_LOG );
+
+            set_urev:
             prec->vbas = prec->urev * prec->sbas;
             prec->vmax = prec->urev * prec->smax;
             prec->velo = prec->urev * prec->s   ;
@@ -2177,17 +2164,15 @@ static long special( dbAddr *pDbAddr, int after )
 
             set_res:
             nval = prec->res;
-            if ( prec->ee == imsAble_Enable )
-                prec->res = prec->urev / prec->el / 4.        ;
-            else
-                prec->res = prec->urev / prec->ms / prec->srev;
+            if ( prec->ee == imsAble_Enable ) prec->res = prec->eres;
+            else                              prec->res = prec->mres;
 
             if ( prec->res != nval )
             {
                 if ( prec->set == imsSET_Use )
                 {
                     prec->drbv = prec->rrbv * prec->res;
-                    prec->rbv  = (2.*prec->dir - 1.) * prec->drbv + prec->off;
+                    prec->rbv  = (1. - 2.*prec->dir) * prec->drbv + prec->off;
                     prec->val  = prec->rbv;
                 }
 
@@ -2195,15 +2180,76 @@ static long special( dbAddr *pDbAddr, int after )
             }
 
             break;
+        case imsRecordMS  :
+            if ( prec->ms   <= 0 )
+            {
+                prec->ms   = (epicsInt16)prec->oval;
+                db_post_events( prec, &prec->ms  , DBE_VAL_LOG );
+                break;
+            }
+
+            sprintf( msg, "MS %d", prec->ms );
+            send_msg( mInfo, msg );
+        case imsRecordFREV:
+            if ( prec->frev <= 0 )
+            {
+                prec->frev = (epicsInt16)prec->oval;
+                db_post_events( prec, &prec->frev, DBE_VAL_LOG );
+                break;
+            }
+
+            prec->srev = prec->frev * prec->ms  ;
+            prec->mres = prec->urev / prec->srev;
+            db_post_events( prec, &prec->srev, DBE_VAL_LOG );
+            db_post_events( prec, &prec->mres, DBE_VAL_LOG );
+
+            if ( prec->ee != imsAble_Enable ) goto set_res;
+
+            break;
         case imsRecordSREV:
             if ( prec->srev <= 0 )
             {
-                prec->srev = (epicsInt16)prec->oval;
+                prec->srev = (epicsInt32)prec->oval;
                 db_post_events( prec, &prec->srev, DBE_VAL_LOG );
                 break;
             }
 
-            goto set_res;
+            prec->frev = prec->srev / prec->ms  ;
+            prec->mres = prec->urev / prec->srev;
+            db_post_events( prec, &prec->frev, DBE_VAL_LOG );
+            db_post_events( prec, &prec->mres, DBE_VAL_LOG );
+
+            if ( prec->ee != imsAble_Enable ) goto set_res;
+
+            break;
+        case imsRecordMRES:
+            prec->urev = prec->srev * prec->mres;
+            db_post_events( prec, &prec->urev, DBE_VAL_LOG );
+
+            goto set_urev;
+        case imsRecordEL  :
+            if ( prec->el   <= 0 )
+            {
+                prec->el   = prec->oval;
+                db_post_events( prec, &prec->el  , DBE_VAL_LOG );
+                break;
+            }
+
+            prec->eres = prec->urev / prec->el / 4;
+            db_post_events( prec, &prec->eres, DBE_VAL_LOG );
+
+            set_el:
+            sprintf( msg, "EL %d", int(prec->el+0.5) );
+            send_msg( mInfo, msg );
+
+            if ( prec->ee == imsAble_Enable ) goto set_res;
+
+            break;
+        case imsRecordERES:
+            prec->el   = prec->urev / prec->eres / 4;
+            db_post_events( prec, &prec->el  , DBE_VAL_LOG );
+
+            goto set_el;
         case imsRecordSBAS:
             if ( (prec->smax > 0.) && (prec->sbas > prec->smax) )
             {
