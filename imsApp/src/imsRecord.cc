@@ -623,6 +623,33 @@ static long init_motor( imsRecord *prec )
     sprintf( msg, "Sk %d",                   prec->mode                     );
     send_msg( mInfo, msg );
 
+    if ( prec->mres == 0. )
+    {
+        prec->srev = prec->frev * prec->ms  ;
+        prec->mres = prec->urev / prec->srev;
+        db_post_events( prec, &prec->srev, DBE_VAL_LOG );
+        db_post_events( prec, &prec->mres, DBE_VAL_LOG );
+    }
+    else
+    {
+        if ( int(prec->urev/prec->mres + 0.000001) != (prec->frev * prec->ms) )
+        {
+            log_msg( prec, 0, "SREV != FREV*MS, please check" );
+
+            msta.Bits.RA_PROBLEM = 1;
+        }
+    }
+
+    if ( prec->eres == 0. )
+    {
+        prec->eres = prec->urev / prec->el / 4;
+        db_post_events( prec, &prec->eres, DBE_VAL_LOG );
+    }
+
+    if ( prec->ee == imsAble_Enable ) prec->res = prec->eres;
+    else                              prec->res = prec->mres;
+    db_post_events( prec, &prec->res,  DBE_VAL_LOG );
+
     if ( prec->hc > 0 )
     {
         prec->hcsv = prec->hc;
@@ -638,11 +665,6 @@ static long init_motor( imsRecord *prec )
 
     mInfo->initialized = 0;
     msta.Bits.NOT_INIT = 1;
-
-    if ( prec->ee == imsAble_Enable )
-        prec->res  = prec->urev / prec->el / 4.        ;
-    else
-        prec->res  = prec->urev / prec->ms / prec->srev;
 
     prec->dmov = 1;
     prec->mip  = MIP_DONE;
@@ -2360,10 +2382,8 @@ static long special( dbAddr *pDbAddr, int after )
             send_msg( mInfo, msg );
 
             nval = prec->res;
-            if ( prec->ee   == imsAble_Enable )
-                prec->res = prec->urev / prec->el / 4.        ;
-            else
-                prec->res = prec->urev / prec->ms / prec->srev;
+            if ( prec->ee   == imsAble_Enable ) prec->res = prec->eres;
+            else                                prec->res = prec->mres;
 
             if ( prec->res  != nval )
                 db_post_events( prec, &prec->res,  DBE_VAL_LOG );

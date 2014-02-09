@@ -21,7 +21,10 @@ $(MOTOR).DVER         86400    monitor
 $(MOTOR).MODE         86400    monitor
 $(MOTOR).EGU          86400    monitor
 $(MOTOR).UREV         86400    monitor
+$(MOTOR).FREV         86400    monitor
 $(MOTOR).SREV         86400    monitor
+$(MOTOR).MRES         86400    monitor
+$(MOTOR).ERES         86400    monitor
 $(MOTOR).DIR          86400    monitor
 $(MOTOR).OFF          86400    monitor
 $(MOTOR).FOFF         86400    monitor
