@@ -130,9 +130,9 @@ record(stringin, "$(MOTOR):SAVED_TS") {
   field(INP,  "@%R:%S %b %d %Y")
 }
 
-record(stringout, "$(MOTOR):FWD_MEANS") {
+record(stringout, "$(MOTOR):FW_MEANS") {
   field(DESC, "Meaning of Forward")
-  field(VAL,  "$(FWD_MEANS)")
+  field(VAL,  "$(FW_MEANS)")
   field(PINI, "YES")
 }
 
@@ -403,7 +403,7 @@ record(seq, "$(MOTOR):COPY_Seq5") {
   field(LNK5, "$(MOTOR):COPY_ESKL.PROC")
   field(DLY6, "0.1")
   field(DO6,  "1")
-  field(LNK6, "$(MOTOR):COPY_FWD_MEANS.PROC")
+  field(LNK6, "$(MOTOR):COPY_FW_MEANS.PROC")
   field(DLY7, "0.1")
   field(DO7,  "1")
   field(LNK7, "$(MOTOR):COPY_REV_MEANS.PROC")
@@ -673,8 +673,8 @@ record(stringout, "$(MOTOR):COPY_ESKL") {
   field(OMSL, "closed_loop")
 }
 
-record(stringout, "$(MOTOR):COPY_FWD_MEANS") {
-  field(VAL,  ":FWD_MEANS")
+record(stringout, "$(MOTOR):COPY_FW_MEANS") {
+  field(VAL,  ":FW_MEANS")
   field(OUT,  "$(MOTOR):COPY_FIELD CPP")
   field(OMSL, "closed_loop")
 }

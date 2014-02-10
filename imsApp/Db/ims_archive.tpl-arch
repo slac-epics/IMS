@@ -95,6 +95,6 @@ $(MOTOR).HCSV         86400    monitor
 $(MOTOR):SAVED_RAW    86400    monitor
 $(MOTOR):SAVED_P      86400    monitor
 
-$(MOTOR):FWD_MEANS    86400    monitor
+$(MOTOR):FW_MEANS     86400    monitor
 $(MOTOR):REV_MEANS    86400    monitor
 
