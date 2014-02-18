@@ -56,6 +56,7 @@ menu(imsHTYP) {
         choice(imsHTYP_Encoder,       "E Mark"           )
         choice(imsHTYP_Switch,        "H Switch"         )
         choice(imsHTYP_Limits,        "Limits"           )
+        choice(imsHTYP_Stall,         "Stall"            )
 }
 menu(imsMode) {
         choice(imsMode_Normal,        "Normal"           )

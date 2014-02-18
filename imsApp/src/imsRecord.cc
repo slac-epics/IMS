@@ -805,8 +805,21 @@ static long process( dbCommon *precord )
         {
             if ( prec->mip & MIP_HOME )                            // was homing
             {
-                log_msg( prec, 0, "Stalled, missed home" );
-                prec->miss = 1;
+                if ( prec->htyp == imsHTYP_Stall )
+                {
+                    prec->miss         = 0;
+                    prec->athm         = 1;
+                    msta.Bits.RA_HOMED = 1;
+                    msta.Bits.RA_HOME  = 1;
+                    log_msg( prec, 0, "Homed to stall/hard stop" );
+
+                    db_post_events( prec, &prec->athm, DBE_VAL_LOG );
+                }
+                else
+                {
+                    log_msg( prec, 0, "Stalled, missed home" );
+                    prec->miss = 1;
+                }
             }
             else if ( prec->mip & MIP_CALI )                  // was calibrating
             {
@@ -1805,9 +1818,11 @@ static long special( dbAddr *pDbAddr, int after )
                  (prec->spg  != imsSPG_Go   )    ) break;
 
             VI = NINT( prec->vbas / prec->res );
-            if ( prec->htyp == imsHTYP_Limits )
+            if ( (prec->htyp == imsHTYP_Limits) ||
+                 (prec->htyp == imsHTYP_Stall )    )
             {
-                if ( prec->mode == imsMode_Scan )
+                if ( (prec->htyp == imsHTYP_Limits) &&
+                     (prec->mode == imsMode_Scan  )    )
                 {
                     log_msg( prec, 0, "No homing to LS in scan mode" );
                     break;
@@ -1871,9 +1886,11 @@ static long special( dbAddr *pDbAddr, int after )
                  (prec->spg  != imsSPG_Go   )    ) break;
 
             VI = NINT( prec->vbas / prec->res );
-            if ( prec->htyp == imsHTYP_Limits )
+            if ( (prec->htyp == imsHTYP_Limits) ||
+                 (prec->htyp == imsHTYP_Stall )    )
             {
-                if ( prec->mode == imsMode_Scan )
+                if ( (prec->htyp == imsHTYP_Limits) &&
+                     (prec->mode == imsMode_Scan  )    )
                 {
                     log_msg( prec, 0, "No homing to LS in scan mode" );
                     break;
