@@ -90,7 +90,7 @@ extern "C" { epicsExportAddress( rset, imsRSET ); }
 #define MIP_JOG      (MIP_JOGF | MIP_JOGR)
 #define MIP_CALI     0x0400    // Calibration
 #define MIP_PAUSE    0x1000    // Move is being paused
-#define MIP_STOP     0x8000    // We're trying to stop.  If a home command
+#define MIP_STOP     0x2000    // We're trying to stop.  If a home command
                                // is issued when the motor is moving, we
                                // stop the motor first
 
@@ -797,7 +797,7 @@ static long process( dbCommon *precord )
          prec->lls || prec->hls ||                         // hit a limit switch
          (prec->mip & MIP_HOME) ||                                 // was homing
          (prec->mip & MIP_CALI) ||                            // was calibrating
-         (prec->mip & (MIP_STOP | MIP_PAUSE))           )       // stop or pause
+         (prec->mip & (MIP_PAUSE | MIP_STOP))           )       // pause or stop
     {
         short newval = 1;
 
@@ -826,7 +826,7 @@ static long process( dbCommon *precord )
                 log_msg( prec, 0, "Stalled, failed to calibrate" );
             }
             else if ( (prec->mip != MIP_DONE) &&
-                      !(prec->mip & (MIP_STOP | MIP_PAUSE)) )      // was moving
+                      !(prec->mip & (MIP_PAUSE | MIP_STOP)) )      // was moving
             {
                 if ( fabs(diff) < prec->rdbd )
                 {
@@ -890,7 +890,7 @@ static long process( dbCommon *precord )
                 log_msg( prec, 0, "Hit low limit, failed to calibrate" );
             }
             else if ( (prec->mip != MIP_DONE) &&
-                      !(prec->mip & (MIP_STOP | MIP_PAUSE)) )      // was moving
+                      !(prec->mip & (MIP_PAUSE | MIP_STOP)) )      // was moving
             {
                 if ( fabs(diff) < prec->rdbd )
                 {
@@ -954,7 +954,7 @@ static long process( dbCommon *precord )
                 log_msg( prec, 0, "Hit high limit, failed to calibrate" );
             }
             else if ( (prec->mip != MIP_DONE) &&
-                      !(prec->mip & (MIP_STOP | MIP_PAUSE)) )      // was moving
+                      !(prec->mip & (MIP_PAUSE | MIP_STOP)) )      // was moving
             {
                 if ( fabs(diff) < prec->rdbd )
                 {
@@ -970,15 +970,15 @@ static long process( dbCommon *precord )
                 }
             }
         }
-        else if ( prec->mip & MIP_STOP  )
-        {
-            log_msg( prec, 0, "Stopped" );
-            prec->miss = 0;
-        }
         else if ( prec->mip & MIP_PAUSE )
         {
             log_msg( prec, 0, "Paused"  );
             newval = 0;
+        }
+        else if ( prec->mip & MIP_STOP  )
+        {
+            log_msg( prec, 0, "Stopped" );
+            prec->miss = 0;
         }
         else if ( prec->mip == (MIP_HOMR | MIP_HOMB) )
         {
@@ -1680,7 +1680,7 @@ static long special( dbAddr *pDbAddr, int after )
             if ( prec->spg == imsSPG_Go )
             {
                 log_msg( prec, 0, "Resume moving" );
-                prec->mip &= ~( MIP_STOP | MIP_PAUSE );
+                prec->mip &= ~( MIP_PAUSE | MIP_STOP );
 
                 sprintf( msg, "MA %d", prec->rval );
                 send_msg( mInfo, msg );
@@ -1707,6 +1707,19 @@ static long special( dbAddr *pDbAddr, int after )
             break;
         case ( imsRecordSTOP ):
             prec->stop = 0;
+
+            if ( prec->mip != MIP_DONE )
+            {
+                log_msg( prec, 0, "Stop, with deceleration"  );
+                prec->mip  &= ~MIP_PAUSE;
+                prec->mip  |=  MIP_STOP ;
+
+                send_msg( mInfo, "SL 0\r\nUs 0" );
+            }
+
+            break;
+        case ( imsRecordESTP ):
+            prec->estp = 0;
 
             send_msg( mInfo, "\e" );
 

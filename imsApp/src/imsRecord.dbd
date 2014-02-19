@@ -612,6 +612,11 @@ recordtype(ims) {
 		interest(1)
 	}
 	field(STOP,DBF_SHORT) {
+		prompt("Single Stop")
+		special(SPC_MOD)
+		asl(ASL0)
+	}
+	field(ESTP,DBF_SHORT) {
 		prompt("Emergency Stop")
 		special(SPC_MOD)
 		asl(ASL0)
