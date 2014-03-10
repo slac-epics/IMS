@@ -11,7 +11,7 @@ record(stringin, "$(MOTOR):TS") {
   field(DESC, "Time Stamp of Last Update")
   field(DTYP, "Soft Timestamp")
   field(TSEL, "$(MOTOR).TIME")
-  field(INP,  "@%b %d %R:%S %Y")
+  field(INP,  "@%R:%S %b %d %Y")
   field(FLNK, "$(MOTOR):UTCS")
 }
 
