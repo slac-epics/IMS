@@ -235,7 +235,7 @@ record(seq, "$(MOTOR):COPY_Seq1") {
   field(LNK3, "$(MOTOR):COPY_UREV.PROC")
   field(DLY4, "0.1")
   field(DO4,  "1")
-  field(LNK4, "$(MOTOR):COPY_SREV.PROC")
+  field(LNK4, "$(MOTOR):COPY_FREV.PROC")
   field(DLY5, "0.1")
   field(DO5,  "1")
   field(LNK5, "$(MOTOR):COPY_MS.PROC")
@@ -405,8 +405,8 @@ record(stringout, "$(MOTOR):COPY_UREV") {
   field(OMSL, "closed_loop")
 }
 
-record(stringout, "$(MOTOR):COPY_SREV") {
-  field(VAL,  ".SREV")
+record(stringout, "$(MOTOR):COPY_FREV") {
+  field(VAL,  ".FREV")
   field(OUT,  "$(MOTOR):COPY_FIELD CPP")
   field(OMSL, "closed_loop")
 }

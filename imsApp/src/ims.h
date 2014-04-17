@@ -14,7 +14,6 @@ struct ims_info
     int               newData;
 
     epicsMutex       *lMutex;
-    int               nMessages;
     int               mLength;
     char             *sAddr;
     int               cIndex;

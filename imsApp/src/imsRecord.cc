@@ -149,7 +149,6 @@ static long init_record( dbCommon *precord, int pass )
     mInfo->cMutex    = new epicsMutex();
 
     mInfo->lMutex    = new epicsMutex();
-    mInfo->nMessages = 8;
     mInfo->mLength   = 61;
     mInfo->cIndex    = 0;
     mInfo->newMsg    = 0;
