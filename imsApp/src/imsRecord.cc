@@ -1414,7 +1414,7 @@ static long special( dbAddr *pDbAddr, int after )
     ims_info       *mInfo = (ims_info *)prec->dpvt;
     char            MI = (prec->htyp == imsHTYP_Switch) ? 'M' : 'I';
     char            msg[MAX_MSG_SIZE], rbbuf[MAX_MSG_SIZE];
-    long            csr, count, old_rval, new_rval;
+    long            csr, count, old_rval;
     short           old_dmov, old_rcnt, old_lvio;
     double          nval, old_val, old_dval, old_rbv, new_dval;
     unsigned short  old_mip, alarm_mask = 0;
@@ -1796,12 +1796,20 @@ static long special( dbAddr *pDbAddr, int after )
             if ( (prec->set == prec->oval) ||
                  (prec->set == imsSET_Set)    ) break;
 
+            log_msg( prec, 0, "Set position from %.6g to %.6g", prec->rbv,
+                                                                prec->val );
+
             prec->rbv  = prec->val;
             if ( (prec->foff == imsOFF_Variable) ||
                  (prec->egag == menuYesNoYES   )    )
             {
+                nval       = prec->off;
+
                 prec->off  = prec->rbv - prec->drbv * (1. - 2.*prec->dir);
                 db_post_events( prec, &prec->off,  DBE_VAL_LOG );
+
+                log_msg( prec, 0, "Changed OFF from %.6g to %.6g", nval,
+                                                                   prec->off  );
             }
             else
             {
@@ -1812,10 +1820,20 @@ static long special( dbAddr *pDbAddr, int after )
                 prec->dval  = new_dval;
 
                 if ( prec->ee == imsAble_Enable )
+                {
+                    log_msg( prec, 0, "Changed C2 from %ld to %ld", prec->rrbv,
+                                                                    prec->rval);
+
                     sprintf( msg, "P %ld\r\nC2 %ld\r\nUs 0", (long)prec->rval,
                                                              (long)prec->rval );
+                }
                 else
+                {
+                    log_msg( prec, 0, "Changed C1 from %ld to %ld", prec->rrbv,
+                                                                    prec->rval);
+
                     sprintf( msg, "P %ld\r\nUs 0",           (long)prec->rval );
+                }
 
                 send_msg( mInfo, msg );
 
@@ -1981,16 +1999,29 @@ static long special( dbAddr *pDbAddr, int after )
         case imsRecordHOMS:
             if ( (prec->athm == 0) || (prec->homs == 0) ) break;
 
-            log_msg( prec, 0, "Set dial to home value" );
+            log_msg( prec, 0, "Set dial from %.6g to HOMD %.6g", prec->drbv,
+                                                                 prec->homd );
 
-            new_rval   = NINT(prec->homd / prec->res);
-            prec->val  = prec->homd * (1. - 2.*prec->dir) + prec->off;
             prec->homs = 0;
+            prec->dval = prec->homd;
+            prec->rval = NINT(prec->homd / prec->res);
+            prec->val  = prec->homd * (1. - 2.*prec->dir) + prec->off;
 
             if ( prec->ee == imsAble_Enable )
-                sprintf( msg, "P %ld\r\nC2 %ld\r\nUs 0", new_rval, new_rval );
+            {
+                log_msg( prec, 0, "Changed C2 from %ld to %ld", prec->rrbv,
+                                                                prec->rval );
+
+                sprintf( msg, "P %ld\r\nC2 %ld\r\nUs 0", (long)prec->rval,
+                                                         (long)prec->rval );
+            }
             else
-                sprintf( msg, "P %ld\r\nUs 0",           new_rval           );
+            {
+                log_msg( prec, 0, "Changed C1 from %ld to %ld", prec->rrbv,
+                                                                prec->rval );
+
+                sprintf( msg, "P %ld\r\nUs 0",           (long)prec->rval );
+            }
 
             send_msg( mInfo, msg );
 
