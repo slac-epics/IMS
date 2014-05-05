@@ -644,6 +644,15 @@ static long init_motor( imsRecord *prec )
         prec->eres = prec->urev / prec->el / 4;
         db_post_events( prec, &prec->eres, DBE_VAL_LOG );
     }
+    else
+    {
+        if ( fabs(prec->urev/prec->el/4/prec->eres - 1) > 0.01 )
+        {
+            log_msg( prec, 0, "ERES != UREV/EL/4, please check" );
+
+            msta.Bits.RA_PROBLEM = 1;
+        }
+    }
 
     if ( prec->ee == imsAble_Enable ) prec->res = prec->eres;
     else                              prec->res = prec->mres;
@@ -971,12 +980,12 @@ static long process( dbCommon *precord )
         }
         else if ( prec->mip & MIP_PAUSE )
         {
-            log_msg( prec, 0, "Paused"  );
+            log_msg( prec, 0, "Paused at %.6g", prec->rbv  );
             newval = 0;
         }
         else if ( prec->mip & MIP_STOP  )
         {
-            log_msg( prec, 0, "Stopped" );
+            log_msg( prec, 0, "Stopped at %.6g", prec->rbv );
             prec->miss = 0;
         }
         else if ( prec->mip == (MIP_HOMR | MIP_HOMB) )
@@ -1743,11 +1752,15 @@ static long special( dbAddr *pDbAddr, int after )
 
             if ( prec->dir == imsDIR_Pos )
             {
+                log_msg( prec, 0, "Changed DIR from Negative to Positive" );
+
                 prec->llm = prec->off + prec->dllm;
                 prec->hlm = prec->off + prec->dhlm;
             }
             else
             {
+                log_msg( prec, 0, "Changed DIR from Positive to Negative" );
+
                 prec->llm = prec->off - prec->dhlm;
                 prec->hlm = prec->off - prec->dllm;
             }
@@ -1763,6 +1776,9 @@ static long special( dbAddr *pDbAddr, int after )
 
             goto change_dir_off;
         case ( imsRecordOFF  ):
+            log_msg( prec, 0, "Changed OFF from %.6g to %.6g", prec->oval,
+                                                               prec->off  );
+
             prec->llm += prec->off - prec->oval;
             prec->hlm += prec->off - prec->oval;
 
@@ -1886,8 +1902,10 @@ static long special( dbAddr *pDbAddr, int after )
                 log_msg( prec, 0, "Homing >> to encoder mark ..." );
             else if ( prec->htyp == imsHTYP_Switch  )
                 log_msg( prec, 0, "Homing >> to home switch ..."  );
-            else
+            else if ( prec->htyp == imsHTYP_Limits  )
                 log_msg( prec, 0, "Homing >> to HLS ..."          );
+            else
+                log_msg( prec, 0, "Homing >> to STALL ..."        );
 
             break;
         case imsRecordHOMR:
@@ -1954,12 +1972,16 @@ static long special( dbAddr *pDbAddr, int after )
                 log_msg( prec, 0, "Homing << to encoder mark ..." );
             else if ( prec->htyp == imsHTYP_Switch  )
                 log_msg( prec, 0, "Homing << to home switch ..."  );
-            else
+            else if ( prec->htyp == imsHTYP_Limits  )
                 log_msg( prec, 0, "Homing << to LLS ..."          );
+            else
+                log_msg( prec, 0, "Homing << to STALL ..."        );
 
             break;
         case imsRecordHOMS:
             if ( (prec->athm == 0) || (prec->homs == 0) ) break;
+
+            log_msg( prec, 0, "Set dial to home value" );
 
             new_rval   = NINT(prec->homd / prec->res);
             prec->val  = prec->homd * (1. - 2.*prec->dir) + prec->off;
