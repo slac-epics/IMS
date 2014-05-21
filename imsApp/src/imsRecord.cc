@@ -197,6 +197,11 @@ static long init_record( dbCommon *precord, int pass )
         prec->hlm  = prec->off - prec->dllm;
     }
 
+    if ( (prec->val < prec->llm) || (prec->val > prec->hlm) )
+        prec->lvio = 1;                           // set limit violation warning
+    else
+        prec->lvio = 0;
+
     return( status );
 }
 
