@@ -2333,7 +2333,9 @@ static long special( dbAddr *pDbAddr, int after )
             break;
         case imsRecordMRES:
             prec->urev = prec->srev * prec->mres;
+            prec->eres = prec->urev / prec->el   / 4;
             db_post_events( prec, &prec->urev, DBE_VAL_LOG );
+            db_post_events( prec, &prec->eres, DBE_VAL_LOG );
 
             goto set_urev;
         case imsRecordEL  :
