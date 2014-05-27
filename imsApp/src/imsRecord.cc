@@ -197,10 +197,8 @@ static long init_record( dbCommon *precord, int pass )
         prec->hlm  = prec->off - prec->dllm;
     }
 
-    if ( (prec->val < prec->llm) || (prec->val > prec->hlm) )
-        prec->lvio = 1;                           // set limit violation warning
-    else
-        prec->lvio = 0;
+    if ( (prec->val < prec->llm) || (prec->val > prec->hlm) ) prec->lvio = 1;
+    else                                                      prec->lvio = 0;
 
     return( status );
 }
@@ -1517,13 +1515,15 @@ static long special( dbAddr *pDbAddr, int after )
 
                 new_dval = count * prec->res;
                 nval     = dir * new_dval + prec->off;
-                log_msg( prec, 0, "Saved %.6g (dial: %.6g, count: %d)", nval, new_dval, count );
+                log_msg( prec, 0, "Saved %.6g (dial: %.6g, count: %d)",
+                                  nval, new_dval, count );
             }
 
             break;
         case imsRecordVAL :
-            if ( (prec->sevr >  MINOR_ALARM) || msta.Bits.RA_POWERUP ||
-                 msta.Bits.RA_COMM_ERR ||
+            change_val:
+            if ( (prec->sevr >  MINOR_ALARM) ||
+                 msta.Bits.RA_POWERUP || msta.Bits.RA_COMM_ERR ||
                  ((prec->set == imsSET_Use) && (prec->spg != imsSPG_Go)) )
             {
                 prec->val  = prec->oval;
@@ -1544,6 +1544,64 @@ static long special( dbAddr *pDbAddr, int after )
                     log_msg( prec, 0, "No move, SPG is not Go"         );
                 else
                     log_msg( prec, 0, "No move/set, unknown alarm"     );
+
+                break;
+            }
+
+            if ( prec->set == imsSET_Set )                            // no move
+            {
+                log_msg( prec, 0, "Set position from %.6g to %.6g", prec->rbv,
+                                                                    prec->val );
+
+                prec->rbv  = prec->val;
+                if ( (prec->foff == imsOFF_Variable) ||
+                     (prec->egag == menuYesNoYES   )    )
+                {
+                    nval       = prec->off;
+
+                    prec->off  = prec->rbv - prec->drbv * (1. - 2.*prec->dir);
+                    db_post_events( prec, &prec->off,  DBE_VAL_LOG );
+
+                    if ( prec->dir == imsDIR_Pos )
+                    {
+                        prec->llm  = prec->off + prec->dllm;
+                        prec->hlm  = prec->off + prec->dhlm;
+                    }
+                    else
+                    {
+                        prec->llm  = prec->off - prec->dhlm;
+                        prec->hlm  = prec->off - prec->dllm;
+                    }
+
+                    db_post_events( prec, &prec->llm,  DBE_VAL_LOG );
+                    db_post_events( prec, &prec->hlm,  DBE_VAL_LOG );
+
+                    log_msg( prec, 0, "Changed OFF from %.6g to %.6g",
+                                      nval, prec->off );
+                }
+                else
+                {
+                    prec->dval = (prec->rbv - prec->off) * (1. - 2.*prec->dir);
+                    prec->rval = NINT(prec->dval / prec->res);
+
+                    if ( prec->ee == imsAble_Enable )
+                    {
+                        log_msg( prec, 0, "Changed C2 from %ld to %ld",
+                                          prec->rrbv, prec->rval );
+
+                        sprintf( msg, "P %ld\r\nC2 %ld\r\nUs 0",
+                                      (long)prec->rval, (long)prec->rval );
+                    }
+                    else
+                    {
+                        log_msg( prec, 0, "Changed C1 from %ld to %ld",
+                                          prec->rrbv, prec->rval );
+
+                        sprintf( msg, "P %ld\r\nUs 0",  (long)prec->rval );
+                    }
+
+                    send_msg( mInfo, msg );
+                }
 
                 break;
             }
@@ -1558,18 +1616,15 @@ static long special( dbAddr *pDbAddr, int after )
                 prec->lvio = 1;                     // set limit violation alarm
                 prec->val  = prec->oval;
 
-                log_msg( prec, 0, "No move/set, limit violated" );
+                log_msg( prec, 0, "No move, limit violated" );
                 break;
             }
 
-            do_move1:
-            if ( prec->set == imsSET_Use )              // do it only when "Use"
-                prec->dval = new_dval;
-
-            goto do_move2;
+            prec->dval = new_dval;
+            goto do_move;
         case imsRecordDVAL:
-            if ( (prec->sevr >  MINOR_ALARM) || msta.Bits.RA_POWERUP ||
-                 msta.Bits.RA_COMM_ERR ||
+            if ( (prec->sevr >  MINOR_ALARM) ||
+                 msta.Bits.RA_POWERUP || msta.Bits.RA_COMM_ERR ||
                  ((prec->set == imsSET_Use) && (prec->spg != imsSPG_Go)) )
             {
                 prec->dval = prec->oval;
@@ -1594,6 +1649,33 @@ static long special( dbAddr *pDbAddr, int after )
                 break;
             }
 
+            if ( prec->set == imsSET_Set )                            // no move
+            {
+                log_msg( prec, 0, "Set dail from %.6g to %.6g", prec->drbv,
+                                                                prec->dval );
+
+                prec->rval = NINT(prec->dval / prec->res);
+
+                if ( prec->ee == imsAble_Enable )
+                {
+                    log_msg( prec, 0, "Changed C2 from %ld to %ld",
+                                      prec->rrbv, prec->rval );
+
+                    sprintf( msg, "P %ld\r\nC2 %ld\r\nUs 0",
+                                  (long)prec->rval, (long)prec->rval );
+                }
+                else
+                {
+                    log_msg( prec, 0, "Changed C1 from %ld to %ld",
+                                      prec->rrbv, prec->rval );
+
+                    sprintf( msg, "P %ld\r\nUs 0",  (long)prec->rval );
+                }
+
+                send_msg( mInfo, msg );
+                break;
+            }
+
             if ( (prec->dval < prec->dllm) || (prec->dval > prec->dhlm) ||
                  ((prec->bdst > 0) && (prec->drbv > prec->dval) &&
                   ((prec->dval - prec->bdst) < prec->dllm)         )    ||
@@ -1603,15 +1685,13 @@ static long special( dbAddr *pDbAddr, int after )
                 prec->lvio = 1;                     // set limit violation alarm
                 prec->dval = prec->oval;
 
-                log_msg( prec, 0, "No move/set, limit violated" );
+                log_msg( prec, 0, "No move, limit violated" );
                 break;
             }
 
             prec->val  = prec->dval * (1. - 2.*prec->dir) + prec->off;
 
-            do_move2:
-            if ( prec->set == imsSET_Set ) break;                     // no move
-
+            do_move:
             prec->lvio = 0;
             prec->rcnt = 0;
 
@@ -1647,46 +1727,10 @@ static long special( dbAddr *pDbAddr, int after )
             nval = prec->rbv - prec->twv;
 
             tweak:
-            if ( (prec->sevr >  MINOR_ALARM) || msta.Bits.RA_POWERUP ||
-                 msta.Bits.RA_COMM_ERR ||
-                 (prec->spg  != imsSPG_Go  )                            )
-            {
-                if      ( msta.Bits.RA_PROBLEM   )
-                    log_msg( prec, 0, "No tweak, hardware problem"  );
-                else if ( msta.Bits.RA_NE        )
-                    log_msg( prec, 0, "No tweak, NE is set"         );
-                else if ( msta.Bits.RA_BY0       )
-                    log_msg( prec, 0, "No tweak, MCode not running" );
-                else if ( msta.Bits.NOT_INIT     )
-                    log_msg( prec, 0, "No tweak, init not finished" );
-                else if ( msta.Bits.RA_POWERUP   )
-                    log_msg( prec, 0, "No tweak, power cycled"      );
-                else if ( msta.Bits.RA_COMM_ERR  )
-                    log_msg( prec, 0, "No tweak, ext guage problem" );
-                else if ( prec->spg != imsSPG_Go )
-                    log_msg( prec, 0, "No tweak, SPG is not Go"     );
-                else
-                    log_msg( prec, 0, "No tweak, unknown alarm"     );
+            prec->oval = prec->val;
+            prec->val  = nval;
 
-                break;
-            }
-
-            new_dval = (nval - prec->off) * (1. - 2.*prec->dir);
-            if ( (nval < prec->llm) || (nval > prec->hlm)          ||
-                 ((prec->bdst > 0) && (prec->drbv > new_dval) &&
-                  ((new_dval - prec->bdst) < prec->dllm)         ) ||
-                 ((prec->bdst < 0) && (prec->drbv < new_dval) &&
-                  ((new_dval - prec->bdst) > prec->dhlm)         )    )
-            {                                    // violated the software limits
-                prec->lvio = 1;                     // set limit violation alarm
-                log_msg( prec, 0, "No tweak, limit violated" );
-
-                break;
-            }
-
-            prec->val = nval;
-
-            goto do_move1;
+            goto change_val;
         case imsRecordSPG :
             if ( (prec->spg == prec->oval) || (prec->mip == MIP_DONE) ) break;
 
@@ -1798,67 +1842,12 @@ static long special( dbAddr *pDbAddr, int after )
 
             break;
         case imsRecordSET :
-            if ( (prec->set == prec->oval) ||
-                 (prec->set == imsSET_Set)    ) break;
+            if ( (prec->set == prec->oval) || (prec->set == imsSET_Set) ) break;
 
-            log_msg( prec, 0, "Set position from %.6g to %.6g", prec->rbv,
-                                                                prec->val );
-
-            prec->rbv  = prec->val;
-            if ( (prec->foff == imsOFF_Variable) ||
-                 (prec->egag == menuYesNoYES   )    )
-            {
-                nval       = prec->off;
-
-                prec->off  = prec->rbv - prec->drbv * (1. - 2.*prec->dir);
-                db_post_events( prec, &prec->off,  DBE_VAL_LOG );
-
-                log_msg( prec, 0, "Changed OFF from %.6g to %.6g", nval,
-                                                                   prec->off  );
-            }
+            if ( (prec->val < prec->llm) || (prec->val > prec->hlm) )
+                prec->lvio = 1;
             else
-            {
-                new_dval    = (prec->rbv - prec->off) * (1. - 2.*prec->dir);
-                prec->dllm += new_dval - prec->dval;
-                prec->dhlm += new_dval - prec->dval;
-                prec->rval  = NINT(new_dval / prec->res);
-                prec->dval  = new_dval;
-
-                if ( prec->ee == imsAble_Enable )
-                {
-                    log_msg( prec, 0, "Changed C2 from %ld to %ld", prec->rrbv,
-                                                                    prec->rval);
-
-                    sprintf( msg, "P %ld\r\nC2 %ld\r\nUs 0", (long)prec->rval,
-                                                             (long)prec->rval );
-                }
-                else
-                {
-                    log_msg( prec, 0, "Changed C1 from %ld to %ld", prec->rrbv,
-                                                                    prec->rval);
-
-                    sprintf( msg, "P %ld\r\nUs 0",           (long)prec->rval );
-                }
-
-                send_msg( mInfo, msg );
-
-                db_post_events( prec, &prec->dllm, DBE_VAL_LOG );
-                db_post_events( prec, &prec->dhlm, DBE_VAL_LOG );
-            }
-
-            if ( prec->dir == imsDIR_Pos )
-            {
-                prec->llm = prec->off + prec->dllm;
-                prec->hlm = prec->off + prec->dhlm;
-            }
-            else
-            {
-                prec->llm = prec->off - prec->dhlm;
-                prec->hlm = prec->off - prec->dllm;
-            }
-
-            db_post_events( prec, &prec->llm,  DBE_VAL_LOG );
-            db_post_events( prec, &prec->hlm,  DBE_VAL_LOG );
+                prec->lvio = 0;
 
             break;
         case imsRecordHOMF:
