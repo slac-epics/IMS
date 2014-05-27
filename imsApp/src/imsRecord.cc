@@ -1655,6 +1655,7 @@ static long special( dbAddr *pDbAddr, int after )
                                                                 prec->dval );
 
                 prec->rval = NINT(prec->dval / prec->res);
+                prec->val  = prec->dval * (1. - 2.*prec->dir) + prec->off;
 
                 if ( prec->ee == imsAble_Enable )
                 {
