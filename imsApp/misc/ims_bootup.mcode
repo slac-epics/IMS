@@ -34,6 +34,9 @@ PG 1
   R2 0              ' Reset the delay counter for status update
   R3 0              ' Reset the delay counter for saving
 
+  CL Bs
+  Os X2
+
   Us 18000
 
   LB Lp
@@ -72,10 +75,12 @@ PG 1
   LB Zc
     CL Zd, Sv=9     ' Save now
 
-    CL Ze, R1>1     ' Delaying
-    CL Zm, R1=0     ' Check for status change or slipping
+    IC R2
 
-    CL Zq, R3>0     ' Delay for saving
+    CL Ze, R1>1     ' Delaying
+    CL Zt, R1=0     ' Check for status change or slipping
+
+    CL Zx, R3>0     ' Delay for saving
     RT
 
   LB Zd
@@ -88,9 +93,8 @@ PG 1
     RT
 
   LB Ze
-    IC R2
     CL Zf, R1>2
-    CL Zk, R1=2
+    CL Zr, R1=2
     RT
 
   LB Zf
@@ -98,32 +102,51 @@ PG 1
     RT
 
   LB Zg
-    R3 5-R1
-    CL Zh, R1=4
+    CL Zl, R1=3
+    CL Zn, R1=4
+    CL Zm, R1=5
 
-    R1 0
     R2 1
     RT
 
-  LB Zh
+  LB Zl
+    R1 0
+    R3 1
+    RT
+
+  LB Zm
+    R1 0
+    RT
+
+  LB Zn
     Xl p1-Sd
     Xh p1+Sd
-    CL Zi, P>=Xl    ' Came back or not
+    CL Zo, P<Xl     ' Continue to slip
+    CL Zo, P>Xh     ' Continue to slip
+    CL Zp, P>=Xl    ' Stopped slipping or not
     RT
 
-  LB Zi
-    CL Zj, P<=Xh    ' Came back
+  LB Zo
+    PR "BOS", X2, ",P=", P, "EOS"
+    p1 P
+
+    CL Re, Us=0     ' Reset the status update delay
     RT
 
-  LB Zj
-    R3 0            ' Came back, reset the delay counter
+  LB Zp
+    CL Zq, P<=Xh    ' Stopped slipping
     RT
 
-  LB Zk
-    CL Zl, R2>30
+  LB Zq
+    R1 0
+    R3 1
     RT
 
-  LB Zl
+  LB Zr
+    CL Zs, R2>30
+    RT
+
+  LB Zs
     CL Rp
 
     Os X2
@@ -132,30 +155,31 @@ PG 1
     R1 3
     RT
 
-  LB Zm
+  LB Zt
     CL Bs           ' Build the status word
 
-    CL Zn, X2=Os    ' Check for slipping
-    CL Zp, X2<>Os   ' Report immediately
+    CL Zu, X2=Os    ' Check for slipping
+    CL Zw, X2<>Os   ' Report immediately
+
+    CL Rp, R2>Us
     RT
 
-  LB Zn
+  LB Zu
     Xl p1-Sd
     Xh p1+Sd
-    CL Zo, P<Xl	    ' Slipped below deadband
-    CL Zo, P>Xh	    ' Slipped above deadband
+    CL Zv, P<Xl	    ' Slipped below deadband
+    CL Zv, P>Xh	    ' Slipped above deadband
     RT
 
-  LB Zo
-    PR "BOS", X2, ",P=", P, "EOS"
-    p1 P
+  LB Zv
+    CL Zo
 
     R1 4            ' Delay started by slipping
     R2 1            ' Reset the delay counter
-    CL Re, Us=0     ' Reset the status update delay
+    R3 0            ' Reset the delay counter
     RT
 
-  LB Zp
+  LB Zw
     PR "BOS", X2, ",P=", P, "EOS"
     Os X2
 
@@ -164,16 +188,16 @@ PG 1
     CL Re, Us=0     ' Reset the status update delay
     RT
 
-  LB Zq
+  LB Zx
     IC R3
-    CL Zr, R3>3000  ' Has delayed about 45 seconds
+    CL Zy, R3>3000  ' Has delayed about 45 seconds
     RT
 
-  LB Zr
-    CL Zs, Sv=0
+  LB Zy
+    CL Zz, Sv=0
     RT
 
-  LB Zs
+  LB Zz
     Sv 1
     PR "Want2Save"
     RT
