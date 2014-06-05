@@ -58,6 +58,7 @@ PG 1
   LB Yc
     R1 1            ' Set the moving flag
     R2 1            ' Reset the delay counter
+    R3 0            ' Reset the delay counter
     Us 30
     RT
 
@@ -190,7 +191,7 @@ PG 1
 
   LB Zx
     IC R3
-    CL Zy, R3>3000  ' Has delayed about 45 seconds
+    CL Zy, R3>1500  ' Has delayed about 45 seconds
     RT
 
   LB Zy
