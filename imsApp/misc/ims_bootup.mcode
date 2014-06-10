@@ -13,6 +13,7 @@ VA Xl
 VA Xh
 VA X1
 VA X2
+VA X3
 
 Ve 1      ' Version 1
 Ne 0      ' Disable numeric cmd
@@ -34,7 +35,7 @@ PG 1
   R2 0              ' Reset the delay counter for status update
   R3 0              ' Reset the delay counter for saving
 
-  CL Bs
+  CL Rp
   Os X2
 
   Us 18000
@@ -128,7 +129,8 @@ PG 1
     RT
 
   LB Zo
-    PR "BOS", X2, ",P=", P, "EOS"
+    X3 X2+MV        ' LSB is MV
+    PR "BOS", X3, ",P=", P, "EOS"
     p1 P
 
     CL Re, Us=0     ' Reset the status update delay
@@ -181,8 +183,10 @@ PG 1
     RT
 
   LB Zw
-    PR "BOS", X2, ",P=", P, "EOS"
     Os X2
+
+    X2 X2+MV        ' LSB is MV
+    PR "BOS", X2, ",P=", P, "EOS"
 
     R1 5            ' Delay started by status change
     R2 1            ' Reset the delay counter
@@ -229,8 +233,6 @@ PG 1
 
     X1 EE*    2     ' bit-2 is encoder enable
     X2 X2+X1
-
-    X2 X2+MV        ' LSB is MV
     RT
 
   LB Rp
@@ -250,6 +252,7 @@ PG 1
     Sr 0
 
     CL Bs
+    X2 X2+MV        ' LSB is MV
 
     PR "BOS", X2, ",P=", P, "EOS"
     RT
