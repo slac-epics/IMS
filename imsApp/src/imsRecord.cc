@@ -1722,10 +1722,10 @@ static long special( dbAddr *pDbAddr, int after )
 
             break;
         case imsRecordTWF :
-            nval = prec->rbv + prec->twv;
+            nval = prec->rbv + prec->twf * prec->twv;
             goto tweak;
         case imsRecordTWR :
-            nval = prec->rbv - prec->twv;
+            nval = prec->rbv - prec->twr * prec->twv;
 
             tweak:
             prec->oval = prec->val;
@@ -2055,7 +2055,7 @@ static long special( dbAddr *pDbAddr, int after )
                     prec->dmov = 0;
                     prec->mip  = MIP_CALI;
 
-                    sprintf(msg, "C1 0\r\nC2 0\r\nMR  %d", prec->srev*prec->ms);
+                    sprintf( msg, "C1 0\r\nC2 0\r\nMR  %d", prec->srev );
                     send_msg( mInfo, msg    );
 //                  send_msg( mInfo, "Us 0" );
                 }
@@ -2082,7 +2082,7 @@ static long special( dbAddr *pDbAddr, int after )
                     prec->dmov = 0;
                     prec->mip  = MIP_CALI;
 
-                    sprintf(msg, "C1 0\r\nC2 0\r\nMR -%d", prec->srev*prec->ms);
+                    sprintf( msg, "C1 0\r\nC2 0\r\nMR -%d", prec->srev );
                     send_msg( mInfo, msg    );
 //                  send_msg( mInfo, "Us 0" );
                 }
