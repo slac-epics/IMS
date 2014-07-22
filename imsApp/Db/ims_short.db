@@ -326,9 +326,9 @@ record(seq, "$(MOTOR):COPY_Seq3") {
   field(DLY8, "0.2")
   field(DO8,  "1")
   field(LNK8, "$(MOTOR):COPY_HC.PROC")
-  field(DLY9, "0.2")
-  field(DO9,  "1")
-  field(LNK9, "$(MOTOR):COPY_HCSV.PROC")
+# field(DLY9, "0.2")
+# field(DO9,  "1")
+# field(LNK9, "$(MOTOR):COPY_HCSV.PROC")
   field(FLNK, "$(MOTOR):COPY_Seq4")
 }
 
