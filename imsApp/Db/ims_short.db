@@ -114,6 +114,14 @@ record(stringout, "$(MOTOR):REV_MEANS") {
   field(PINI, "YES")
 }
 
+record(waveform, "$(MOTOR):CFG_FILE") {
+  field(DESC, "Path & Name of Config File")
+  field(FTVL, "CHAR")
+  field(NELM, 256)
+  field(VAL,  "")
+  field(PINI, "YES")
+}
+
 record(calcout, "$(MOTOR):CheckUpdate") {
   field(DESC, "Check Update Time")
   field(INPA, "$(MOTOR):UTC           NPP")
@@ -227,12 +235,12 @@ record(stringout, "$(MOTOR):COPY_FROM") {
 
 record(seq, "$(MOTOR):COPY_Seq1") {
   field(DESC, "Copy Settings Seq 1")
-  field(DLY1, "0")
-  field(DO1,  "1")
-  field(LNK1, "$(MOTOR):COPY_TYPE.PROC")
-  field(DLY2, "0.1")
-  field(DO2,  "1")
-  field(LNK2, "$(MOTOR):COPY_EGU.PROC")
+# field(DLY1, "0")
+# field(DO1,  "1")
+# field(LNK1, "$(MOTOR):COPY_TYPE.PROC")
+# field(DLY2, "0.1")
+# field(DO2,  "1")
+# field(LNK2, "$(MOTOR):COPY_EGU.PROC")
   field(DLY3, "0.1")
   field(DO3,  "1")
   field(LNK3, "$(MOTOR):COPY_UREV.PROC")
