@@ -146,7 +146,6 @@ record(waveform, "$(MOTOR):CFG_FILE") {
   field(DESC, "Path & Name of Config File")
   field(FTVL, "CHAR")
   field(NELM, 256)
-  field(VAL,  "")
   field(PINI, "YES")
 }
 
