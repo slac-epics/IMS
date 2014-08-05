@@ -774,10 +774,6 @@ recordtype(ims) {
 		special(SPC_NOMOD)
 		interest(1)
 	}
-	field(RCON,DBF_SHORT) {
-		prompt("Re-connect to the Controller")
-		special(SPC_MOD)
-	}
 	field(RINI,DBF_SHORT) {
 		prompt("Re-initialize")
 		special(SPC_MOD)

@@ -814,7 +814,13 @@ static long process( dbCommon *precord )
 
         if ( msta.Bits.RA_STALL && (! msta.Bits.RA_SM) )
         {
-            if ( prec->mip & MIP_HOME )                            // was homing
+            if ( prec->mip & MIP_JOG )                            // was jogging
+            {
+                prec->jogf = 0;
+                prec->jogr = 0;
+                log_msg( prec, 0, "Jogging stopped due to stall" );
+            }
+            else if ( prec->mip & MIP_HOME )                       // was homing
             {
                 if ( prec->htyp == imsHTYP_Stall )
                 {
@@ -855,7 +861,13 @@ static long process( dbCommon *precord )
         }
         else if ( prec->lls )
         {
-            if      ( (prec->htyp == imsHTYP_Limits       ) &&
+            if ( prec->mip & MIP_JOG )                            // was jogging
+            {
+                prec->jogf = 0;
+                prec->jogr = 0;
+                log_msg( prec, 0, "Jogging stopped due to LLS" );
+            }
+            else if ( (prec->htyp == imsHTYP_Limits       ) &&
                       (prec->mip  == MIP_HOMR             )    )  // home to LLS
             {
                 log_msg( prec, 0, "Back off from LLS (HDST: %.6g), with ACCL & VELO",
@@ -919,7 +931,13 @@ static long process( dbCommon *precord )
         }
         else if ( prec->hls )
         {
-            if      ( (prec->htyp == imsHTYP_Limits       ) &&
+            if ( prec->mip & MIP_JOG )                            // was jogging
+            {
+                prec->jogf = 0;
+                prec->jogr = 0;
+                log_msg( prec, 0, "Jogging stopped due to HLS" );
+            }
+            else if ( (prec->htyp == imsHTYP_Limits       ) &&
                       (prec->mip  == MIP_HOMF             )    )  // home to HLS
             {
                 log_msg( prec, 0, "Back off from HLS (HDST: %.6g), with ACCL & VELO",
@@ -1795,6 +1813,87 @@ static long special( dbAddr *pDbAddr, int after )
 
             // force a status update
             send_msg( mInfo, "PR \"BOS65536,P=\",P,\"EOS\"" );
+
+            break;
+        case ( imsRecordJOGF ):
+        case ( imsRecordJOGR ):
+            if ( (prec->sevr >  MINOR_ALARM) ||
+                 msta.Bits.RA_POWERUP || msta.Bits.RA_COMM_ERR ||
+                 ((prec->set == imsSET_Use) && (prec->spg != imsSPG_Go)) )
+            {
+                prec->jogf = 0;
+                prec->jogr = 0;
+
+                if      ( msta.Bits.RA_PROBLEM   )
+                    log_msg( prec, 0, "No jogging, hardware problem"  );
+                else if ( msta.Bits.RA_NE        )
+                    log_msg( prec, 0, "No jogging, NE is set"         );
+                else if ( msta.Bits.RA_BY0       )
+                    log_msg( prec, 0, "No jogging, MCode not running" );
+                else if ( msta.Bits.NOT_INIT     )
+                    log_msg( prec, 0, "No jogging, init not finished" );
+                else if ( msta.Bits.RA_POWERUP   )
+                    log_msg( prec, 0, "No jogging, power cycled"      );
+                else if ( msta.Bits.RA_COMM_ERR  )
+                    log_msg( prec, 0, "No jogging, ext guage problem" );
+                else if ( prec->spg != imsSPG_Go )
+                    log_msg( prec, 0, "No jogging, SPG is not Go"     );
+                else
+                    log_msg( prec, 0, "No jogging, unknown alarm"     );
+
+                break;
+            }
+
+            if ( (prec->jogf == 0) && (prec->jogr == 0) )
+            {
+                if ( prec->mip & MIP_JOG )
+                {
+                    log_msg( prec, 0, "Stop jogging ..." );
+                    prec->mip &= ~MIP_PAUSE;
+                    prec->mip |=  MIP_STOP ;
+
+                    send_msg( mInfo, "SL 0\r\nUs 0" );
+                }
+            }
+            else if ( prec->mip == MIP_DONE )
+            {
+                VI = NINT( prec->vbas / prec->res );
+                VM = NINT( prec->velo / prec->res );
+                A  = NINT( (prec->velo - prec->vbas) / prec->res / prec->accl );
+
+                if ( prec->jogf > 0 )
+                {
+                    if ( prec->dir == imsDIR_Pos )
+                        sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nSL  %d", VI, A, VM );
+                    else
+                        sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nSL -%d", VI, A, VM );
+
+                    prec->mip  = MIP_JOGF;
+                    log_msg( prec, 0, "Jogging forward ..." );
+                }
+                else
+                {
+                    if ( prec->dir == imsDIR_Pos )
+                        sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nSL -%d", VI, A, VM );
+                    else
+                        sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nSL  %d", VI, A, VM );
+
+                    prec->mip  = MIP_JOGR;
+                    log_msg( prec, 0, "Jogging backward ..." );
+                }
+ 
+                prec->smov = 1;
+                prec->dmov = 0;
+
+                prec->athm = 0;
+                msta.Bits.RA_HOMED = 0;
+                msta.Bits.RA_HOME  = 0;
+                msta.Bits.EA_HOME  = 0;
+
+                db_post_events( prec, &prec->athm, DBE_VAL_LOG );
+
+                send_msg( mInfo, msg );
+            }
 
             break;
         case ( imsRecordDIR  ):

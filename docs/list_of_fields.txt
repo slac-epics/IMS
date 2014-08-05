@@ -1,0 +1,179 @@
+char			NAME[61];	/* Record Name */
+char			DESC[41];	/* Descriptor */
+char			ASG[29];	/* Access Security Group */
+epicsEnum16		SCAN;		/* Scan Mechanism */
+epicsEnum16		PINI;		/* Process at iocInit */
+epicsInt16		PHAS;		/* Scan Phase */
+epicsInt16		EVNT;		/* Event Number */
+epicsInt16		TSE;		/* Time Stamp Event */
+DBLINK			TSEL;		/* Time Stamp Link */
+epicsEnum16		DTYP;		/* Device Type */
+epicsInt16		DISV;		/* Disable Value */
+epicsInt16		DISA;		/* Disable */
+DBLINK			SDIS;		/* Scanning Disable */
+epicsUInt8		DISP;		/* Disable putField */
+epicsUInt8		PROC;		/* Force Processing */
+epicsEnum16		STAT;		/* Alarm Status */
+epicsEnum16		SEVR;		/* Alarm Severity */
+epicsEnum16		NSTA;		/* New Alarm Status */
+epicsEnum16		NSEV;		/* New Alarm Severity */
+epicsEnum16		ACKS;		/* Alarm Ack Severity */
+epicsEnum16		ACKT;		/* Alarm Ack Transient */
+epicsEnum16		DISS;		/* Disable Alarm Sevrty */
+epicsUInt8		LCNT;		/* Lock Count */
+epicsUInt8		PACT;		/* Record active */
+epicsUInt8		PUTF;		/* dbPutField process */
+epicsUInt8		RPRO;		/* Reprocess  */
+epicsEnum16		PRIO;		/* Scheduling Priority */
+epicsUInt8		TPRO;		/* Trace Processing */
+epicsUInt8		UDF;		/* Undefined */
+DBLINK			FLNK;		/* Forward Process Link */
+epicsFloat32		VERS;		/* Code Version */
+char			HOST[61];	/* Name of Host Machine */
+char			IOCN[61];	/* Linux Name of IOC */
+char			PORT[61];	/* Serial Port */
+char			ASYN[61];	/* Asyn Tag */
+char			TYPE[61];	/* Type of the Motor */
+char			PN[61];		/* Part Number */
+char			SN[61];		/* Serial Number */
+char			VR[61];		/* Firmware Version */
+epicsEnum16		S1;		/* S1 Setting */
+epicsEnum16		S2;		/* S2 Setting */
+epicsEnum16		S3;		/* S3 Setting */
+epicsEnum16		S4;		/* S4 Setting */
+epicsEnum16		LM;		/* Limit Stop Mode */
+epicsEnum16		SM;		/* Stall Mode */
+epicsUInt16		SF;		/* Stall factor */
+epicsEnum16		STSV;		/* Stall Severity */
+epicsEnum16		ERSV;		/* Error Severity */
+epicsEnum16		EE;		/* Encoder Enable */
+epicsFloat64		EL;		/* Encoder Lines */
+epicsInt16		MS;		/* Microstep Revolution */
+epicsUInt16		MT;		/* Settling Delay Time (ms) */
+epicsUInt16		HT;		/* Holding Current Delay Time (ms) */
+epicsEnum16		ES;		/* Escape Mode */
+epicsInt16		RCMX;		/* Max Running Current */
+epicsInt16		RC;		/* Running Current */
+epicsInt16		HCMX;		/* Max Holding Current */
+epicsInt16		HC;		/* Holding Current */
+char			MPGM[61];	/* Name of the MCode Program */
+epicsUInt16		DVER;		/* Desired MCode Version */
+epicsEnum16		MODE;		/* Running Mode */
+char			EGU[16];	/* Engineering Units */
+epicsFloat64		UREV;		/* EGU's Per Revolution */
+epicsInt16		FREV;		/* Full Steps Per Resolution */
+epicsInt32		SREV;		/* Micro Steps Per Resolution */
+epicsFloat64		MRES;		/* Motor Micro Step Size (EGU) */
+epicsFloat64		ERES;		/* Encoder Step Size (EGU) */
+epicsFloat64		RES;		/* Step Size (EGU) */
+epicsEnum16		DIR;		/* User Direction */
+epicsFloat64		OFF;		/* User Offset (EGU) */
+epicsEnum16		FOFF;		/* Adjust Offset / Controller */
+epicsEnum16		SET;		/* Set/Use Switch */
+epicsEnum16		HTYP;		/* Homing Type */
+epicsEnum16		HEGE;		/* Homing Edge */
+epicsFloat64		BDST;		/* BL Distance (EGU) */
+epicsFloat64		HDST;		/* Homing Distance (EGU) */
+epicsFloat64		DLLM;		/* Dial Low Limit (EGU) */
+epicsFloat64		DHLM;		/* Dial High Limit (EGU) */
+epicsFloat64		LLM;		/* User Low Limit (EGU) */
+epicsFloat64		HLM;		/* User High Limit (EGU) */
+epicsFloat64		RDBD;		/* Retry Deadband (EGU) */
+epicsInt16		RTRY;		/* Max No of Retries */
+epicsInt16		RCNT;		/* Retry Count */
+epicsInt16		MISS;		/* Hit or Miss */
+epicsFloat64		PDBD;		/* Position Tolerance (EGU) */
+epicsInt16		PREC;		/* Display Precision */
+epicsFloat64		ACCL;		/* Seconds to Velocity */
+epicsFloat64		SBAS;		/* Base Speed (RPS) */
+epicsFloat64		SMAX;		/* Max. Speed (RPS) */
+epicsFloat64		S;		/* Speed (revolutions/sec) */
+epicsFloat64		VBAS;		/* Base Velocity (EGU/s) */
+epicsFloat64		VMAX;		/* Max. Velocity (EGU/s) */
+epicsFloat64		VELO;		/* Velocity (EGU/s) */
+epicsFloat64		BACC;		/* BL Seconds to Velocity */
+epicsFloat64		BS;		/* BL Speed (RPS) */
+epicsFloat64		BVEL;		/* BL Velocity (EGU/s) */
+epicsFloat64		HACC;		/* Home Seconds to Velocity */
+epicsFloat64		HS;		/* Home Speed (RPS) */
+epicsFloat64		HVEL;		/* Home Velocity (EGU/s) */
+epicsInt16		ATHM;		/* At HOME */
+epicsFloat64		VAL;		/* User Desired Value (EGU) */
+epicsFloat64		DVAL;		/* Dial Desired Value (EGU) */
+epicsInt32		RVAL;		/* Raw Desired Value (step) */
+epicsFloat64		TWV;		/* Tweak Amount (EGU) */
+epicsInt16		TWF;		/* Tweak Motor Forward */
+epicsInt16		TWR;		/* Tweak Motor Reverse */
+epicsFloat64		HOMD;		/* Dial Position For Home */
+epicsInt16		HOMF;		/* Home Forward */
+epicsInt16		HOMR;		/* Home Reverse */
+epicsInt16		HOMS;		/* Set Dial Position For Home */
+epicsInt16		JOGF;		/* Jog Forward */
+epicsInt16		JOGR;		/* Jog Reverse */
+epicsInt16		CALF;		/* Calibration Forward */
+epicsInt16		CALR;		/* Calibration Reverse */
+epicsInt16		LVIO;		/* Limit Violation */
+epicsEnum16		SPG;		/* Stop/Pause/Go */
+epicsInt16		STOP;		/* Single Stop */
+epicsInt16		ESTP;		/* Emergency Stop */
+epicsInt16		SMOV;		/* Started Move */
+epicsInt16		MOVN;		/* Moving or Not */
+epicsInt16		DMOV;		/* Done Moving to Position */
+epicsUInt16		MIP;		/* Motion In Progress */
+epicsInt32		RRBV;		/* Raw Readback Value */
+epicsFloat64		DRBV;		/* Dial Readback Value */
+epicsFloat64		RBV;		/* User Readback Value */
+epicsFloat64		DIFF;		/* Difference rbv-val */
+epicsInt16		RLLS;		/* Raw Low Limit Switch */
+epicsInt16		RHLS;		/* Raw High Limit Switch */
+epicsInt16		LLS;		/* User Low Limit Switch */
+epicsInt16		HLS;		/* User High Limit Switch */
+epicsEnum16		HLSV;		/* HW Limit Violation Svr */
+epicsUInt32		MSTA;		/* Motor Status Bit Map */
+			RA_DIRECTION    :1; // (last) 0=Negative, 1=Positive
+			RA_DONE         :1; // a motion is complete
+			RA_PLUS_LS      :1; // plus limit switch has been hit
+			RA_HOME         :1; // home signal is on
+			RA_SM           :1; // continue on stall detect
+			EA_POSITION     :1; // position maintenence enabled
+			EA_SLIP_STALL   :1; // slip/stall detected
+			EA_HOME         :1; // encoder home signal on
+			RA_EE           :1; // encoder enable
+			RA_PROBLEM      :1; // driver stopped polling
+			RA_MOVING       :1; // non-zero velocity present
+			GAIN_SUPPORT    :1; // support closed-loop position control
+			RA_COMM_ERR     :1; // controller communication error
+			RA_MINUS_LS     :1; // minus limit switch has been hit
+			RA_HOMED        :1; // axis has been homed
+			RA_ERR          :7; // error number
+			RA_STALL        :1; // stall detected
+			RA_POWERUP      :1; // power-cycled
+			RA_NE           :1; // numeric enable
+			RA_BY0          :1; // MCode not running (BY = 0)
+			NA              :5; // un-used bits
+			NOT_INIT        :1; // initialization not finished
+epicsFloat64		OVAL;		/* Original Value */
+epicsUInt32		CMAP;		/* Bit Map of Changed Field */
+epicsInt16		PING;		/* Ping The Controller */
+char			SSTR[61];	/* Status String */
+epicsUInt32		OCSR;		/* Previous CSR */
+char			SVNG[61];	/* Controller To Save */
+epicsInt16		HCSV;		/* Saved HC Setting */
+epicsEnum16		HCTG;		/* Zero/Restore HC Setting */
+char			CMD[61];	/* Command To Controller */
+char			RESP[61];	/* Response From Controller */
+epicsEnum16		EGAG;		/* Use External Guage */
+DBLINK			ERBL;		/* External Guage Readback Link */
+epicsFloat64		ESKL;		/* External Guage Scale */
+epicsFloat64		ERBV;		/* External Guage RBV */
+epicsInt16		RINI;		/* Re-initialize */
+epicsInt16		DLVL;		/* Debugging Level */
+char			LOGA[61];	/* Log Message A */
+char			LOGB[61];	/* Log Message B */
+char			LOGC[61];	/* Log Message C */
+char			LOGD[61];	/* Log Message D */
+char			LOGE[61];	/* Log Message E */
+char			LOGF[61];	/* Log Message F */
+char			LOGG[61];	/* Log Message G */
+char			LOGH[61];	/* Log Message H */
+
