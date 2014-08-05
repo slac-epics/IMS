@@ -11,7 +11,7 @@ record(stringin, "$(MOTOR):TS") {
   field(DESC, "Time Stamp of Last Update")
   field(DTYP, "Soft Timestamp")
   field(TSEL, "$(MOTOR).TIME")
-  field(INP,  "@%b %d %R:%S %Y")
+  field(INP,  "@%R:%S %b %d %Y")
   field(FLNK, "$(MOTOR):UTCS")
 }
 
@@ -102,7 +102,7 @@ record(stringin, "$(MOTOR):SAVED_TS") {
   field(INP,  "@%R:%S %b %d %Y")
 }
 
-record(stringout, "$(MOTOR):FWD_MEANS") {
+record(stringout, "$(MOTOR):FW_MEANS") {
   field(DESC, "Meaning of Forward")
   field(VAL,  "+")
   field(PINI, "YES")
@@ -111,6 +111,13 @@ record(stringout, "$(MOTOR):FWD_MEANS") {
 record(stringout, "$(MOTOR):REV_MEANS") {
   field(DESC, "Meaning of Reverse")
   field(VAL,  "-")
+  field(PINI, "YES")
+}
+
+record(waveform, "$(MOTOR):CFG_FILE") {
+  field(DESC, "Path & Name of Config File")
+  field(FTVL, "CHAR")
+  field(NELM, 256)
   field(PINI, "YES")
 }
 
@@ -208,13 +215,16 @@ record(seq, "$(MOTOR):ZERO_P") {
   field(DESC, "Set The Position To 0")
   field(DLY1, "0")
   field(DO1,  "1")
-  field(LNK1, "$(MOTOR).SET")
-  field(DLY2, "0.1")
+  field(LNK1, "$(MOTOR).SET" )
+  field(DLY2, "0")
   field(DO2,  "0")
-  field(LNK2, "$(MOTOR).VAL")
-  field(DLY3, "0.1")
+  field(LNK2, "$(MOTOR).DVAL")
+  field(DLY3, "0.2")
   field(DO3,  "0")
-  field(LNK3, "$(MOTOR).SET")
+  field(LNK3, "$(MOTOR).SET" )
+  field(DLY4, "0")
+  field(DO4,  "0")
+  field(LNK4, "$(MOTOR).OFF" )
 }
 
 record(stringout, "$(MOTOR):COPY_FROM") {
@@ -224,18 +234,18 @@ record(stringout, "$(MOTOR):COPY_FROM") {
 
 record(seq, "$(MOTOR):COPY_Seq1") {
   field(DESC, "Copy Settings Seq 1")
-  field(DLY1, "0")
-  field(DO1,  "1")
-  field(LNK1, "$(MOTOR):COPY_TYPE.PROC")
-  field(DLY2, "0.1")
-  field(DO2,  "1")
-  field(LNK2, "$(MOTOR):COPY_EGU.PROC")
+# field(DLY1, "0")
+# field(DO1,  "1")
+# field(LNK1, "$(MOTOR):COPY_TYPE.PROC")
+# field(DLY2, "0.1")
+# field(DO2,  "1")
+# field(LNK2, "$(MOTOR):COPY_EGU.PROC")
   field(DLY3, "0.1")
   field(DO3,  "1")
   field(LNK3, "$(MOTOR):COPY_UREV.PROC")
   field(DLY4, "0.1")
   field(DO4,  "1")
-  field(LNK4, "$(MOTOR):COPY_SREV.PROC")
+  field(LNK4, "$(MOTOR):COPY_FREV.PROC")
   field(DLY5, "0.1")
   field(DO5,  "1")
   field(LNK5, "$(MOTOR):COPY_MS.PROC")
@@ -315,9 +325,9 @@ record(seq, "$(MOTOR):COPY_Seq3") {
   field(DLY8, "0.2")
   field(DO8,  "1")
   field(LNK8, "$(MOTOR):COPY_HC.PROC")
-  field(DLY9, "0.2")
-  field(DO9,  "1")
-  field(LNK9, "$(MOTOR):COPY_HCSV.PROC")
+# field(DLY9, "0.2")
+# field(DO9,  "1")
+# field(LNK9, "$(MOTOR):COPY_HCSV.PROC")
   field(FLNK, "$(MOTOR):COPY_Seq4")
 }
 
@@ -373,12 +383,12 @@ record(seq, "$(MOTOR):COPY_Seq5") {
   field(DLY5, "0.1")
   field(DO5,  "1")
   field(LNK5, "$(MOTOR):COPY_ESKL.PROC")
-  field(DLY6, "0.1")
-  field(DO6,  "1")
-  field(LNK6, "$(MOTOR):COPY_FWD_MEANS.PROC")
-  field(DLY7, "0.1")
-  field(DO7,  "1")
-  field(LNK7, "$(MOTOR):COPY_REV_MEANS.PROC")
+# field(DLY6, "0.1")
+# field(DO6,  "1")
+# field(LNK6, "$(MOTOR):COPY_FW_MEANS.PROC")
+# field(DLY7, "0.1")
+# field(DO7,  "1")
+# field(LNK7, "$(MOTOR):COPY_REV_MEANS.PROC")
   field(DLY8, "0.1")
   field(DO8,  "1")
   field(LNK8, "$(MOTOR):COPY_MODE.PROC")
@@ -405,8 +415,8 @@ record(stringout, "$(MOTOR):COPY_UREV") {
   field(OMSL, "closed_loop")
 }
 
-record(stringout, "$(MOTOR):COPY_SREV") {
-  field(VAL,  ".SREV")
+record(stringout, "$(MOTOR):COPY_FREV") {
+  field(VAL,  ".FREV")
   field(OUT,  "$(MOTOR):COPY_FIELD CPP")
   field(OMSL, "closed_loop")
 }
@@ -645,8 +655,8 @@ record(stringout, "$(MOTOR):COPY_ESKL") {
   field(OMSL, "closed_loop")
 }
 
-record(stringout, "$(MOTOR):COPY_FWD_MEANS") {
-  field(VAL,  ":FWD_MEANS")
+record(stringout, "$(MOTOR):COPY_FW_MEANS") {
+  field(VAL,  ":FW_MEANS")
   field(OUT,  "$(MOTOR):COPY_FIELD CPP")
   field(OMSL, "closed_loop")
 }
@@ -670,8 +680,8 @@ record(stringout, "$(MOTOR):COPY_FIELD") {
 
 record(scalcout, "$(MOTOR):COPY_DOL") {
   field(DESC, "Copy DOL")
-  field(INAA, "$(MOTOR):COPY_FROM" )
-  field(INFF, "$(MOTOR):COPY_FIELD")
+  field(INAA, "$(MOTOR):COPY_FROM NPP" )
+  field(INFF, "$(MOTOR):COPY_FIELD NPP")
   field(OUT,  "$(MOTOR):COPY_ACT.DOL CA")
   field(CALC, "AA+FF+' NPP'")
   field(DOPT, "Use CALC")

@@ -21,7 +21,10 @@ $(MOTOR).DVER         86400    monitor
 $(MOTOR).MODE         86400    monitor
 $(MOTOR).EGU          86400    monitor
 $(MOTOR).UREV         86400    monitor
+$(MOTOR).FREV         86400    monitor
 $(MOTOR).SREV         86400    monitor
+$(MOTOR).MRES         86400    monitor
+$(MOTOR).ERES         86400    monitor
 $(MOTOR).DIR          86400    monitor
 $(MOTOR).OFF          86400    monitor
 $(MOTOR).FOFF         86400    monitor
@@ -64,16 +67,16 @@ $(MOTOR).S4           86400    monitor
 
 $(MOTOR).RES          86400    monitor
 
-$(MOTOR).VAL          86400    monitor
-$(MOTOR).DVAL         86400    monitor
-$(MOTOR).RVAL         86400    monitor
-$(MOTOR).RRBV         86400    monitor
-$(MOTOR).DRBV         86400    monitor
-$(MOTOR).RBV          86400    monitor
+$(MOTOR).VAL          2        monitor
+$(MOTOR).DVAL         2        monitor
+$(MOTOR).RVAL         2        monitor
+$(MOTOR).RRBV         0.2      monitor
+$(MOTOR).DRBV         0.2      monitor
+$(MOTOR).RBV          0.2      monitor
 
-$(MOTOR).ERBV         86400    monitor
+$(MOTOR).ERBV         0.2      monitor
 
-$(MOTOR).DIFF         86400    monitor
+$(MOTOR).DIFF         0.2      monitor
 
 $(MOTOR).RCNT         86400    monitor
 $(MOTOR).MISS         86400    monitor
@@ -83,15 +86,17 @@ $(MOTOR).HLS          86400    monitor
 
 $(MOTOR).ATHM         86400    monitor
 
-$(MOTOR).MIP          86400    monitor
-$(MOTOR).MOVN         86400    monitor
-$(MOTOR).DMOV         86400    monitor
-$(MOTOR).MSTA         86400    monitor
+$(MOTOR).MIP          0.2      monitor
+$(MOTOR).MOVN         0.2      monitor
+$(MOTOR).DMOV         0.2      monitor
+$(MOTOR).MSTA         0.2      monitor
 $(MOTOR).HCSV         86400    monitor
 
 $(MOTOR):SAVED_RAW    86400    monitor
 $(MOTOR):SAVED_P      86400    monitor
 
-$(MOTOR):FWD_MEANS    86400    monitor
+$(MOTOR):FW_MEANS     86400    monitor
 $(MOTOR):REV_MEANS    86400    monitor
+
+$(MOTOR):CFG_FILE     86400    monitor
 

@@ -1,0 +1,179 @@
+NAME   char[61]       R     /* Record Name */
+DESC   char[41]       R/W   /* Descriptor */
+ASG    char[29]       R/W   /* Access Security Group */
+SCAN   epicsEnum16    R/W   /* Scan Mechanism */
+PINI   epicsEnum16    R/W   /* Process at iocInit */
+PHAS   epicsInt16     R/W   /* Scan Phase */
+EVNT   epicsInt16     R/W   /* Event Number */
+TSE    epicsInt16     R/W   /* Time Stamp Event */
+TSEL   DBLINK         R/W   /* Time Stamp Link */
+DTYP   epicsEnum16    R/W   /* Device Type */
+DISV   epicsInt16     R/W   /* Disable Value */
+DISA   epicsInt16     R/W   /* Disable */
+SDIS   DBLINK         R/W   /* Scanning Disable */
+DISP   epicsUInt8     R/W   /* Disable putField */
+PROC   epicsUInt8     R/W   /* Force Processing */
+STAT   epicsEnum16    R     /* Alarm Status */
+SEVR   epicsEnum16    R     /* Alarm Severity */
+NSTA   epicsEnum16    R     /* New Alarm Status */
+NSEV   epicsEnum16    R     /* New Alarm Severity */
+ACKS   epicsEnum16    R     /* Alarm Ack Severity */
+ACKT   epicsEnum16    R     /* Alarm Ack Transient */
+DISS   epicsEnum16    R/W   /* Disable Alarm Sevrty */
+LCNT   epicsUInt8     R     /* Lock Count */
+PACT   epicsUInt8     R     /* Record Active */
+PUTF   epicsUInt8     R     /* dbPutField Process */
+RPRO   epicsUInt8     R     /* Reprocess */
+PRIO   epicsEnum16    R/W   /* Scheduling Priority */
+TPRO   epicsUInt8     R/W   /* Trace Processing */
+UDF    epicsUInt8     R/W   /* Record Undefined */
+FLNK   DBLINK         R/W   /* Forward Process Link */
+VERS   epicsFloat32   R     /* Code Version */
+HOST   char[61]       R     /* Name of Host Machine */
+IOCN   char[61]       R     /* Linux Name of IOC */
+PORT   char[61]       R/W   /* Serial Port */
+ASYN   char[61]       R     /* Asyn Tag */
+TYPE   char[61]       R/W   /* Type of the Motor */
+PN     char[61]       R     /* Part Number */
+SN     char[61]       R     /* Serial Number */
+VR     char[61]       R     /* Firmware Version */
+S1     epicsEnum16    R/W   /* S1 Setting */
+S2     epicsEnum16    R/W   /* S2 Setting */
+S3     epicsEnum16    R/W   /* S3 Setting */
+S4     epicsEnum16    R/W   /* S4 Setting */
+LM     epicsEnum16    R/W   /* Limit Stop Mode */
+SM     epicsEnum16    R/W   /* Stall Mode */
+SF     epicsUInt16    R/W   /* Stall Factor */
+STSV   epicsEnum16    R/W   /* Stall Severity */
+ERSV   epicsEnum16    R/W   /* Error Severity */
+EE     epicsEnum16    R/W   /* Encoder Enable */
+EL     epicsFloat64   R/W   /* Encoder Lines */
+MS     epicsInt16     R/W   /* Microstep Revolution */
+MT     epicsUInt16    R/W   /* Settling Delay Time (ms) */
+HT     epicsUInt16    R/W   /* Holding Current Delay Time (ms) */
+ES     epicsEnum16    R/W   /* Escape Mode */
+RCMX   epicsInt16     R/W   /* Max Running Current */
+RC     epicsInt16     R/W   /* Running Current */
+HCMX   epicsInt16     R/W   /* Max Holding Current */
+HC     epicsInt16     R/W   /* Holding Current */
+MPGM   char[61]       R     /* Name of the MCode Program */
+DVER   epicsUInt16    R     /* Desired MCode Version */
+MODE   epicsEnum16    R/W   /* Running Mode */
+EGU    char[16]       R/W   /* Engineering Units */
+UREV   epicsFloat64   R/W   /* EGU's Per Revolution */
+FREV   epicsInt16     R/W   /* Full Steps Per Resolution */
+SREV   epicsInt32     R/W   /* Micro Steps Per Resolution */
+MRES   epicsFloat64   R/W   /* Motor Micro Step Size (EGU) */
+ERES   epicsFloat64   R/W   /* Encoder Step Size (EGU) */
+RES    epicsFloat64   R     /* Step Size (EGU) */
+DIR    epicsEnum16    R/W   /* User Direction */
+OFF    epicsFloat64   R/W   /* User Offset (EGU) */
+FOFF   epicsEnum16    R/W   /* Adjust Offset / Controller */
+SET    epicsEnum16    R/W   /* Set/Use Switch */
+HTYP   epicsEnum16    R/W   /* Homing Type */
+HEGE   epicsEnum16    R/W   /* Homing Edge */
+BDST   epicsFloat64   R/W   /* BL Distance (EGU) */
+HDST   epicsFloat64   R/W   /* Homing Distance (EGU) */
+DLLM   epicsFloat64   R/W   /* Dial Low Limit (EGU) */
+DHLM   epicsFloat64   R/W   /* Dial High Limit (EGU) */
+LLM    epicsFloat64   R/W   /* User Low Limit (EGU) */
+HLM    epicsFloat64   R/W   /* User High Limit (EGU) */
+RDBD   epicsFloat64   R/W   /* Retry Deadband (EGU) */
+RTRY   epicsInt16     R/W   /* Max No of Retries */
+RCNT   epicsInt16     R     /* Retry Count */
+MISS   epicsInt16     R     /* Hit or Miss */
+PDBD   epicsFloat64   R/W   /* Position Tolerance (EGU) */
+PREC   epicsInt16     R/W   /* Display Precision */
+ACCL   epicsFloat64   R/W   /* Seconds to Velocity */
+SBAS   epicsFloat64   R/W   /* Base Speed (RPS) */
+SMAX   epicsFloat64   R/W   /* Max. Speed (RPS) */
+S      epicsFloat64   R/W   /* Speed (revolutions/sec) */
+VBAS   epicsFloat64   R/W   /* Base Velocity (EGU/s) */
+VMAX   epicsFloat64   R/W   /* Max. Velocity (EGU/s) */
+VELO   epicsFloat64   R/W   /* Velocity (EGU/s) */
+BACC   epicsFloat64   R/W   /* BL Seconds to Velocity */
+BS     epicsFloat64   R/W   /* BL Speed (RPS) */
+BVEL   epicsFloat64   R/W   /* BL Velocity (EGU/s) */
+HACC   epicsFloat64   R/W   /* Home Seconds to Velocity */
+HS     epicsFloat64   R/W   /* Home Speed (RPS) */
+HVEL   epicsFloat64   R/W   /* Home Velocity (EGU/s) */
+ATHM   epicsInt16     R     /* At HOME */
+VAL    epicsFloat64   R/W   /* User Desired Value (EGU) */
+DVAL   epicsFloat64   R/W   /* Dial Desired Value (EGU) */
+RVAL   epicsInt32     R     /* Raw Desired Value (step) */
+TWV    epicsFloat64   R/W   /* Tweak Amount (EGU) */
+TWF    epicsInt16     R/W   /* Tweak Motor Forward */
+TWR    epicsInt16     R/W   /* Tweak Motor Reverse */
+HOMD   epicsFloat64   R/W   /* Dial Position For Home */
+HOMF   epicsInt16     R/W   /* Home Forward */
+HOMR   epicsInt16     R/W   /* Home Reverse */
+HOMS   epicsInt16     R/W   /* Set Dial Position For Home */
+JOGF   epicsInt16     R/W   /* Jog Forward */
+JOGR   epicsInt16     R/W   /* Jog Reverse */
+CALF   epicsInt16     R/W   /* Calibration Forward */
+CALR   epicsInt16     R/W   /* Calibration Reverse */
+LVIO   epicsInt16     R     /* Limit Violation */
+SPG    epicsEnum16    R/W   /* Stop/Pause/Go */
+STOP   epicsInt16     R/W   /* Single Stop */
+ESTP   epicsInt16     R/W   /* Emergency Stop */
+SMOV   epicsInt16     R     /* Started Move */
+MOVN   epicsInt16     R     /* Moving or Not */
+DMOV   epicsInt16     R     /* Done Moving to Position */
+MIP    epicsUInt16    R     /* Motion In Progress */
+RRBV   epicsInt32     R     /* Raw Readback Value */
+DRBV   epicsFloat64   R     /* Dial Readback Value */
+RBV    epicsFloat64   R     /* User Readback Value */
+DIFF   epicsFloat64   R     /* Difference rbv-val */
+RLLS   epicsInt16     R     /* Raw Low Limit Switch */
+RHLS   epicsInt16     R     /* Raw High Limit Switch */
+LLS    epicsInt16     R     /* User Low Limit Switch */
+HLS    epicsInt16     R     /* User High Limit Switch */
+HLSV   epicsEnum16    R/W   /* HW Limit Violation Svr */
+MSTA   epicsUInt32    R     /* Motor Status Bit Map */
+                            RA_DIRECTION   :1  // (last) 0=Negative, 1=Positive
+                            RA_DONE        :1  // a motion is complete
+                            RA_PLUS_LS     :1  // plus limit switch has been hit
+                            RA_HOME        :1  // home signal is on
+                            RA_SM          :1  // continue on stall detect
+                            EA_POSITION    :1  // position maintenence enabled
+                            EA_SLIP_STALL  :1  // slip/stall detected
+                            EA_HOME        :1  // encoder home signal on
+                            RA_EE          :1  // encoder enable
+                            RA_PROBLEM     :1  // driver stopped polling
+                            RA_MOVING      :1  // non-zero velocity present
+                            GAIN_SUPPORT   :1  // support closed-loop position control
+                            RA_COMM_ERR    :1  // controller communication error
+                            RA_MINUS_LS    :1  // minus limit switch has been hit
+                            RA_HOMED       :1  // axis has been homed
+                            RA_ERR         :7  // error number
+                            RA_STALL       :1  // stall detected
+                            RA_POWERUP     :1  // power-cycled
+                            RA_NE          :1  // numeric enable
+                            RA_BY0         :1  // MCode not running (BY = 0)
+                            NA             :5  // un-used bits
+                            NOT_INIT       :1  // initialization not finished
+OVAL   epicsFloat64   R     /* Original Value */
+CMAP   epicsUInt32    R     /* Bit Map of Changed Field */
+PING   epicsInt16     R/W   /* Ping The Controller */
+SSTR   char[61]       R/W   /* Status String */
+OCSR   epicsUInt32    R     /* Previous CSR */
+SVNG   char[61]       R/W   /* Controller To Save */
+HCSV   epicsInt16     R     /* Saved HC Setting */
+HCTG   epicsEnum16    R/W   /* Zero/Restore HC Setting */
+CMD    char[61]       R/W   /* Command To Controller */
+RESP   char[61]       R     /* Response From Controller */
+EGAG   epicsEnum16    R/W   /* Use External Guage */
+ERBL   DBLINK         R     /* External Guage Readback Link */
+ESKL   epicsFloat64   R/W   /* External Guage Scale */
+ERBV   epicsFloat64   R     /* External Guage RBV */
+RINI   epicsInt16     R/W   /* Re-initialize */
+DLVL   epicsInt16     R/W   /* Debugging Level */
+LOGA   char[61]       R     /* Log Message A */
+LOGB   char[61]       R     /* Log Message B */
+LOGC   char[61]       R     /* Log Message C */
+LOGD   char[61]       R     /* Log Message D */
+LOGE   char[61]       R     /* Log Message E */
+LOGF   char[61]       R     /* Log Message F */
+LOGG   char[61]       R     /* Log Message G */
+LOGH   char[61]       R     /* Log Message H */
+

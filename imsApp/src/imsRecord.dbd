@@ -35,12 +35,12 @@ menu(imsES) {
 	choice(imsES_ESC1,            "ESC (PY=1)"       )
 }
 menu(imsDIR) {
-	choice(imsDIR_Negative,       "Negative"         )
-	choice(imsDIR_Positive,       "Positive"         )
+	choice(imsDIR_Pos,            "Pos"              )
+	choice(imsDIR_Neg,            "Neg"              )
 }
 menu(imsOFF) {
-	choice(imsOFF_Variable,       "Offset"           )
-	choice(imsOFF_Freeze,         "Controller"       )
+	choice(imsOFF_Variable,       "Variable"         )
+	choice(imsOFF_Frozen,         "Frozen"           )
 }
 menu(imsSET) {
 	choice(imsSET_Use,            "Use"              )
@@ -56,6 +56,7 @@ menu(imsHTYP) {
         choice(imsHTYP_Encoder,       "E Mark"           )
         choice(imsHTYP_Switch,        "H Switch"         )
         choice(imsHTYP_Limits,        "Limits"           )
+        choice(imsHTYP_Stall,         "Stall"            )
 }
 menu(imsMode) {
         choice(imsMode_Normal,        "Normal"           )
@@ -169,7 +170,7 @@ recordtype(ims) {
 		interest(1)
 	}
 	field(SF,DBF_USHORT) {
-		prompt("Stall factor")
+		prompt("Stall Factor")
 		promptgroup(GUI_COMMON)
 		special(SPC_MOD)
 		asl(ASL0)
@@ -199,7 +200,7 @@ recordtype(ims) {
 		initial("Disable")
 		interest(1)
 	}
-	field(EL,DBF_SHORT) {
+	field(EL,DBF_DOUBLE) {
 		prompt("Encoder Lines")
 		promptgroup(GUI_COMMON)
 		special(SPC_MOD)
@@ -302,12 +303,34 @@ recordtype(ims) {
 		initial(1)
 		interest(1)
 	}
-	field(SREV,DBF_SHORT) {
+	field(FREV,DBF_SHORT) {
 		prompt("Full Steps Per Resolution")
 		promptgroup(GUI_COMMON)
 		special(SPC_MOD)
 		asl(ASL0)
 		initial(200)
+		interest(1)
+	}
+	field(SREV,DBF_LONG) {
+		prompt("Micro Steps Per Resolution")
+		promptgroup(GUI_COMMON)
+		special(SPC_MOD)
+		asl(ASL0)
+		initial(51200)
+		interest(1)
+	}
+	field(MRES,DBF_DOUBLE) {
+		prompt("Motor Micro Step Size (EGU)")
+		promptgroup(GUI_COMMON)
+		special(SPC_MOD)
+		asl(ASL0)
+		interest(1)
+	}
+	field(ERES,DBF_DOUBLE) {
+		prompt("Encoder Step Size (EGU)")
+		promptgroup(GUI_COMMON)
+		special(SPC_MOD)
+		asl(ASL0)
 		interest(1)
 	}
 	field(RES,DBF_DOUBLE) {
@@ -320,7 +343,7 @@ recordtype(ims) {
 		promptgroup(GUI_COMMON)
 		menu(imsDIR)
 		special(SPC_MOD)
-		initial("Positive")
+		initial("Pos")
 		interest(1)
 	}
 	field(OFF,DBF_DOUBLE) {
@@ -332,7 +355,7 @@ recordtype(ims) {
 		prompt("Adjust Offset / Controller")
 		promptgroup(GUI_COMMON)
 		menu(imsOFF)
-		initial("Offset")
+		initial("Variable")
 		interest(1)
 	}
 	field(SET,DBF_MENU) {
@@ -353,7 +376,7 @@ recordtype(ims) {
 		prompt("Homing Edge")
 		promptgroup(GUI_COMMON)
 		menu(imsDIR)
-		initial("Positive")
+		initial("Pos")
 		interest(1)
 	}
 	field(BDST,DBF_DOUBLE) {
@@ -589,6 +612,11 @@ recordtype(ims) {
 		interest(1)
 	}
 	field(STOP,DBF_SHORT) {
+		prompt("Single Stop")
+		special(SPC_MOD)
+		asl(ASL0)
+	}
+	field(ESTP,DBF_SHORT) {
 		prompt("Emergency Stop")
 		special(SPC_MOD)
 		asl(ASL0)
@@ -745,10 +773,6 @@ recordtype(ims) {
 		promptgroup(GUI_COMMON)
 		special(SPC_NOMOD)
 		interest(1)
-	}
-	field(RCON,DBF_SHORT) {
-		prompt("Re-connect to the Controller")
-		special(SPC_MOD)
 	}
 	field(RINI,DBF_SHORT) {
 		prompt("Re-initialize")
