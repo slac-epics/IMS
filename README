@@ -1,6 +1,75 @@
-ims Record Release Notice
+ims Record R1-0-0 Release Notice
 ================================================================================
 
-The ims record software in this release is compatible with EPICS base
-R3-14-12.
+The ims delicated record software in this release is a re-write/simplification
+based on motor record R6-4-4, without the general abstraction layers of device
+support and driver support.  It conforms to the original motor record interface,
+and is compatible with EPICS base R3-14-12.
+
+Major improvements are as follows:
+
+ 1) Reduced the lag on the end-of-motion detection from ~100 ms to ~10 ms.
+    This is achieved by changing the status checking from polling to semi
+    interrupt driven, with the help of an extensively enhanced MCode program
+    running on the controllers.
+
+    A further reduction of ~70 ms on the overhead could be gained by changing
+    the RS485 baud rate from the default 9600 to 115200.
+
+ 2) A "SCAN" mode is implemented to further reduce the overhead, by ~20 - 30 ms.
+    This is achieved by only checking the most important status variables
+    instead of the complete state, while moving.  For non time critical moves,
+    it is advisable to use the "NORMAL" mode.
+
+ 3) Near instaneous (within 100 ms) notification of any position drift or
+    status change.  This was impossible with the old status polling -- would
+    cost too much CPU time and network traffic.
+
+ 4) Ensured that heavy weight work is done in separate threads for each motor
+    so that the response of working motors will not be impacted by motors in
+    the same IOC which have been disconnected or are having problems.
+
+ 5) Greatly reduced network traffic by combining status messages for individual
+    varibles to a single message pushed by the MCode from the controller.
+
+ 6) Introduced a new field FREV -- full steps per revolution, to clearly
+    reflect the actual hardware.  Previously the SREV field was too much
+    overloaded.
+
+ 7) Introduced an EL field to reflect the encoder line setting.  It is a float
+    number instead of an integer as one would expect, to accommodate any
+    arbitrary relationship between a motor revolution and the number of encoder
+    lines to be detected.
+
+ 8) No more confusion/hacking of the motor intrinsic resolution (MRES,
+    = UREV / (FREV * MS)) and the encoder resolution (ERES, = UREV / (4 * EL)),
+    and seamless switching between using encorder or not.
+
+ 9) Easy closed loop motion against an external PV (absolute encoders, LVDTs,
+    or any other EPICS PV which does not have to be position related).
+
+10) Implemented an automatic procedure to home to end-of-travel limit switches
+    for stages without built-in home switches or encoder reference marks.
+
+11) Implemented an automatic procedure to assist in debugging the encoder
+    wiring and finding the encoder lines.
+
+12) Implemented human-readable pull-up manuals wherever possible to assist
+    in parameter setting.  Previously these were mostly done with numbers or
+    combination of numbers which were very hard to remember or decipher.
+
+13) Implemented a procedure to copy parameters from a similar motor to speed
+    up deployment.
+
+14) Present log/warning messages on the edm.  Previously the log messages
+    from all motors in the same IOC were all mixed in the IOC log file, and
+    it was very hard to trace the messages from a particular motor.  And
+    the warnings only showed up as bits in the status bit map (MSTA), and
+    therefore very hard to decipher.
+    
+15) Support plug-and-play by enabling reinitialization of a single motor after
+    hardware work, without needing to reboot the IOC.
+
+16) Added an auxiliary record to remember the last (saved or loaded) config
+    file.
 

@@ -170,7 +170,7 @@ recordtype(ims) {
 		interest(1)
 	}
 	field(SF,DBF_USHORT) {
-		prompt("Stall factor")
+		prompt("Stall Factor")
 		promptgroup(GUI_COMMON)
 		special(SPC_MOD)
 		asl(ASL0)
