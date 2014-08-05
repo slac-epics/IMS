@@ -1,7 +1,7 @@
 ims Record R1-0-0 Release Notice
 ================================================================================
 
-The ims delicated record software in this release is a re-write/simplification
+The ims dedicated record software in this release is a re-write/simplification
 based on motor record R6-4-4, without the general abstraction layers of device
 support and driver support.  It conforms to the original motor record interface,
 and is compatible with EPICS base R3-14-12.
