@@ -54,7 +54,7 @@ Major improvements are as follows:
 11) Implemented an automatic procedure to assist in debugging the encoder
     wiring and finding the encoder lines.
 
-12) Implemented human-readable pull-up manuals wherever possible to assist
+12) Implemented human-readable pull-up menus wherever possible to assist
     in parameter setting.  Previously these were mostly done with numbers or
     combination of numbers which were very hard to remember or decipher.
 
