@@ -205,6 +205,9 @@ PG 1
 
   LB Zx
     IC R3
+    CL Zd, R3>2000  ' Has delayed about 60 seconds
+    CL Zz, R3=1800  ' Has delayed about 55 seconds
+    CL Zz, R3=1650  ' Has delayed about 50 seconds
     CL Zy, R3>1500  ' Has delayed about 45 seconds
     RT
 
