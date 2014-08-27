@@ -1,4 +1,4 @@
-ims Record R1-0-0 Release Notice
+ims Record R1-0-1 Release Notice
 ================================================================================
 
 The ims dedicated record software in this release is a re-write/simplification
@@ -6,10 +6,23 @@ based on motor record R6-4-4, without the general abstraction layers of device
 support and driver support.  It conforms to the original motor record interface,
 and is compatible with EPICS base R3-14-12.
 
+Modification Log from R1-0-0 to R1-0-1
+======================================
+
+ 1) About 45 seconds after a move, the controller would like to save the
+    position, it askes the IOC for permission.  If this request or the reply
+    is lost, the controller would not save the position.  Added checking in
+    the MCode program so that about 15 seconds after it sends the request, it
+    will save the position anyway even if it has not received permission.
+
+
+Initial Release R1-0-0
+======================================
+
 Major improvements are as follows:
 
  1) Reduced the lag on the end-of-motion detection from ~100 ms to ~10 ms.
-    This is achieved by changing the status checking from polling to semi
+    This is achieved by changing the status checking from polling to quasi-
     interrupt driven, with the help of an extensively enhanced MCode program
     running on the controllers.
 

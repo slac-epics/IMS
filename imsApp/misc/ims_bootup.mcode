@@ -15,7 +15,7 @@ VA X1
 VA X2
 VA X3
 
-Ve 1      ' Version 1
+Ve 2      ' Version 2
 Ne 0      ' Disable numeric cmd
 p1 P      ' Start with current position
 Sd Db*4   ' Set save deadband
