@@ -1372,7 +1372,7 @@ static void new_move( imsRecord *prec )
     {
         if ( ((prec->bdst > 0) && (prec->drbv > prec->dval)) ||
              ((prec->bdst < 0) && (prec->drbv < prec->dval)) ||
-             (fabs(prec->drbv - prec->dval) > prec->bdst   )    )
+             (fabs(prec->drbv - prec->dval) > fabs(prec->bdst)   )    )
         {           // opposite direction, or long move, use ACCL and VELO first
             log_msg( prec, 0, "Move to %.6g (DVAL: %.6g), with ACCL & VELO",
                               prec->val, prec->dval-prec->bdst );
