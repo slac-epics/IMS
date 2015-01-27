@@ -4,16 +4,17 @@ menu(imsAble) {
 	choice(imsAble_Disable,       "Disable"          )
 	choice(imsAble_Enable,        "Enable"           )
 }
-menu(imsS14) {
-	choice(imsS14_NotUsed,        "Not Used"         )
-	choice(imsS14_HomeL,          "Home L"           )
-	choice(imsS14_HomeH,          "Home H"           )
-	choice(imsS14_LMTpL,          "Limit+ L"         )
-	choice(imsS14_LMTpH,          "Limit+ H"         )
-	choice(imsS14_LMTmL,          "Limit- L"         )
-	choice(imsS14_LMTmH,          "Limit- H"         )
-	choice(imsS14_5VOut,          "5V Out"           )
-	choice(imsS14_Invalid,        "Invalid"          )
+menu(imsS19) {
+	choice(imsS19_NotUsed,        "Not Used"         )
+	choice(imsS19_HomeL,          "Home L"           )
+	choice(imsS19_HomeH,          "Home H"           )
+	choice(imsS19_LMTpL,          "Limit+ L"         )
+	choice(imsS19_LMTpH,          "Limit+ H"         )
+	choice(imsS19_LMTmL,          "Limit- L"         )
+	choice(imsS19_LMTmH,          "Limit- H"         )
+	choice(imsS19_5VOut,          "5V Out"           )
+	choice(imsS19_Brake,          "Brake"            )
+	choice(imsS19_Invalid,        "Invalid"          )
 }
 menu(imsLM) {
 	choice(imsLM_Invalid,         "Invalid"          )
@@ -123,7 +124,7 @@ recordtype(ims) {
 	field(S1,DBF_MENU) {
 		prompt("S1 Setting")
 		promptgroup(GUI_COMMON)
-		menu(imsS14)
+		menu(imsS19)
 		special(SPC_MOD)
 		asl(ASL0)
 		interest(1)
@@ -131,7 +132,7 @@ recordtype(ims) {
 	field(S2,DBF_MENU) {
 		prompt("S2 Setting")
 		promptgroup(GUI_COMMON)
-		menu(imsS14)
+		menu(imsS19)
 		special(SPC_MOD)
 		asl(ASL0)
 		interest(1)
@@ -139,7 +140,7 @@ recordtype(ims) {
 	field(S3,DBF_MENU) {
 		prompt("S3 Setting")
 		promptgroup(GUI_COMMON)
-		menu(imsS14)
+		menu(imsS19)
 		special(SPC_MOD)
 		asl(ASL0)
 		interest(1)
@@ -147,7 +148,15 @@ recordtype(ims) {
 	field(S4,DBF_MENU) {
 		prompt("S4 Setting")
 		promptgroup(GUI_COMMON)
-		menu(imsS14)
+		menu(imsS19)
+		special(SPC_MOD)
+		asl(ASL0)
+		interest(1)
+	}
+	field(S9,DBF_MENU) {
+		prompt("S9 Setting")
+		promptgroup(GUI_COMMON)
+		menu(imsS19)
 		special(SPC_MOD)
 		asl(ASL0)
 		interest(1)

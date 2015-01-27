@@ -263,7 +263,7 @@ static long init_motor( imsRecord *prec )
     ims_info       *mInfo = (ims_info *)prec->dpvt;
 
     char            msg[MAX_MSG_SIZE], rbbuf[MAX_MSG_SIZE];
-    int             s1, s2, s3, s4, a1, a2, a3, a4, d1, d2, d3, d4;
+    int             s1, s2, s3, s4, s9, a1, a2, a3, a4, a9, d1, d2, d3, d4, d9;
     int             rbve, rbby, retry, status = OK;
     epicsUInt32     old_msta = prec->msta;
     motor_status    msta;
@@ -373,73 +373,87 @@ static long init_motor( imsRecord *prec )
     {
         flush_asyn( mInfo );
 
-        send_msg( mInfo, "PR \"S1=\",S1,\", S2=\",S2,\", S3=\",S3,\", S4=\",S4" );
+        send_msg( mInfo, "PR \"S1=\",S1,\", S2=\",S2,\", S3=\",S3,\", S4=\",S4,\", S9=\",S9" );
         status = recv_reply( mInfo, rbbuf );
         if ( status > 0 )
         {
-            status = sscanf( rbbuf, "S1=%d, %d, %d, S2=%d, %d, %d, S3=%d, %d, %d, S4=%d, %d, %d",
-                                    &s1, &a1, &d1, &s2, &a2, &d2, &s3, &a3, &d3, &s4, &a4, &d4 );
-            if ( status == 12 )
+            status = sscanf( rbbuf, "S1=%d, %d, %d, S2=%d, %d, %d, S3=%d, %d, %d, S4=%d, %d, %d, S9=%d, %d, %d",
+                                    &s1, &a1, &d1, &s2, &a2, &d2, &s3, &a3, &d3, &s4, &a4, &d4, &s9, &a9, &d9 );
+            if ( status == 15 )
             {
                 if      ( (s1 ==  0) && (a1 == 0) && (d1 == 0) )
-                    prec->s1 = imsS14_NotUsed;
+                    prec->s1 = imsS19_NotUsed;
                 else if ( (s1 ==  2) && (a1 == 0) && (d1 == 0) )
-                    prec->s1 = imsS14_LMTpL  ;
+                    prec->s1 = imsS19_LMTpL  ;
                 else if ( (s1 ==  2) && (a1 == 1) && (d1 == 0) )
-                    prec->s1 = imsS14_LMTpH  ;
+                    prec->s1 = imsS19_LMTpH  ;
                 else if ( (s1 ==  3) && (a1 == 0) && (d1 == 0) )
-                    prec->s1 = imsS14_LMTmL  ;
+                    prec->s1 = imsS19_LMTmL  ;
                 else if ( (s1 ==  3) && (a1 == 1) && (d1 == 0) )
-                    prec->s1 = imsS14_LMTmH  ;
+                    prec->s1 = imsS19_LMTmH  ;
                 else
                 {
                     log_msg( prec, 0, "S1 setting invalid" );
 
-                    prec->s1             = imsS14_Invalid;
+                    prec->s1             = imsS19_Invalid;
                     msta.Bits.RA_PROBLEM = 1;
                 }
 
                 if      ( (s2 ==  0) && (a2 == 0) && (d2 == 0) )
-                    prec->s2 = imsS14_NotUsed;
+                    prec->s2 = imsS19_NotUsed;
                 else if ( (s2 ==  2) && (a2 == 0) && (d2 == 0) )
-                    prec->s2 = imsS14_LMTpL  ;
+                    prec->s2 = imsS19_LMTpL  ;
                 else if ( (s2 ==  2) && (a2 == 1) && (d2 == 0) )
-                    prec->s2 = imsS14_LMTpH  ;
+                    prec->s2 = imsS19_LMTpH  ;
                 else if ( (s2 ==  3) && (a2 == 0) && (d2 == 0) )
-                    prec->s2 = imsS14_LMTmL  ;
+                    prec->s2 = imsS19_LMTmL  ;
                 else if ( (s2 ==  3) && (a2 == 1) && (d2 == 0) )
-                    prec->s2 = imsS14_LMTmH  ;
+                    prec->s2 = imsS19_LMTmH  ;
                 else
                 {
                     log_msg( prec, 0, "S2 setting invalid" );
 
-                    prec->s2             = imsS14_Invalid;
+                    prec->s2             = imsS19_Invalid;
                     msta.Bits.RA_PROBLEM = 1;
                 }
 
                 if      ( (s3 ==  0) && (a3 == 0) && (d3 == 0) )
-                    prec->s3 = imsS14_NotUsed;
+                    prec->s3 = imsS19_NotUsed;
                 else if ( (s3 == 16) && (a3 == 1) && (d3 == 1) )
-                    prec->s3 = imsS14_5VOut  ;
+                    prec->s3 = imsS19_5VOut  ;
                 else
                 {
                     log_msg( prec, 0, "S3 setting invalid" );
 
-                    prec->s3             = imsS14_Invalid;
+                    prec->s3             = imsS19_Invalid;
                     msta.Bits.RA_PROBLEM = 1;
                 }
 
                 if      ( (s4 ==  0) && (a4 == 0) && (d4 == 0) )
-                    prec->s4 = imsS14_NotUsed;
+                    prec->s4 = imsS19_NotUsed;
                 else if ( (s4 ==  1) && (a4 == 0) && (d4 == 0) )
-                    prec->s4 = imsS14_HomeL  ;
+                    prec->s4 = imsS19_HomeL  ;
                 else if ( (s4 ==  1) && (a4 == 1) && (d4 == 0) )
-                    prec->s4 = imsS14_HomeH  ;
+                    prec->s4 = imsS19_HomeH  ;
+                else if ( (s4 == 17) && (a4 == 0) && (d4 == 0) )
+                    prec->s4 = imsS19_Brake  ;
                 else
                 {
                     log_msg( prec, 0, "S4 setting invalid" );
 
-                    prec->s4             = imsS14_Invalid;
+                    prec->s4             = imsS19_Invalid;
+                    msta.Bits.RA_PROBLEM = 1;
+                }
+
+                if      ( (s9 ==  0) && (a9 == 0) && (d9 == 0) )
+                    prec->s9 = imsS19_NotUsed;
+                else if ( (s9 == 17) && (a9 == 0) && (d9 == 0) )
+                    prec->s9 = imsS19_Brake  ;
+                else
+                {
+                    log_msg( prec, 0, "S9 setting invalid" );
+
+                    prec->s9             = imsS19_Invalid;
                     msta.Bits.RA_PROBLEM = 1;
                 }
 
@@ -447,13 +461,14 @@ static long init_motor( imsRecord *prec )
                 db_post_events( prec, &prec->s2  , DBE_VAL_LOG );
                 db_post_events( prec, &prec->s3  , DBE_VAL_LOG );
                 db_post_events( prec, &prec->s4  , DBE_VAL_LOG );
+                db_post_events( prec, &prec->s9  , DBE_VAL_LOG );
             }
         }
 
         epicsThreadSleep( 0.2 );
-    } while ( (status != 12) && (retry++ < 3) );
+    } while ( (status != 15) && (retry++ < 3) );
 
-    if ( status != 12 )
+    if ( status != 15 )
     {
         log_msg( prec, 0, "Failed to read the switch settings" );
 
@@ -1282,14 +1297,14 @@ static long process_motor_info( imsRecord *prec, status_word csr, long count )
 
     prec->rlls = 0;
     prec->rhls = 0;
-    if ( (prec->s1 == imsS14_LMTmL) || (prec->s1 == imsS14_LMTmH) )
+    if ( (prec->s1 == imsS19_LMTmL) || (prec->s1 == imsS19_LMTmH) )
         prec->rlls = csr.Bits.I1;
-    if ( (prec->s2 == imsS14_LMTmL) || (prec->s2 == imsS14_LMTmH) )
+    if ( (prec->s2 == imsS19_LMTmL) || (prec->s2 == imsS19_LMTmH) )
         prec->rlls = csr.Bits.I2;
 
-    if ( (prec->s1 == imsS14_LMTpL) || (prec->s1 == imsS14_LMTpH) )
+    if ( (prec->s1 == imsS19_LMTpL) || (prec->s1 == imsS19_LMTpH) )
         prec->rhls = csr.Bits.I1;
-    if ( (prec->s2 == imsS14_LMTpL) || (prec->s2 == imsS14_LMTpH) )
+    if ( (prec->s2 == imsS19_LMTpL) || (prec->s2 == imsS19_LMTpH) )
         prec->rhls = csr.Bits.I2;
 
     msta.Bits.RA_MINUS_LS = prec->rlls;
@@ -1370,9 +1385,9 @@ static void new_move( imsRecord *prec )
          (prec->egag == menuYesNoNO     ) &&
          (prec->res   < fabs(prec->bdst))    )                       // backlash
     {
-        if ( ((prec->bdst > 0) && (prec->drbv > prec->dval)) ||
-             ((prec->bdst < 0) && (prec->drbv < prec->dval)) ||
-             (fabs(prec->drbv - prec->dval) > fabs(prec->bdst)   )    )
+        if ( ((prec->bdst > 0) && (prec->drbv > prec->dval))    ||
+             ((prec->bdst < 0) && (prec->drbv < prec->dval))    ||
+             (fabs(prec->drbv - prec->dval) > fabs(prec->bdst))    )
         {           // opposite direction, or long move, use ACCL and VELO first
             log_msg( prec, 0, "Move to %.6g (DVAL: %.6g), with ACCL & VELO",
                               prec->val, prec->dval-prec->bdst );
@@ -2284,53 +2299,71 @@ static long special( dbAddr *pDbAddr, int after )
 
             goto check_limit_violation;
         case imsRecordS1  :
-            if      ( prec->s1 == imsS14_NotUsed) send_msg( mInfo, "S1 0,0,0" );
-            else if ( prec->s1 == imsS14_HomeL  ) send_msg( mInfo, "S1 1,0,0" );
-            else if ( prec->s1 == imsS14_HomeH  ) send_msg( mInfo, "S1 1,1,0" );
-            else if ( prec->s1 == imsS14_LMTpL  ) send_msg( mInfo, "S1 2,0,0" );
-            else if ( prec->s1 == imsS14_LMTpH  ) send_msg( mInfo, "S1 2,1,0" );
-            else if ( prec->s1 == imsS14_LMTmL  ) send_msg( mInfo, "S1 3,0,0" );
-            else if ( prec->s1 == imsS14_LMTmH  ) send_msg( mInfo, "S1 3,1,0" );
-            else if ( prec->s1 == imsS14_5VOut  ) send_msg( mInfo, "S1 16,1,1");
+            if      ( prec->s1 == imsS19_NotUsed) send_msg( mInfo, "S1 0,0,0" );
+            else if ( prec->s1 == imsS19_HomeL  ) send_msg( mInfo, "S1 1,0,0" );
+            else if ( prec->s1 == imsS19_HomeH  ) send_msg( mInfo, "S1 1,1,0" );
+            else if ( prec->s1 == imsS19_LMTpL  ) send_msg( mInfo, "S1 2,0,0" );
+            else if ( prec->s1 == imsS19_LMTpH  ) send_msg( mInfo, "S1 2,1,0" );
+            else if ( prec->s1 == imsS19_LMTmL  ) send_msg( mInfo, "S1 3,0,0" );
+            else if ( prec->s1 == imsS19_LMTmH  ) send_msg( mInfo, "S1 3,1,0" );
+            else if ( prec->s1 == imsS19_5VOut  ) send_msg( mInfo, "S1 16,1,1");
+            else if ( prec->s1 == imsS19_Brake  ) send_msg( mInfo, "S1 17,0,0");
 
             send_msg( mInfo, "Us 0");
 
             break;
         case imsRecordS2  :
-            if      ( prec->s2 == imsS14_NotUsed) send_msg( mInfo, "S2 0,0,0" );
-            else if ( prec->s2 == imsS14_HomeL  ) send_msg( mInfo, "S2 1,0,0" );
-            else if ( prec->s2 == imsS14_HomeH  ) send_msg( mInfo, "S2 1,1,0" );
-            else if ( prec->s2 == imsS14_LMTpL  ) send_msg( mInfo, "S2 2,0,0" );
-            else if ( prec->s2 == imsS14_LMTpH  ) send_msg( mInfo, "S2 2,1,0" );
-            else if ( prec->s2 == imsS14_LMTmL  ) send_msg( mInfo, "S2 3,0,0" );
-            else if ( prec->s2 == imsS14_LMTmH  ) send_msg( mInfo, "S2 3,1,0" );
-            else if ( prec->s2 == imsS14_5VOut  ) send_msg( mInfo, "S2 16,1,1");
+            if      ( prec->s2 == imsS19_NotUsed) send_msg( mInfo, "S2 0,0,0" );
+            else if ( prec->s2 == imsS19_HomeL  ) send_msg( mInfo, "S2 1,0,0" );
+            else if ( prec->s2 == imsS19_HomeH  ) send_msg( mInfo, "S2 1,1,0" );
+            else if ( prec->s2 == imsS19_LMTpL  ) send_msg( mInfo, "S2 2,0,0" );
+            else if ( prec->s2 == imsS19_LMTpH  ) send_msg( mInfo, "S2 2,1,0" );
+            else if ( prec->s2 == imsS19_LMTmL  ) send_msg( mInfo, "S2 3,0,0" );
+            else if ( prec->s2 == imsS19_LMTmH  ) send_msg( mInfo, "S2 3,1,0" );
+            else if ( prec->s2 == imsS19_5VOut  ) send_msg( mInfo, "S2 16,1,1");
+            else if ( prec->s2 == imsS19_Brake  ) send_msg( mInfo, "S2 17,0,0");
 
             send_msg( mInfo, "Us 0");
 
             break;
         case imsRecordS3  :
-            if      ( prec->s3 == imsS14_NotUsed) send_msg( mInfo, "S3 0,0,0" );
-            else if ( prec->s3 == imsS14_HomeL  ) send_msg( mInfo, "S3 1,0,0" );
-            else if ( prec->s3 == imsS14_HomeH  ) send_msg( mInfo, "S3 1,1,0" );
-            else if ( prec->s3 == imsS14_LMTpL  ) send_msg( mInfo, "S3 2,0,0" );
-            else if ( prec->s3 == imsS14_LMTpH  ) send_msg( mInfo, "S3 2,1,0" );
-            else if ( prec->s3 == imsS14_LMTmL  ) send_msg( mInfo, "S3 3,0,0" );
-            else if ( prec->s3 == imsS14_LMTmH  ) send_msg( mInfo, "S3 3,1,0" );
-            else if ( prec->s3 == imsS14_5VOut  ) send_msg( mInfo, "S3 16,1,1");
+            if      ( prec->s3 == imsS19_NotUsed) send_msg( mInfo, "S3 0,0,0" );
+            else if ( prec->s3 == imsS19_HomeL  ) send_msg( mInfo, "S3 1,0,0" );
+            else if ( prec->s3 == imsS19_HomeH  ) send_msg( mInfo, "S3 1,1,0" );
+            else if ( prec->s3 == imsS19_LMTpL  ) send_msg( mInfo, "S3 2,0,0" );
+            else if ( prec->s3 == imsS19_LMTpH  ) send_msg( mInfo, "S3 2,1,0" );
+            else if ( prec->s3 == imsS19_LMTmL  ) send_msg( mInfo, "S3 3,0,0" );
+            else if ( prec->s3 == imsS19_LMTmH  ) send_msg( mInfo, "S3 3,1,0" );
+            else if ( prec->s3 == imsS19_5VOut  ) send_msg( mInfo, "S3 16,1,1");
+            else if ( prec->s3 == imsS19_Brake  ) send_msg( mInfo, "S3 17,0,0");
 
             send_msg( mInfo, "Us 0");
 
             break;
         case imsRecordS4  :
-            if      ( prec->s4 == imsS14_NotUsed) send_msg( mInfo, "S4 0,0,0" );
-            else if ( prec->s4 == imsS14_HomeL  ) send_msg( mInfo, "S4 1,0,0" );
-            else if ( prec->s4 == imsS14_HomeH  ) send_msg( mInfo, "S4 1,1,0" );
-            else if ( prec->s4 == imsS14_LMTpL  ) send_msg( mInfo, "S4 2,0,0" );
-            else if ( prec->s4 == imsS14_LMTpH  ) send_msg( mInfo, "S4 2,1,0" );
-            else if ( prec->s4 == imsS14_LMTmL  ) send_msg( mInfo, "S4 3,0,0" );
-            else if ( prec->s4 == imsS14_LMTmH  ) send_msg( mInfo, "S4 3,1,0" );
-            else if ( prec->s4 == imsS14_5VOut  ) send_msg( mInfo, "S4 16,1,1");
+            if      ( prec->s4 == imsS19_NotUsed) send_msg( mInfo, "S4 0,0,0" );
+            else if ( prec->s4 == imsS19_HomeL  ) send_msg( mInfo, "S4 1,0,0" );
+            else if ( prec->s4 == imsS19_HomeH  ) send_msg( mInfo, "S4 1,1,0" );
+            else if ( prec->s4 == imsS19_LMTpL  ) send_msg( mInfo, "S4 2,0,0" );
+            else if ( prec->s4 == imsS19_LMTpH  ) send_msg( mInfo, "S4 2,1,0" );
+            else if ( prec->s4 == imsS19_LMTmL  ) send_msg( mInfo, "S4 3,0,0" );
+            else if ( prec->s4 == imsS19_LMTmH  ) send_msg( mInfo, "S4 3,1,0" );
+            else if ( prec->s4 == imsS19_5VOut  ) send_msg( mInfo, "S4 16,1,1");
+            else if ( prec->s4 == imsS19_Brake  ) send_msg( mInfo, "S4 17,0,0");
+
+            send_msg( mInfo, "Us 0");
+
+            break;
+        case imsRecordS9  :
+            if      ( prec->s9 == imsS19_NotUsed) send_msg( mInfo, "S9 0,0,0" );
+            else if ( prec->s9 == imsS19_HomeL  ) send_msg( mInfo, "S9 1,0,0" );
+            else if ( prec->s9 == imsS19_HomeH  ) send_msg( mInfo, "S9 1,1,0" );
+            else if ( prec->s9 == imsS19_LMTpL  ) send_msg( mInfo, "S9 2,0,0" );
+            else if ( prec->s9 == imsS19_LMTpH  ) send_msg( mInfo, "S9 2,1,0" );
+            else if ( prec->s9 == imsS19_LMTmL  ) send_msg( mInfo, "S9 3,0,0" );
+            else if ( prec->s9 == imsS19_LMTmH  ) send_msg( mInfo, "S9 3,1,0" );
+            else if ( prec->s9 == imsS19_5VOut  ) send_msg( mInfo, "S9 16,1,1");
+            else if ( prec->s9 == imsS19_Brake  ) send_msg( mInfo, "S9 17,0,0");
 
             send_msg( mInfo, "Us 0");
 
