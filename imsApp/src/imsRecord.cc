@@ -88,7 +88,8 @@ extern "C" { epicsExportAddress( rset, imsRSET ); }
 #define MIP_JOGF     0x0100    // Jog forward
 #define MIP_JOGR     0x0200    // Jog backward
 #define MIP_JOG      (MIP_JOGF | MIP_JOGR)
-#define MIP_CALI     0x0400    // Calibration
+#define MIP_TRIG     0x0400    // Triggered move
+#define MIP_CALI     0x0800    // Calibration
 #define MIP_PAUSE    0x1000    // Move is being paused
 #define MIP_STOP     0x2000    // We're trying to stop.  If a home command
                                // is issued when the motor is moving, we
@@ -1398,8 +1399,12 @@ static void new_move( imsRecord *prec )
 
             prec->mip  = MIP_BL  ;
             prec->rval = NINT((prec->dval - prec->bdst) / prec->res);
-            sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMA %d",
-                          VI, VM, A, prec->rval );
+            if ( prec->mode == imsMode_Trig )
+                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nPt %d\r\nTe 4",
+                              VI, VM, A, prec->rval );
+            else
+                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMA %d",
+                              VI, VM, A, prec->rval );
         }
         else                // same direction and within BDST, use BACC and BVEL
         {
@@ -1412,8 +1417,12 @@ static void new_move( imsRecord *prec )
 
             prec->mip  = MIP_MOVE;
             prec->rval = NINT(prec->dval                / prec->res);
-            sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMA %d",
-                          VI, VM, A, prec->rval );
+            if ( prec->mode == imsMode_Trig )
+                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nPt %d\r\nTe 4",
+                              VI, VM, A, prec->rval );
+            else
+                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMA %d",
+                              VI, VM, A, prec->rval );
         }
     }
     else                                       // no backlash, use ACCL and VELO
@@ -1431,14 +1440,24 @@ static void new_move( imsRecord *prec )
         else
             prec->rval = prec->rrbv + NINT((prec->dval-prec->drbv) / prec->res);
 
-        sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMA %d",
-                      VI, VM, A, prec->rval );
+        if ( prec->mode == imsMode_Trig )
+            sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nPt %d\r\nTe 4",
+                          VI, VM, A, prec->rval );
+        else
+            sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nMA %d",
+                          VI, VM, A, prec->rval );
     }
+
+    if ( prec->mode == imsMode_Trig ) prec->mip |= MIP_TRIG;
 
     prec->smov = 1;
     prec->dmov = 0;
-    send_msg( mInfo, msg             );
-    send_msg( mInfo, "R2 0\r\nUs 30" );
+    send_msg( mInfo, msg );
+
+    if ( prec->mode == imsMode_Trig )
+        log_msg( prec, 0, "Waiting for trigger ..." );
+    else
+        send_msg( mInfo, "R2 0\r\nUs 30" );
 
     return;
 }
@@ -1462,7 +1481,7 @@ static long special( dbAddr *pDbAddr, int after )
 
     if ( after == 0 )
     {
-        if      ( fieldIndex == imsRecordVAL  ) prec->oval = prec->val ;
+        if      ( fieldIndex == imsRecordVAL  ) prec->pval = prec->val ;
         else if ( fieldIndex == imsRecordDVAL ) prec->oval = prec->dval;
         else if ( fieldIndex == imsRecordSPG  ) prec->oval = prec->spg ;
         else if ( fieldIndex == imsRecordDIR  ) prec->oval = prec->dir ;
@@ -1559,7 +1578,7 @@ static long special( dbAddr *pDbAddr, int after )
                  msta.Bits.RA_POWERUP || msta.Bits.RA_COMM_ERR ||
                  ((prec->set == imsSET_Use) && (prec->spg != imsSPG_Go)) )
             {
-                prec->val  = prec->oval;
+                prec->val  = prec->pval;
 
                 if      ( msta.Bits.RA_PROBLEM   )
                     log_msg( prec, 0, "No move/set, hardware problem"  );
@@ -1647,7 +1666,7 @@ static long special( dbAddr *pDbAddr, int after )
                   ((new_dval - prec->bdst) > prec->dhlm)         )     )
             {                                    // violated the software limits
                 prec->lvio = 1;                     // set limit violation alarm
-                prec->val  = prec->oval;
+                prec->val  = prec->pval;
 
                 log_msg( prec, 0, "No move, limit violated" );
                 break;
@@ -1723,6 +1742,7 @@ static long special( dbAddr *pDbAddr, int after )
                 break;
             }
 
+            prec->pval = prec->val;
             prec->val  = prec->dval * (1. - 2.*prec->dir) + prec->off;
 
             do_move:
@@ -1761,7 +1781,7 @@ static long special( dbAddr *pDbAddr, int after )
             nval = prec->rbv - prec->twr * prec->twv;
 
             tweak:
-            prec->oval = prec->val;
+            prec->pval = prec->val;
             prec->val  = nval;
 
             goto change_val;

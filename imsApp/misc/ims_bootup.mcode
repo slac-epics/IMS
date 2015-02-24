@@ -14,8 +14,9 @@ VA Xh
 VA X1
 VA X2
 VA X3
+VA Pt
 
-Ve 2      ' Version 2
+Ve 3      ' Version 3
 Ne 0      ' Disable numeric cmd
 p1 P      ' Start with current position
 Sd Db*4   ' Set save deadband
@@ -30,6 +31,9 @@ PG 1
 
   PU 1              ' Set the Power-Up flag
   P p1         	    ' Restore last saved position
+
+  TC Tm
+  S13 60,0,0
 
   R1 0              ' Reset the moving / slipping flag
   R2 0              ' Reset the delay counter for status update
@@ -218,6 +222,13 @@ PG 1
   LB Zz
     Sv 1
     PR "Want2Save"
+    RT
+
+  LB Tm
+    MA Pt
+
+    R2 0
+    Us 30
     RT
 
   LB Bs

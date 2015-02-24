@@ -62,6 +62,7 @@ menu(imsHTYP) {
 menu(imsMode) {
         choice(imsMode_Normal,        "Normal"           )
         choice(imsMode_Scan,          "Scan"             )
+        choice(imsMode_Trig,          "Trigger"          )
 }
 menu(imsHC) {
         choice(imsHC_Zero,            "Zero"             )
@@ -691,6 +692,11 @@ recordtype(ims) {
 		prompt("Motor Status")
 		special(SPC_NOMOD)
 		interest(3)
+	}
+	field(PVAL,DBF_DOUBLE) {
+		prompt("Previous VAL")
+		promptgroup(GUI_COMMON)
+		special(SPC_NOMOD)
 	}
 	field(OVAL,DBF_DOUBLE) {
 		prompt("Original Value")
