@@ -784,7 +784,20 @@ static long process( dbCommon *precord )
 
     msta.All = prec->msta;
 
-    if ( prec->movn ) goto finished;                             // still moving
+    if ( prec->movn )                                                  // moving
+    {
+        if ( prec->mip & MIP_TRIG )
+        {
+            prec->mip &= ~MIP_TRIG;
+            log_msg( prec, 0, "Triggered" );
+        }
+
+        goto finished;
+    }
+    else if ( msta.Bits.RA_TE )                           // waiting for trigger
+    {
+        goto finished;
+    }
 
     if ( (prec->smov ==       1) && (prec->dmov           == 0) &&
          (prec->ocsr == csr.All) && (labs(old_rrbv-count) <  5)    )
@@ -1287,6 +1300,7 @@ static long process_motor_info( imsRecord *prec, status_word csr, long count )
     msta.Bits.RA_EE      = csr.Bits.EE    ;
     msta.Bits.RA_SM      = csr.Bits.SM    ;
     msta.Bits.RA_STALL   = csr.Bits.ST    ;
+    msta.Bits.RA_TE      = csr.Bits.TE    ;
     msta.Bits.RA_POWERUP = csr.Bits.PU    ;
     msta.Bits.RA_NE      = csr.Bits.NE    ;
     msta.Bits.RA_ERR     = csr.Bits.ERR & 127;

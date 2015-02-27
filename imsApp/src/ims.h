@@ -33,10 +33,11 @@ typedef union
         unsigned int I4     : 1; // I4
         unsigned int ERR    : 7; // error number
         unsigned int ST     : 1; // stall detected
+        unsigned int TE     : 1; // trip enable
         unsigned int PU     : 1; // power-cycled
         unsigned int NE     : 1; // numeric enable
         unsigned int BY0    : 1; // MCode not running
-        unsigned int NA     :15; // not used
+        unsigned int NA     :14; // not used
     } Bits;
 } status_word;
 
@@ -62,10 +63,11 @@ typedef union
         unsigned int RA_HOMED       :1; // axis has been homed
         unsigned int RA_ERR         :7; // error number
         unsigned int RA_STALL       :1; // stall detected
+        unsigned int RA_TE          :1; // trip enable
         unsigned int RA_POWERUP     :1; // power-cycled
         unsigned int RA_NE          :1; // numeric enable
         unsigned int RA_BY0         :1; // MCode not running (BY = 0)
-        unsigned int NA             :5; // un-used bits
+        unsigned int NA             :4; // un-used bits
         unsigned int NOT_INIT       :1; // initialization not finished
     } Bits;
 } motor_status;

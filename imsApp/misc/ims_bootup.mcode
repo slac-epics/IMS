@@ -33,7 +33,7 @@ PG 1
   P p1         	    ' Restore last saved position
 
   TC Tm
-  S13 60,0,0
+  S13 60,0
 
   R1 0              ' Reset the moving / slipping flag
   R2 0              ' Reset the delay counter for status update
@@ -232,31 +232,15 @@ PG 1
     RT
 
   LB Bs
-    X2 NE*32768     ' bit-16 is the numeric enable
-
-    X1 PU*16384     ' bit-15 is the power-up flag
-    X2 X2+X1
-
-    X1 ST* 8192     ' bit-14 is stall detection
-    X2 X2+X1
-
-    X1 ER*   64     ' bit-7 through 13 is the error code
-    X2 X2+X1
-
-    X1 I4*   32     ' bit-6 is I4
-    X2 X2+X1
-
-    X1 I2*   16     ' bit-5 is I2
-    X2 X2+X1
-
-    X1 I1*    8     ' bit-4 is I1
-    X2 X2+X1
-
-    X1 SM*    4     ' bit-3 is stall detection mode
-    X2 X2+X1
-
-    X1 EE*    2     ' bit-2 is encoder enable
-    X2 X2+X1
+    X2 NE*2+PU*8+TE/2+ST*128+ER*2+I4*2+I2*2+I1*2+SM*2+EE*2
+                    ' bit-17 is the numeric enable
+                    ' bit-16 is the power-up flag
+                    ' bit-15 is the trip enable
+                    ' bit-14 is stall detection
+                    ' bit-7 through 13 is the error code
+                    ' bit-6,5,4 are I4, I2, I1
+                    ' bit-3 is stall detection mode
+                    ' bit-2 is encoder enable
     RT
 
   LB Rp
@@ -284,8 +268,8 @@ PG 1
   LB Rd
     Sr 1
 
-    X2 ST* 8192     ' bit-14 is stall detection
-    X2 X2+MV        ' LSB is MV
+    X2 ST*8192+MV   ' bit-14 is stall detection
+                    ' LSB is MV
 
     PR "BOS", X2, ",P=", P, "EOS"
     RT
