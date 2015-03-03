@@ -368,19 +368,19 @@ static long init_motor( imsRecord *prec )
         goto finished;
     }
 
-    // read the switch settings
+    // read S1 - S4
     retry = 1;
     do
     {
         flush_asyn( mInfo );
 
-        send_msg( mInfo, "PR \"S1=\",S1,\", S2=\",S2,\", S3=\",S3,\", S4=\",S4,\", S9=\",S9" );
+        send_msg( mInfo, "PR \"S1=\",S1,\", S2=\",S2,\", S3=\",S3,\", S4=\",S4" );
         status = recv_reply( mInfo, rbbuf );
         if ( status > 0 )
         {
-            status = sscanf( rbbuf, "S1=%d, %d, %d, S2=%d, %d, %d, S3=%d, %d, %d, S4=%d, %d, %d, S9=%d, %d, %d",
-                                    &s1, &a1, &d1, &s2, &a2, &d2, &s3, &a3, &d3, &s4, &a4, &d4, &s9, &a9, &d9 );
-            if ( status == 15 )
+            status = sscanf( rbbuf, "S1=%d, %d, %d, S2=%d, %d, %d, S3=%d, %d, %d, S4=%d, %d, %d",
+                                    &s1, &a1, &d1, &s2, &a2, &d2, &s3, &a3, &d3, &s4, &a4, &d4 );
+            if ( status == 12 )
             {
                 if      ( (s1 ==  0) && (a1 == 0) && (d1 == 0) )
                     prec->s1 = imsS19_NotUsed;
@@ -446,6 +446,37 @@ static long init_motor( imsRecord *prec )
                     msta.Bits.RA_PROBLEM = 1;
                 }
 
+                db_post_events( prec, &prec->s1  , DBE_VAL_LOG );
+                db_post_events( prec, &prec->s2  , DBE_VAL_LOG );
+                db_post_events( prec, &prec->s3  , DBE_VAL_LOG );
+                db_post_events( prec, &prec->s4  , DBE_VAL_LOG );
+            }
+        }
+
+        epicsThreadSleep( 0.2 );
+    } while ( (status != 12) && (retry++ < 3) );
+
+    if ( status != 12 )
+    {
+        log_msg( prec, 0, "Failed to read S1 - S4" );
+
+        msta.Bits.RA_PROBLEM = 1;
+        goto finished;
+    }
+/*
+    // read S9
+    retry = 1;
+    do
+    {
+        flush_asyn( mInfo );
+
+        send_msg( mInfo, "PR \"S9=\",S9" );
+        status = recv_reply( mInfo, rbbuf );
+        if ( status > 0 )
+        {
+            status = sscanf( rbbuf, "S9=%d, %d, %d", &s9, &a9, &d9 );
+            if ( status == 3 )
+            {
                 if      ( (s9 ==  0) && (a9 == 0) && (d9 == 0) )
                     prec->s9 = imsS19_NotUsed;
                 else if ( (s9 == 17) && (a9 == 0) && (d9 == 0) )
@@ -458,25 +489,21 @@ static long init_motor( imsRecord *prec )
                     msta.Bits.RA_PROBLEM = 1;
                 }
 
-                db_post_events( prec, &prec->s1  , DBE_VAL_LOG );
-                db_post_events( prec, &prec->s2  , DBE_VAL_LOG );
-                db_post_events( prec, &prec->s3  , DBE_VAL_LOG );
-                db_post_events( prec, &prec->s4  , DBE_VAL_LOG );
                 db_post_events( prec, &prec->s9  , DBE_VAL_LOG );
             }
         }
 
         epicsThreadSleep( 0.2 );
-    } while ( (status != 15) && (retry++ < 3) );
+    } while ( (status != 3) && (retry++ < 3) );
 
-    if ( status != 15 )
+    if ( status != 3 )
     {
-        log_msg( prec, 0, "Failed to read the switch settings" );
+        log_msg( prec, 0, "Failed to read S9" );
 
-        msta.Bits.RA_PROBLEM = 1;
-        goto finished;
+        prec->s9 = imsS19_NotUsed;
+        db_post_events( prec, &prec->s9  , DBE_VAL_LOG );
     }
-
+*/
     // read MS and ES
     retry = 1;
     do
@@ -1816,7 +1843,14 @@ static long special( dbAddr *pDbAddr, int after )
             {
                 if ( prec->spg == imsSPG_Stop )
                 {
-                    log_msg( prec, 0, "Stop, with deceleration"  );
+                    if ( prec->mip & MIP_TRIG )
+                    {
+                        send_msg( mInfo, "TE 0" );
+                        log_msg( prec, 0, "Disable trigger"          );
+                    }
+                    else
+                        log_msg( prec, 0, "Stop, with deceleration"  );
+
                     prec->mip &= ~MIP_PAUSE;
                     prec->mip |=  MIP_STOP ;
                 }
@@ -1835,7 +1869,14 @@ static long special( dbAddr *pDbAddr, int after )
 
             if ( prec->mip != MIP_DONE )
             {
-                log_msg( prec, 0, "Stop, with deceleration"  );
+                if ( prec->mip & MIP_TRIG )
+                {
+                    send_msg( mInfo, "TE 0" );
+                    log_msg( prec, 0, "Disable trigger"          );
+                }
+                else
+                    log_msg( prec, 0, "Stop, with deceleration"  );
+
                 prec->mip  &= ~MIP_PAUSE;
                 prec->mip  |=  MIP_STOP ;
 
@@ -1846,7 +1887,8 @@ static long special( dbAddr *pDbAddr, int after )
         case ( imsRecordESTP ):
             prec->estp = 0;
 
-            send_msg( mInfo, "\e" );
+            if ( prec->mip & MIP_TRIG ) send_msg( mInfo, "TE 0\r\n\e" );
+            else                        send_msg( mInfo, "\e"         );
 
             if ( prec->mip != MIP_DONE )
             {
@@ -3366,7 +3408,7 @@ static long log_msg( imsRecord *prec, int dlvl, const char *fmt, ... )
 
     va_list    args;
 
-    if ( (dlvl >= 0) && (prec->mode == imsMode_Normal      ) &&
+    if ( (dlvl >= 0) && (prec->mode != imsMode_Scan        ) &&
          (dlvl >  max((int)prec->dlvl, (int)imsRecordDebug))    ) return( 0 );
 
     if ( (dlvl >= 0) && (prec->mode == imsMode_Scan        ) &&
@@ -3382,7 +3424,7 @@ static long log_msg( imsRecord *prec, int dlvl, const char *fmt, ... )
     vsprintf( msg, fmt, args );
     va_end  ( args           );
 
-    if ( (dlvl >= 0) && (((prec->mode == imsMode_Normal         ) &&
+    if ( (dlvl >= 0) && (((prec->mode != imsMode_Scan           ) &&
                           (dlvl       <= prec->dlvl             )    ) ||
                          ((prec->mode == imsMode_Scan           ) &&
                           (dlvl       <= min((int)prec->dlvl, 0))    )    ) )
@@ -3409,8 +3451,8 @@ static long log_msg( imsRecord *prec, int dlvl, const char *fmt, ... )
         mInfo->lMutex->unlock();
     }
 
-    if ( (dlvl < 0)                                                   ||
-         ((prec->mode == imsMode_Normal) && (dlvl <= imsRecordDebug))    )
+    if ( (dlvl < 0)                                                 ||
+         ((prec->mode != imsMode_Scan) && (dlvl <= imsRecordDebug))    )
         printf( "%s.%s %s -- %s\n", timestamp, msec, prec->name, msg );
 
     return( 1 );
