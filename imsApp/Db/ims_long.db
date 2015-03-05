@@ -119,7 +119,7 @@ record(calc, "$(MOTOR):SAVED_P") {
   field(INPB, "$(MOTOR).RES       NPP")
   field(INPC, "$(MOTOR).DIR       NPP")
   field(INPD, "$(MOTOR).OFF       NPP")
-  field(CALC, "A*B*(2*C-1)+D")
+  field(CALC, "A*B*(1-2*C)+D")
   field(FLNK, "$(MOTOR):SAVED_TS")
 }
 

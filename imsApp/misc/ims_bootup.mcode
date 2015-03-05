@@ -45,22 +45,18 @@ PG 1
   Us 18000
 
   LB Lp
-    CL Ya, Mv=1	    ' Moving
+    CL Ya, R1=1&Mv  ' Has been moving
+    CL Yb, R1<>1&Mv ' Started moving
     CL Za, Mv=0	    ' Not moving
     H  1
     BR Lp
 
   LB Ya
-    CL Yb, R1=1     ' Has been moving
-    CL Yc, R1<>1    ' Started moving
-    RT
-
-  LB Yb
     IC R2           ' Increment the delay counter
     CL Rp, R2>30    ' Has been 0.3 second, update status
     RT
 
-  LB Yc
+  LB Yb
     R1 1            ' Set the moving flag
     R2 1            ' Reset the delay counter
     R3 0            ' Reset the delay counter
@@ -244,19 +240,15 @@ PG 1
     RT
 
   LB Rp
-    CL Ra, Sk=1
-    CL Rb, Sk=0
+    CL Ra, R1<>1&Sk
+    CL Rb, R1=1&Sk
+    CL Ra, Sk=0
 
     R2 0            ' Reset the delay counter
     CL Re, Us=0     ' Reset the status update delay
     RT
 
   LB Ra
-    CL Rb, R1<>1
-    CL Rd, R1=1
-    RT
-
-  LB Rb
     Sr 0
 
     CL Bs
@@ -265,7 +257,7 @@ PG 1
     PR "BOS", X2, ",P=", P, "EOS"
     RT
 
-  LB Rd
+  LB Rb
     Sr 1
 
     X2 ST*8192+MV   ' bit-14 is stall detection

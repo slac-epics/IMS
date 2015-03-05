@@ -463,47 +463,55 @@ static long init_motor( imsRecord *prec )
         msta.Bits.RA_PROBLEM = 1;
         goto finished;
     }
-/*
+
     // read S9
-    retry = 1;
-    do
+    if ( strncmp(prec->pn, "MFI", 3) != 0 )
     {
-        flush_asyn( mInfo );
-
-        send_msg( mInfo, "PR \"S9=\",S9" );
-        status = recv_reply( mInfo, rbbuf );
-        if ( status > 0 )
+        retry = 1;
+        do
         {
-            status = sscanf( rbbuf, "S9=%d, %d, %d", &s9, &a9, &d9 );
-            if ( status == 3 )
+            flush_asyn( mInfo );
+
+            send_msg( mInfo, "PR \"S9=\",S9" );
+            status = recv_reply( mInfo, rbbuf );
+            if ( status > 0 )
             {
-                if      ( (s9 ==  0) && (a9 == 0) && (d9 == 0) )
-                    prec->s9 = imsS19_NotUsed;
-                else if ( (s9 == 17) && (a9 == 0) && (d9 == 0) )
-                    prec->s9 = imsS19_Brake  ;
-                else
+                status = sscanf( rbbuf, "S9=%d, %d, %d", &s9, &a9, &d9 );
+                if ( status == 3 )
                 {
-                    log_msg( prec, 0, "S9 setting invalid" );
+                    if      ( (s9 ==  0) && (a9 == 0) && (d9 == 0) )
+                        prec->s9 = imsS19_NotUsed;
+                    else if ( (s9 == 17) && (a9 == 0) && (d9 == 0) )
+                        prec->s9 = imsS19_Brake  ;
+                    else
+                    {
+                        log_msg( prec, 0, "S9 setting invalid" );
 
-                    prec->s9             = imsS19_Invalid;
-                    msta.Bits.RA_PROBLEM = 1;
+                        prec->s9             = imsS19_Invalid;
+                        msta.Bits.RA_PROBLEM = 1;
+                    }
+
+                    db_post_events( prec, &prec->s9  , DBE_VAL_LOG );
                 }
-
-                db_post_events( prec, &prec->s9  , DBE_VAL_LOG );
             }
+
+            epicsThreadSleep( 0.2 );
+        } while ( (status != 3) && (retry++ < 3) );
+
+        if ( status != 3 )
+        {
+            log_msg( prec, 0, "Failed to read S9" );
+
+            prec->s9 = imsS19_NotUsed;
+            db_post_events( prec, &prec->s9  , DBE_VAL_LOG );
         }
-
-        epicsThreadSleep( 0.2 );
-    } while ( (status != 3) && (retry++ < 3) );
-
-    if ( status != 3 )
+    }
+    else
     {
-        log_msg( prec, 0, "Failed to read S9" );
-
         prec->s9 = imsS19_NotUsed;
         db_post_events( prec, &prec->s9  , DBE_VAL_LOG );
     }
-*/
+
     // read MS and ES
     retry = 1;
     do
@@ -665,7 +673,7 @@ static long init_motor( imsRecord *prec )
 
     epicsThreadSleep( 0.1 );
 
-    sprintf( msg, "Sk %d",                   prec->mode                     );
+    sprintf( msg, "Sk %d",                   prec->mode==imsMode_Scan       );
     send_msg( mInfo, msg );
 
     if ( prec->mres == 0. )
@@ -1562,7 +1570,7 @@ static long special( dbAddr *pDbAddr, int after )
     {
         case imsRecordPING:
             prec->ping = 0;
-            if ( prec->mode == imsMode_Normal ) mInfo->pEvent->signal();
+            if ( prec->mode != imsMode_Scan ) mInfo->pEvent->signal();
 
             break;
         case imsRecordSSTR:
@@ -2806,7 +2814,7 @@ static long special( dbAddr *pDbAddr, int after )
         case imsRecordMODE:
             if ( prec->mode == prec->oval ) break;
 
-            sprintf( msg, "Sk %d\r\nUs 0", prec->mode );
+            sprintf( msg, "Sk %d\r\nUs 0", prec->mode==imsMode_Scan );
             send_msg( mInfo, msg );
 
             break;
