@@ -39,6 +39,7 @@ $(MOTOR).HLM          86400    monitor
 $(MOTOR).RTRY         86400    monitor
 $(MOTOR).RDBD         86400    monitor
 $(MOTOR).PDBD         86400    monitor
+$(MOTOR).PREC         86400    monitor
 $(MOTOR).SBAS         86400    monitor
 $(MOTOR).SMAX         86400    monitor
 $(MOTOR).S            86400    monitor
