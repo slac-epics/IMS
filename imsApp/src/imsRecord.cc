@@ -117,7 +117,6 @@ static long send_msg          ( struct ims_info *mInfo, char const *msg,
                                                         int sEvt = 1          );
 static long recv_reply        ( struct ims_info *mInfo, char *rbbuf           );
 
-static void ping_callback     ( struct ims_info *mInfo                        );
 static void ping_controller   ( struct ims_info *mInfo                        );
 
 static long log_msg  ( imsRecord *prec, int dlvl, const char *fmt, ... );
@@ -247,13 +246,9 @@ static long connect_motor( imsRecord *prec )
 
     mInfo->cMutex->unlock();
 
-    callbackSetCallback( (void (*)(struct callbackPvt *)) ping_callback,
-                         &(mInfo->callback) );
-    callbackSetPriority( priorityMedium, &(mInfo->callback) );
-
-    epicsThreadCreate  ( prec->name, epicsThreadPriorityMedium,
-                         epicsThreadGetStackSize(epicsThreadStackMedium),
-                         (EPICSTHREADFUNC)ping_controller, (void *)mInfo );
+    epicsThreadCreate( prec->name, epicsThreadPriorityMedium,
+                       epicsThreadGetStackSize(epicsThreadStackMedium),
+                       (EPICSTHREADFUNC)ping_controller, (void *)mInfo );
 
     return( status );
 }
@@ -3291,12 +3286,6 @@ static void post_fields( imsRecord *prec, unsigned short alarm_mask,
 }
 
 /******************************************************************************/
-static void ping_callback( struct ims_info *mInfo )
-{
-    scanOnce( (struct dbCommon *)mInfo->precord );
-}
-
-/******************************************************************************/
 static void ping_controller( struct ims_info *mInfo )
 {
     imsRecord    *prec = mInfo->precord;
@@ -3353,7 +3342,9 @@ static void ping_controller( struct ims_info *mInfo )
 
         mInfo->cMutex->unlock();
 
-        callbackRequest( (CALLBACK *)mInfo );
+        dbScanLock  ( (dbCommon *)prec );
+        process     ( (dbCommon *)prec );
+        dbScanUnlock( (dbCommon *)prec );
     }
 }
 

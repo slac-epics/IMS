@@ -27,6 +27,21 @@ record(scalcout, "$(MOTOR):UTC") {
   field(DESC, "UTC Seconds of Last Update")
   field(INAA, "$(MOTOR):UTCS")
   field(CALC, "INT(AA)")
+  field(FLNK, "$(MOTOR):BUSY_CALC")
+}
+
+record(calcout, "$(MOTOR):BUSY_CALC") {
+  field(DESC, "Invert DMOV")
+  field(INPA, "$(MOTOR).DMOV NPP")
+  field(OUT,  "$(MOTOR):BUSY CPP")
+  field(CALC, "1-A")
+  field(OOPT, "On Change")
+  field(DOPT, "Use CALC")
+}
+
+record(busy, "$(MOTOR):BUSY") {
+  field(DESC, "Moving Or Not")
+  field(OMSL, "supervisory")
 }
 
 record(stringin, "$(MOTOR):STATUS") {

@@ -542,11 +542,13 @@ recordtype(ims) {
 		prompt("User Desired Value (EGU)")
 		special(SPC_MOD)
 		asl(ASL0)
+		pp(TRUE)
 	}
 	field(DVAL,DBF_DOUBLE) {
 		prompt("Dial Desired Value (EGU)")
 		special(SPC_MOD)
 		asl(ASL0)
+		pp(TRUE)
 	}
 	field(RVAL,DBF_LONG) {
 		prompt("Raw Desired Value (step)")

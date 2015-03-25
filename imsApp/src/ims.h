@@ -1,6 +1,5 @@
 struct ims_info
 {
-    CALLBACK          callback;
     struct imsRecord *precord;
 
     epicsEvent       *pEvent;
