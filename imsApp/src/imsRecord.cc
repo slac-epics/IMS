@@ -1525,7 +1525,7 @@ static long special( dbAddr *pDbAddr, int after )
 
     if ( after == 0 )
     {
-        if      ( fieldIndex == imsRecordVAL  ) prec->pval = prec->val ;
+        if      ( fieldIndex == imsRecordVAL  ) prec->lval = prec->val ;
         else if ( fieldIndex == imsRecordDVAL ) prec->oval = prec->dval;
         else if ( fieldIndex == imsRecordSPG  ) prec->oval = prec->spg ;
         else if ( fieldIndex == imsRecordDIR  ) prec->oval = prec->dir ;
@@ -1584,17 +1584,15 @@ static long special( dbAddr *pDbAddr, int after )
                 mInfo->csr     = csr;
                 mInfo->count   = count;
                 mInfo->newData = 1;
+
+                mInfo->cMutex->unlock();
+
+                dbScanLock  ( (dbCommon *)prec );
+                process     ( (dbCommon *)prec );
+                dbScanUnlock( (dbCommon *)prec );
             }
             else
-            {
                 log_msg( prec, 0, "Erroneous status string" );
-
-                mInfo->cMutex->lock();
-
-                mInfo->newData = 0;
-            }
-
-            mInfo->cMutex->unlock();
 
             break;
         case imsRecordSVNG:
@@ -1617,12 +1615,14 @@ static long special( dbAddr *pDbAddr, int after )
 
             break;
         case imsRecordVAL :
+            MARK( M_VAL  );
+
             change_val:
             if ( (prec->sevr >  MINOR_ALARM) ||
                  msta.Bits.RA_POWERUP || msta.Bits.RA_COMM_ERR ||
                  ((prec->set == imsSET_Use) && (prec->spg != imsSPG_Go)) )
             {
-                prec->val  = prec->pval;
+                prec->val  = prec->lval;
 
                 if      ( msta.Bits.RA_PROBLEM   )
                     log_msg( prec, 0, "No move/set, hardware problem"  );
@@ -1710,7 +1710,7 @@ static long special( dbAddr *pDbAddr, int after )
                   ((new_dval - prec->bdst) > prec->dhlm)         )     )
             {                                    // violated the software limits
                 prec->lvio = 1;                     // set limit violation alarm
-                prec->val  = prec->pval;
+                prec->val  = prec->lval;
 
                 log_msg( prec, 0, "No move, limit violated" );
                 break;
@@ -1719,6 +1719,8 @@ static long special( dbAddr *pDbAddr, int after )
             prec->dval = new_dval;
             goto do_move;
         case imsRecordDVAL:
+            MARK( M_DVAL );
+
             if ( (prec->sevr >  MINOR_ALARM) ||
                  msta.Bits.RA_POWERUP || msta.Bits.RA_COMM_ERR ||
                  ((prec->set == imsSET_Use) && (prec->spg != imsSPG_Go)) )
@@ -1786,7 +1788,7 @@ static long special( dbAddr *pDbAddr, int after )
                 break;
             }
 
-            prec->pval = prec->val;
+            prec->lval = prec->val;
             prec->val  = prec->dval * (1. - 2.*prec->dir) + prec->off;
 
             do_move:
@@ -1825,7 +1827,7 @@ static long special( dbAddr *pDbAddr, int after )
             nval = prec->rbv - prec->twr * prec->twv;
 
             tweak:
-            prec->pval = prec->val;
+            prec->lval = prec->val;
             prec->val  = nval;
 
             goto change_val;
@@ -3345,55 +3347,6 @@ static void ping_controller( struct ims_info *mInfo )
         dbScanLock  ( (dbCommon *)prec );
         process     ( (dbCommon *)prec );
         dbScanUnlock( (dbCommon *)prec );
-    }
-}
-
-/******************************************************************************/
-static void listen_to_motor( struct ims_info *mInfo )
-{
-    imsRecord         *prec = mInfo->precord;
-
-    static const char  output_terminator[] = "\n";
-    static const char  input_terminator[]  = "\r\n";
-
-    char               rdbuf[256];
-    size_t received;
-    long bytesToRead=64, readMore;
-    int eomReason;
-
-    asynStatus         asyn_rtn;
-
-    asynUser *pasynListener = pasynManager->createAsynUser( 0, 0 );
-    asyn_rtn = pasynManager->connectDevice( pasynListener, prec->asyn, 1 );
-
-    // find the asynOctet interface
-    asynInterface* pasynInterface = pasynManager->findInterface( pasynListener,
-                                                                 asynOctetType,
-                                                                 true );
-//  if(!pasynInterface)
-//  {
-//      error("%s: bus %s does not support asynOctet interface\n",
-//          clientName(), busname);
-//      return false;
-//  }
-
-    asynOctet *pasynOctet = static_cast<asynOctet*>(pasynInterface->pinterface);
-    void *pvtOctet = pasynInterface->drvPvt;
-
-    while ( ! interruptAccept ) epicsThreadSleep( 1 );
-
-    printf( "%s -- waiting for messages ...\n", prec->name );
-    pasynListener->timeout = 0.01;
-    while( 1 )
-    {
-        received  = 0;
-        readMore  = 0;
-        eomReason = 0;
-
-        asyn_rtn = pasynOctet->read( pvtOctet, pasynListener, rdbuf,
-                                     bytesToRead, &received, &eomReason );
-
-        if ( received > 0 ) printf( "Got msg: %d, %s\n", received, rdbuf );
     }
 }
 

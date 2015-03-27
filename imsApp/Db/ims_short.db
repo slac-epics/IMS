@@ -56,7 +56,7 @@ record(stringin, "$(MOTOR):STATUS") {
 record(stringout, "$(MOTOR):UPDATE") {
   field(DESC, "Update Motor Status")
   field(DOL,  "$(MOTOR):STATUS")
-  field(OUT,  "$(MOTOR).SSTR PP")
+  field(OUT,  "$(MOTOR).SSTR NPP")
   field(OMSL, "closed_loop")
 }
 

@@ -544,6 +544,11 @@ recordtype(ims) {
 		asl(ASL0)
 		pp(TRUE)
 	}
+	field(LVAL,DBF_DOUBLE) {
+		prompt("Previous VAL")
+		promptgroup(GUI_COMMON)
+		special(SPC_NOMOD)
+	}
 	field(DVAL,DBF_DOUBLE) {
 		prompt("Dial Desired Value (EGU)")
 		special(SPC_MOD)
@@ -564,11 +569,13 @@ recordtype(ims) {
 		prompt("Tweak Motor Forward")
 		special(SPC_MOD)
 		asl(ASL0)
+		pp(TRUE)
 	}
 	field(TWR,DBF_SHORT) {
 		prompt("Tweak Motor Reverse")
 		special(SPC_MOD)
 		asl(ASL0)
+		pp(TRUE)
 	}
 	field(HOMD,DBF_DOUBLE) {
 		prompt("Dial Position For Home")
@@ -695,11 +702,6 @@ recordtype(ims) {
 		special(SPC_NOMOD)
 		interest(3)
 	}
-	field(PVAL,DBF_DOUBLE) {
-		prompt("Previous VAL")
-		promptgroup(GUI_COMMON)
-		special(SPC_NOMOD)
-	}
 	field(OVAL,DBF_DOUBLE) {
 		prompt("Original Value")
 		promptgroup(GUI_COMMON)
@@ -724,7 +726,6 @@ recordtype(ims) {
 		size(61)
 		special(SPC_MOD)
 		asl(ASL0)
-		pp(TRUE)
 		interest(1)
 	}
 	field(OCSR,DBF_ULONG) {
