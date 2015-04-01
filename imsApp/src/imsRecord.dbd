@@ -214,6 +214,14 @@ recordtype(ims) {
 		initial("Disable")
 		interest(1)
 	}
+	field(EL,DBF_DOUBLE) {
+		prompt("Encoder Lines")
+		promptgroup(GUI_COMMON)
+		special(SPC_MOD)
+		asl(ASL0)
+		initial(512)
+		interest(1)
+	}
 	field(ME,DBF_MENU) {
 		prompt("Monitor Encoder")
 		promptgroup(GUI_COMMON)
@@ -221,14 +229,6 @@ recordtype(ims) {
 		special(SPC_MOD)
 		asl(ASL0)
 		initial("Per EE")
-		interest(1)
-	}
-	field(EL,DBF_DOUBLE) {
-		prompt("Encoder Lines")
-		promptgroup(GUI_COMMON)
-		special(SPC_MOD)
-		asl(ASL0)
-		initial(512)
 		interest(1)
 	}
 	field(MS,DBF_SHORT) {

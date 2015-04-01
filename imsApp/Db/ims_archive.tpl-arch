@@ -9,6 +9,7 @@ $(MOTOR).STSV         86400    monitor
 $(MOTOR).ERSV         86400    monitor
 $(MOTOR).EE           86400    monitor
 $(MOTOR).EL           86400    monitor
+$(MOTOR).ME           86400    monitor
 $(MOTOR).MS           86400    monitor
 $(MOTOR).MT           86400    monitor
 $(MOTOR).HT           86400    monitor

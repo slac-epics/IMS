@@ -1,10 +1,37 @@
-ims Record R1-0-1 Release Notice
+ims Record R2-0-0 Release Notice
 ================================================================================
 
 The ims dedicated record software in this release is a re-write/simplification
 based on motor record R6-4-4, without the general abstraction layers of device
 support and driver support.  It conforms to the original motor record interface,
 and is compatible with EPICS base R3-14-12.
+
+Modification Log from R1-0-1 to R2-0-0
+======================================
+
+New features:
+ 1) Implemented a trigger mode.  Once activated, the motor will wait for a
+    trigger signal on IO-13 after receiving a move command.
+
+ 2) Implemented a mode to monitor the encoder position even when the encoder
+    is disabled.  This is for the situation where there is an encoder, but it
+    needs to be disabled so that the motor can do backlash correction properly.
+    By monitoring the encoder position, the user can see whether the motor has
+    suffient driving power so that it will not miss steps (MISS = 1 or not).
+
+ 3) Support caput callback.
+
+Bug fixes:
+ 1) When BDST was negative, it might do an unnecessary move thus using more
+    time.  However the final position is correct.
+
+ 2) The saved position (:SAVED_P) value was not correct.  This is only for
+    display purpose.
+
+ 3) When multiple control applications (screens, camonitor's or caput's) were
+    involved, the motor would respond to commands sent from anywhere, but the
+    applications which did not send the command would not show the new VAL or
+    DVAL.
 
 Modification Log from R1-0-0 to R1-0-1
 ======================================
