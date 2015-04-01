@@ -4,6 +4,10 @@ menu(imsAble) {
 	choice(imsAble_Disable,       "Disable"          )
 	choice(imsAble_Enable,        "Enable"           )
 }
+menu(imsRBV) {
+	choice(imsRBV_EE,             "Per EE"           )
+	choice(imsRBV_Encoder,        "Encoder"          )
+}
 menu(imsS19) {
 	choice(imsS19_NotUsed,        "Not Used"         )
 	choice(imsS19_HomeL,          "Home L"           )
@@ -208,6 +212,15 @@ recordtype(ims) {
 		special(SPC_MOD)
 		asl(ASL0)
 		initial("Disable")
+		interest(1)
+	}
+	field(ME,DBF_MENU) {
+		prompt("Monitor Encoder")
+		promptgroup(GUI_COMMON)
+		menu(imsRBV)
+		special(SPC_MOD)
+		asl(ASL0)
+		initial("Per EE")
 		interest(1)
 	}
 	field(EL,DBF_DOUBLE) {

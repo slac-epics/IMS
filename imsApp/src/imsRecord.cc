@@ -1,4 +1,4 @@
-#define VERSION 1.0
+#define VERSION 2.0
 
 #include <algorithm>
 
@@ -668,7 +668,7 @@ static long init_motor( imsRecord *prec )
 
     epicsThreadSleep( 0.1 );
 
-    sprintf( msg, "Sk %d",                   prec->mode==imsMode_Scan       );
+    sprintf( msg, "Me %d\r\nSk %d",          prec->me,prec->mode==imsMode_Scan);
     send_msg( mInfo, msg );
 
     if ( prec->mres == 0. )
@@ -883,7 +883,6 @@ static long process( dbCommon *precord )
             {
                 if ( prec->htyp == imsHTYP_Stall )
                 {
-                    prec->miss         = 0;
                     prec->athm         = 1;
                     msta.Bits.RA_HOMED = 1;
                     msta.Bits.RA_HOME  = 1;
@@ -893,8 +892,8 @@ static long process( dbCommon *precord )
                 }
                 else
                 {
-                    log_msg( prec, 0, "Stalled, missed home" );
                     prec->miss = 1;
+                    log_msg( prec, 0, "Stalled, missed home" );
                 }
             }
             else if ( prec->mip & MIP_CALI )                  // was calibrating
@@ -908,13 +907,12 @@ static long process( dbCommon *precord )
                 {
                     log_msg( prec, 0, "Desired %.6g, reached %.6g",
                                       prec->val, prec->rbv );
-                    prec->miss = 0;
                 }
                 else
                 {
+                    prec->miss = 1;
                     log_msg( prec, 0, "Desired %.6g, reached %.6g, missed due to ST",
                                       prec->val, prec->rbv );
-                    prec->miss = 1;
                 }
             }
         }
@@ -955,7 +953,6 @@ static long process( dbCommon *precord )
             {
                 log_msg( prec, 0, "Homed to LLS" );
 
-                prec->miss = 0;
                 prec->athm = 1;
                 msta.Bits.RA_HOMED = 1;
                 msta.Bits.RA_HOME  = 1;
@@ -964,8 +961,8 @@ static long process( dbCommon *precord )
             }
             else if ( prec->mip & MIP_HOME )                       // was homing
             {
-                log_msg( prec, 0, "Hit low limit, missed home" );
                 prec->miss = 1;
+                log_msg( prec, 0, "Hit low limit, missed home" );
             }
             else if ( prec->mip & MIP_CALI )                  // was calibrating
             {
@@ -978,13 +975,12 @@ static long process( dbCommon *precord )
                 {
                     log_msg( prec, 0, "Desired %.6g, reached %.6g",
                                       prec->val, prec->rbv );
-                    prec->miss = 0;
                 }
                 else
                 {
+                    prec->miss = 1;
                     log_msg( prec, 0, "Desired %.6g, reached %.6g, missed due to LLS",
                                       prec->val, prec->rbv );
-                    prec->miss = 1;
                 }
             }
         }
@@ -1025,7 +1021,6 @@ static long process( dbCommon *precord )
             {
                 log_msg( prec, 0, "Homed to HLS" );
 
-                prec->miss = 0;
                 prec->athm = 1;
                 msta.Bits.RA_HOMED = 1;
                 msta.Bits.RA_HOME  = 1;
@@ -1034,8 +1029,8 @@ static long process( dbCommon *precord )
             }
             else if ( prec->mip & MIP_HOME )                       // was homing
             {
-                log_msg( prec, 0, "Hit high limit, missed home" );
                 prec->miss = 1;
+                log_msg( prec, 0, "Hit high limit, missed home" );
             }
             else if ( prec->mip & MIP_CALI )                  // was calibrating
             {
@@ -1048,13 +1043,12 @@ static long process( dbCommon *precord )
                 {
                     log_msg( prec, 0, "Desired %.6g, reached %.6g",
                                       prec->val, prec->rbv );
-                    prec->miss = 0;
                 }
                 else
                 {
+                    prec->miss = 1;
                     log_msg( prec, 0, "Desired %.6g, reached %.6g, missed due to HLS",
                                       prec->val, prec->rbv );
-                    prec->miss = 1;
                 }
             }
         }
@@ -1066,7 +1060,6 @@ static long process( dbCommon *precord )
         else if ( prec->mip & MIP_STOP  )
         {
             log_msg( prec, 0, "Stopped at %.6g", prec->rbv );
-            prec->miss = 0;
         }
         else if ( prec->mip == (MIP_HOMR | MIP_HOMB) )
         {
@@ -1110,7 +1103,6 @@ static long process( dbCommon *precord )
         }
         else if ( prec->mip & MIP_HOME  )
         {
-            prec->miss = 0;
             prec->athm = 1;
             msta.Bits.RA_HOMED = 1;
             if ( prec->htyp == imsHTYP_Switch )
@@ -1148,6 +1140,12 @@ static long process( dbCommon *precord )
     else if ( prec->mip == MIP_NEW ) new_move( prec );
     else if ( prec->mip == MIP_BL  )                              // do backlash
     {
+        // check for miss
+        if ( (prec->me                                    == imsRBV_Encoder) &&
+             (fabs(prec->dval - prec->bdst -
+                   (prec->rbv - prec->off)*(1 - 2*prec->dir)) >= prec->rdbd)   )
+            prec->miss = 1;
+
         log_msg( prec, 0, "Move to %.6g (DVAL: %.6g), with BACC & BVEL",
                           prec->val, prec->dval );
 
@@ -1165,7 +1163,6 @@ static long process( dbCommon *precord )
     }
 //  else if ( (imsMode_Normal   == prec->mode) &&       // normal mode, not scan
     else if ( (fabs(diff) >= prec->rdbd) &&                 // not closed enough
-              (prec->rtry >  0         ) &&                         // can retry
               (prec->rcnt <  prec->rtry) &&                    // can retry more
               (((prec->egag == menuYesNoYES) && (msta.Bits.RA_COMM_ERR == 0)) ||
                ((prec->egag == menuYesNoNO ) &&
@@ -1178,10 +1175,14 @@ static long process( dbCommon *precord )
         log_msg( prec, 0, "Desired %.6g, reached %.6g, retrying %d ...",
                           prec->val,  prec->rbv,  ++prec->rcnt );
 
-        if ( prec->egag == menuYesNoYES )
+        if      ( prec->egag == menuYesNoYES   )
             sprintf( msg, "MR %d", int((prec->dval - prec->drbv) / prec->res) );
-        else
-            sprintf( msg, "MA %d", prec->rval );
+        else if ( prec->ee   == imsAble_Enable )
+            sprintf( msg, "MA %d", prec->rval                                 );
+        else if ( prec->dir  == imsDIR_Pos     )              // monitor encoder
+            sprintf( msg, "MR %d", int((prec->val  - prec->rbv ) / prec->res) );
+        else if ( prec->dir  == imsDIR_Neg     )              // monitor encoder
+            sprintf( msg, "MR %d", int((prec->rbv  - prec->val ) / prec->res) );
 
         send_msg( mInfo, msg    );
 //      send_msg( mInfo, "Us 0" );
@@ -1190,16 +1191,13 @@ static long process( dbCommon *precord )
     {
         prec->diff = diff;
         if ( fabs(diff) < prec->rdbd )
-        {
             log_msg( prec, 0, "Desired %.6g, reached %.6g",
                               prec->val, prec->rbv             );
-            prec->miss = 0;
-        }
         else
         {
+            prec->miss = 1;
             log_msg( prec, 0, "Desired %.6g, reached %.6g after %d retries",
                               prec->val, prec->rbv, prec->rcnt );
-            prec->miss = 1;
         }
 
         prec->mip  = MIP_DONE;
@@ -1361,8 +1359,17 @@ static long process_motor_info( imsRecord *prec, status_word csr, long count )
     prec->rrbv = count;
     if ( prec->egag == menuYesNoNO )
     {
-        prec->drbv = prec->rrbv * prec->res;
-        prec->rbv  = dir * prec->drbv + prec->off;
+        if ( (prec->ee == imsAble_Disable) && (prec->me == imsRBV_Encoder) )
+        {
+            prec->rrbv = prec->rval;
+            prec->drbv = prec->dval;
+            prec->rbv  = dir * count * prec->eres + prec->off;
+        }
+        else
+        {
+            prec->drbv = prec->rrbv * prec->res;
+            prec->rbv  = dir * prec->drbv + prec->off;
+        }
     }
     else
     {
@@ -1422,9 +1429,9 @@ static long process_motor_info( imsRecord *prec, status_word csr, long count )
 /******************************************************************************/
 static void new_move( imsRecord *prec )
 {
-    ims_info       *mInfo = (ims_info *)prec->dpvt;
-    char            msg[MAX_MSG_SIZE];
-    int             VI, VM, A;
+    ims_info *mInfo = (ims_info *)prec->dpvt;
+    char      msg[MAX_MSG_SIZE];
+    int       VI, VM, A;
 
     if ( (prec->ee   == imsAble_Disable ) &&
          (prec->egag == menuYesNoNO     ) &&
@@ -1513,8 +1520,8 @@ static long special( dbAddr *pDbAddr, int after )
     ims_info       *mInfo = (ims_info *)prec->dpvt;
     char            MI = (prec->htyp == imsHTYP_Switch) ? 'M' : 'I';
     char            msg[MAX_MSG_SIZE], rbbuf[MAX_MSG_SIZE];
-    long            csr, count, old_rval;
-    short           old_dmov, old_rcnt, old_lvio;
+    long            csr, count, old_rval, new_c1, new_c2;
+    short           old_dmov, old_rcnt, old_miss, old_lvio;
     double          nval, old_val, old_dval, old_rbv, new_dval;
     unsigned short  old_mip, alarm_mask = 0;
     motor_status    msta;
@@ -1557,6 +1564,7 @@ static long special( dbAddr *pDbAddr, int after )
     old_mip  = prec->mip ;
     old_dmov = prec->dmov;
     old_rcnt = prec->rcnt;
+    old_miss = prec->miss;
     old_lvio = prec->lvio;
 
     msta.All = prec->msta;
@@ -1685,16 +1693,18 @@ static long special( dbAddr *pDbAddr, int after )
                         log_msg( prec, 0, "Changed C2 from %ld to %ld",
                                           prec->rrbv, prec->rval );
 
-                        sprintf( msg, "P %ld\r\nC2 %ld\r\nUs 0",
-                                      (long)prec->rval, (long)prec->rval );
+                        new_c2 = prec->rval;
+                        new_c1 = NINT( prec->dval / prec->mres );
                     }
                     else
                     {
                         log_msg( prec, 0, "Changed C1 from %ld to %ld",
                                           prec->rrbv, prec->rval );
 
-                        sprintf( msg, "P %ld\r\nUs 0",  (long)prec->rval );
+                        new_c1 = prec->rval;
+                        new_c2 = NINT( prec->dval / prec->eres );
                     }
+                    sprintf( msg, "C1 %ld\r\nC2 %ld\r\nUs 0", new_c1, new_c2 );
 
                     send_msg( mInfo, msg );
                 }
@@ -1760,18 +1770,21 @@ static long special( dbAddr *pDbAddr, int after )
                     log_msg( prec, 0, "Changed C2 from %ld to %ld",
                                       prec->rrbv, prec->rval );
 
-                    sprintf( msg, "P %ld\r\nC2 %ld\r\nUs 0",
-                                  (long)prec->rval, (long)prec->rval );
+                    new_c2 = prec->rval;
+                    new_c1 = NINT( prec->dval / prec->mres );
                 }
                 else
                 {
                     log_msg( prec, 0, "Changed C1 from %ld to %ld",
                                       prec->rrbv, prec->rval );
 
-                    sprintf( msg, "P %ld\r\nUs 0",  (long)prec->rval );
+                    new_c1 = prec->rval;
+                    new_c2 = NINT( prec->dval / prec->eres );
                 }
+                sprintf( msg, "C1 %ld\r\nC2 %ld\r\nUs 0", new_c1, new_c2 );
 
                 send_msg( mInfo, msg );
+
                 break;
             }
 
@@ -1794,6 +1807,7 @@ static long special( dbAddr *pDbAddr, int after )
             do_move:
             prec->lvio = 0;
             prec->rcnt = 0;
+            prec->miss = 0;
 
             prec->athm = 0;
             msta.Bits.RA_HOMED = 0;
@@ -1981,6 +1995,10 @@ static long special( dbAddr *pDbAddr, int after )
                 prec->smov = 1;
                 prec->dmov = 0;
 
+                prec->lvio = 0;
+                prec->rcnt = 0;
+                prec->miss = 0;
+
                 prec->athm = 0;
                 msta.Bits.RA_HOMED = 0;
                 msta.Bits.RA_HOME  = 0;
@@ -2097,6 +2115,10 @@ static long special( dbAddr *pDbAddr, int after )
             prec->dmov = 0;
             prec->mip  = MIP_HOMF;
 
+            prec->lvio = 0;
+            prec->rcnt = 0;
+            prec->miss = 0;
+
             prec->athm = 0;
             msta.Bits.RA_HOMED = 0;
             msta.Bits.RA_HOME  = 0;
@@ -2167,6 +2189,10 @@ static long special( dbAddr *pDbAddr, int after )
             prec->dmov = 0;
             prec->mip  = MIP_HOMR;
 
+            prec->lvio = 0;
+            prec->rcnt = 0;
+            prec->miss = 0;
+
             prec->athm = 0;
             msta.Bits.RA_HOMED = 0;
             msta.Bits.RA_HOME  = 0;
@@ -2202,16 +2228,18 @@ static long special( dbAddr *pDbAddr, int after )
                 log_msg( prec, 0, "Changed C2 from %ld to %ld", prec->rrbv,
                                                                 prec->rval );
 
-                sprintf( msg, "P %ld\r\nC2 %ld\r\nUs 0", (long)prec->rval,
-                                                         (long)prec->rval );
+                new_c2 = prec->rval;
+                new_c1 = NINT( prec->dval / prec->mres );
             }
             else
             {
                 log_msg( prec, 0, "Changed C1 from %ld to %ld", prec->rrbv,
                                                                 prec->rval );
 
-                sprintf( msg, "P %ld\r\nUs 0",           (long)prec->rval );
+                new_c1 = prec->rval;
+                new_c2 = NINT( prec->dval / prec->eres );
             }
+            sprintf( msg, "C1 %ld\r\nC2 %ld\r\nUs 0", new_c1, new_c2 );
 
             send_msg( mInfo, msg );
 
@@ -2238,6 +2266,10 @@ static long special( dbAddr *pDbAddr, int after )
 
                 break;
             }
+
+            prec->lvio = 0;
+            prec->rcnt = 0;
+            prec->miss = 0;
 
             if ( fieldIndex == imsRecordCALF )
             {
@@ -2685,12 +2717,25 @@ static long special( dbAddr *pDbAddr, int after )
             VM         = NINT( prec->velo / prec->res );
 
             if ( prec->ee == imsAble_Enable )
-                sprintf( msg, "P %ld\r\nC2 %ld\r\nVI %d\r\nVM %d\r\nUs 0",
-                              (long)prec->rval, (long)prec->rval, VI, VM );
+            {
+                new_c2 = prec->rval;
+                new_c1 = NINT( prec->dval / prec->mres );
+                sprintf( msg, "C1 %ld\r\nC2 %ld\r\nVI %d\r\nVM %d\r\nUs 0",
+                              new_c1, new_c2, VI, VM );
+            }
             else
-                sprintf( msg, "P %ld\r\nVM %d\r\nVI %d\r\nUs 0",
-                              (long)prec->rval,                   VM, VI );
+            {
+                new_c1 = prec->rval;
+                new_c2 = NINT( prec->dval / prec->eres );
+                sprintf( msg, "C1 %ld\r\nC2 %ld\r\nVM %d\r\nVI %d\r\nUs 0",
+                              new_c1, new_c2, VM, VI );
+            }
 
+            send_msg( mInfo, msg );
+
+            break;
+        case imsRecordME  :
+            sprintf( msg, "Me %d\r\nUs 0", prec->me );
             send_msg( mInfo, msg );
 
             break;
@@ -2852,6 +2897,7 @@ static long special( dbAddr *pDbAddr, int after )
     if ( prec->mip  != old_mip  ) MARK( M_MIP  );
     if ( prec->dmov != old_dmov ) MARK( M_DMOV );
     if ( prec->rcnt != old_rcnt ) MARK( M_RCNT );
+    if ( prec->miss != old_miss ) MARK( M_MISS );
     if ( prec->lvio != old_lvio ) MARK( M_LVIO );
 
     post_fields( prec, alarm_mask, 0 );

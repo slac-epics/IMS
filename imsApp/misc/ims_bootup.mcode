@@ -6,6 +6,7 @@ VA Sd     ' Save deadband
 VA Sv     ' Save flag
 VA Ns     ' Number of saves
 VA Us     ' Delay for status update
+VA Me     ' Monitor encoder or not
 VA Sk     ' Scan or not
 VA Sr     ' Scanning and moving
 VA Os     ' Old state
@@ -14,6 +15,7 @@ VA Xh
 VA X1
 VA X2
 VA X3
+VA X4
 VA Pt
 
 Ve 3      ' Version 3
@@ -21,6 +23,7 @@ Ne 0      ' Disable numeric cmd
 p1 P      ' Start with current position
 Sd Db*4   ' Set save deadband
 Sv 0
+Me 0
 Sk 0
 Us 18000
 
@@ -139,7 +142,9 @@ PG 1
 
   LB Zo
     X3 X2+MV        ' LSB is MV
-    PR "BOS", X3, ",P=", P, "EOS"
+    X4 EE|Me
+    R4 C2-C1*X4+C1
+    PR "BOS", X3, ",P=", R4, "EOS"
     p1 P
 
     R2 1            ' Reset the delay counter
@@ -160,7 +165,9 @@ PG 1
     Os X2
 
     X3 X2+MV        ' LSB is MV
-    PR "BOS", X3, ",P=", P, "EOS"
+    X4 EE|Me
+    R4 C2-C1*X4+C1
+    PR "BOS", X3, ",P=", R4, "EOS"
 
     R1 5            ' Delay started by status change
     R2 1            ' Reset the delay counter
@@ -254,7 +261,9 @@ PG 1
     CL Bs
     X2 X2+MV        ' LSB is MV
 
-    PR "BOS", X2, ",P=", P, "EOS"
+    X4 EE|Me
+    R4 C2-C1*X4+C1
+    PR "BOS", X2, ",P=", R4, "EOS"
     RT
 
   LB Rb
@@ -263,7 +272,9 @@ PG 1
     X2 ST*8192+MV   ' bit-14 is stall detection
                     ' LSB is MV
 
-    PR "BOS", X2, ",P=", P, "EOS"
+    X4 EE|Me
+    R4 C2-C1*X4+C1
+    PR "BOS", X2, ",P=", R4, "EOS"
     RT
 
   LB Re
