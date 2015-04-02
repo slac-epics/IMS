@@ -41,6 +41,7 @@ S1     epicsEnum16    R/W   /* S1 Setting */
 S2     epicsEnum16    R/W   /* S2 Setting */
 S3     epicsEnum16    R/W   /* S3 Setting */
 S4     epicsEnum16    R/W   /* S4 Setting */
+S9     epicsEnum16    R/W   /* S9 Setting */
 LM     epicsEnum16    R/W   /* Limit Stop Mode */
 SM     epicsEnum16    R/W   /* Stall Mode */
 SF     epicsUInt16    R/W   /* Stall Factor */
@@ -48,6 +49,7 @@ STSV   epicsEnum16    R/W   /* Stall Severity */
 ERSV   epicsEnum16    R/W   /* Error Severity */
 EE     epicsEnum16    R/W   /* Encoder Enable */
 EL     epicsFloat64   R/W   /* Encoder Lines */
+ME     epicsEnum16    R/W   /* Monitor Encoder */
 MS     epicsInt16     R/W   /* Microstep Revolution */
 MT     epicsUInt16    R/W   /* Settling Delay Time (ms) */
 HT     epicsUInt16    R/W   /* Holding Current Delay Time (ms) */

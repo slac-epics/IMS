@@ -11,7 +11,7 @@ Modification Log from R1-0-1 to R2-0-0
 
 New features:
  1) Implemented a trigger mode.  Once activated, the motor will wait for a
-    trigger signal on IO-13 after receiving a move command.
+    trigger signal on IO-13 (TTL, active high) after receiving a move command.
 
  2) Implemented a mode to monitor the encoder position even when the encoder
     is disabled.  This is for the situation where there is an encoder, but it
@@ -20,6 +20,8 @@ New features:
     suffient driving power so that it will not miss steps (MISS = 1 or not).
 
  3) Support caput callback.
+
+ 4) Added S9 setting for smart motors.  This is to deal with brakes.
 
 Bug fixes:
  1) When BDST was negative, it might do an unnecessary move thus using more

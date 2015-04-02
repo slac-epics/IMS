@@ -36,7 +36,7 @@ PG 1
   P p1         	    ' Restore last saved position
 
   TC Tm
-  S13 60,0
+  S13 60,1
 
   R1 0              ' Reset the moving / slipping flag
   R2 0              ' Reset the delay counter for status update
