@@ -17,6 +17,7 @@ VA X2
 VA X3
 VA X4
 VA Pt
+VA Ui
 
 Ve 3      ' Version 3
 Ne 0      ' Disable numeric cmd
