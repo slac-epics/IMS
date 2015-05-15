@@ -2075,24 +2075,57 @@ static long special( dbAddr *pDbAddr, int after )
             if ( (prec->htyp == imsHTYP_Limits) ||
                  (prec->htyp == imsHTYP_Stall )    )
             {
-                if ( (prec->htyp == imsHTYP_Limits) &&
-                     (prec->mode == imsMode_Scan  )    )
+                if ( prec->htyp == imsHTYP_Limits )
                 {
-                    log_msg( prec, 0, "No homing to LS in scan mode" );
-                    break;
+                    if ( prec->mode == imsMode_Scan )
+                    {
+                        log_msg( prec, 0, "No homing to LS in scan mode" );
+                        break;
+                    }
+
+                    log_msg( prec, 0, "Homing >> to HLS ..."   );
                 }
+                else
+                    log_msg( prec, 0, "Homing >> to STALL ..." );
 
                 VM = NINT( prec->velo / prec->res );
                 A  = NINT( (prec->velo - prec->vbas) / prec->res / prec->accl );
-                if ( prec->dir == imsDIR_Pos )
-                    sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nSL  %d", VI, A, VM );
+
+                prec->mip  = MIP_HOMF;
+                if ( (prec->htyp == imsHTYP_Limits) && prec->hls )
+                {
+                    log_msg( prec, 0, "Already at HLS" );
+                    log_msg( prec, 0, "Back off from HLS (HDST: %.6g), with ACCL & VELO",
+                                      prec->hdst );
+
+                    prec->mip  |= MIP_HOMB;
+                    if ( prec->dir == imsDIR_Pos )
+                        nval = NINT( -1. * prec->hdst / prec->res );
+                    else
+                        nval = NINT(       prec->hdst / prec->res );
+
+                    sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nR2 0\r\nMR %ld",
+                                  VI, VM, A, nval );
+                }
                 else
-                    sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nSL -%d", VI, A, VM );
+                {
+                    if ( prec->dir == imsDIR_Pos )
+                        sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nSL  %d", VI, A, VM );
+                    else
+                        sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nSL -%d", VI, A, VM );
+                }
             }
             else
             {
+                if      ( prec->htyp == imsHTYP_Encoder )
+                    log_msg( prec, 0, "Homing >> to encoder mark ..." );
+                else if ( prec->htyp == imsHTYP_Switch  )
+                    log_msg( prec, 0, "Homing >> to home switch ..."  );
+
                 VM = NINT( prec->hvel / prec->res );
                 A  = NINT( (prec->hvel - prec->vbas) / prec->res / prec->hacc );
+
+                prec->mip  = MIP_HOMF;
                 if      ( (prec->dir  == imsDIR_Pos) &&
                           (prec->hege == imsDIR_Pos)    )
                     sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 4",
@@ -2113,7 +2146,6 @@ static long special( dbAddr *pDbAddr, int after )
  
             prec->smov = 1;
             prec->dmov = 0;
-            prec->mip  = MIP_HOMF;
 
             prec->lvio = 0;
             prec->rcnt = 0;
@@ -2128,14 +2160,6 @@ static long special( dbAddr *pDbAddr, int after )
 
             send_msg( mInfo, msg    );
 //          send_msg( mInfo, "Us 0" );
-            if      ( prec->htyp == imsHTYP_Encoder )
-                log_msg( prec, 0, "Homing >> to encoder mark ..." );
-            else if ( prec->htyp == imsHTYP_Switch  )
-                log_msg( prec, 0, "Homing >> to home switch ..."  );
-            else if ( prec->htyp == imsHTYP_Limits  )
-                log_msg( prec, 0, "Homing >> to HLS ..."          );
-            else
-                log_msg( prec, 0, "Homing >> to STALL ..."        );
 
             break;
         case imsRecordHOMR:
@@ -2149,24 +2173,57 @@ static long special( dbAddr *pDbAddr, int after )
             if ( (prec->htyp == imsHTYP_Limits) ||
                  (prec->htyp == imsHTYP_Stall )    )
             {
-                if ( (prec->htyp == imsHTYP_Limits) &&
-                     (prec->mode == imsMode_Scan  )    )
+                if ( prec->htyp == imsHTYP_Limits )
                 {
-                    log_msg( prec, 0, "No homing to LS in scan mode" );
-                    break;
+                    if ( prec->mode == imsMode_Scan )
+                    {
+                        log_msg( prec, 0, "No homing to LS in scan mode" );
+                        break;
+                    }
+
+                    log_msg( prec, 0, "Homing << to LLS ..."   );
                 }
+                else
+                    log_msg( prec, 0, "Homing << to STALL ..." );
 
                 VM = NINT( prec->velo / prec->res );
                 A  = NINT( (prec->velo - prec->vbas) / prec->res / prec->accl );
-                if ( prec->dir == imsDIR_Pos )
-                    sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nSL -%d", VI, A, VM );
+
+                prec->mip  = MIP_HOMR;
+                if ( (prec->htyp == imsHTYP_Limits) && prec->lls )
+                {
+                    log_msg( prec, 0, "Already at LLS" );
+                    log_msg( prec, 0, "Back off from LLS (HDST: %.6g), with ACCL & VELO",
+                                      prec->hdst );
+
+                    prec->mip  |= MIP_HOMB;
+                    if ( prec->dir == imsDIR_Pos )
+                        nval = NINT(       prec->hdst / prec->res );
+                    else
+                        nval = NINT( -1. * prec->hdst / prec->res );
+
+                    sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nR2 0\r\nMR %ld",
+                                  VI, VM, A, nval );
+                }
                 else
-                    sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nSL  %d", VI, A, VM );
+                {
+                    if ( prec->dir == imsDIR_Pos )
+                        sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nSL -%d", VI, A, VM );
+                    else
+                        sprintf( msg, "VI %d\r\nA %d\r\nD A\r\nSL  %d", VI, A, VM );
+                }
             }
             else
             {
+                if      ( prec->htyp == imsHTYP_Encoder )
+                    log_msg( prec, 0, "Homing << to encoder mark ..." );
+                else if ( prec->htyp == imsHTYP_Switch  )
+                    log_msg( prec, 0, "Homing << to home switch ..."  );
+
                 VM = NINT( prec->hvel / prec->res );
                 A  = NINT( (prec->hvel - prec->vbas) / prec->res / prec->hacc );
+
+                prec->mip  = MIP_HOMR;
                 if      ( (prec->dir  == imsDIR_Pos) &&
                           (prec->hege == imsDIR_Pos)    )
                     sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nH%c 1",
@@ -2187,7 +2244,6 @@ static long special( dbAddr *pDbAddr, int after )
  
             prec->smov = 1;
             prec->dmov = 0;
-            prec->mip  = MIP_HOMR;
 
             prec->lvio = 0;
             prec->rcnt = 0;
@@ -2202,14 +2258,6 @@ static long special( dbAddr *pDbAddr, int after )
 
             send_msg( mInfo, msg    );
 //          send_msg( mInfo, "Us 0" );
-            if      ( prec->htyp == imsHTYP_Encoder )
-                log_msg( prec, 0, "Homing << to encoder mark ..." );
-            else if ( prec->htyp == imsHTYP_Switch  )
-                log_msg( prec, 0, "Homing << to home switch ..."  );
-            else if ( prec->htyp == imsHTYP_Limits  )
-                log_msg( prec, 0, "Homing << to LLS ..."          );
-            else
-                log_msg( prec, 0, "Homing << to STALL ..."        );
 
             break;
         case imsRecordHOMS:
