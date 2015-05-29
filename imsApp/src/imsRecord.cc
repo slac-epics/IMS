@@ -2100,12 +2100,12 @@ static long special( dbAddr *pDbAddr, int after )
 
                     prec->mip  |= MIP_HOMB;
                     if ( prec->dir == imsDIR_Pos )
-                        nval = NINT( -1. * prec->hdst / prec->res );
+                        nval = -1. * prec->hdst / prec->res;
                     else
-                        nval = NINT(       prec->hdst / prec->res );
+                        nval =       prec->hdst / prec->res;
 
                     sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nR2 0\r\nMR %ld",
-                                  VI, VM, A, nval );
+                                  VI, VM, A, NINT(nval) );
                 }
                 else
                 {
@@ -2198,12 +2198,12 @@ static long special( dbAddr *pDbAddr, int after )
 
                     prec->mip  |= MIP_HOMB;
                     if ( prec->dir == imsDIR_Pos )
-                        nval = NINT(       prec->hdst / prec->res );
+                        nval =       prec->hdst / prec->res;
                     else
-                        nval = NINT( -1. * prec->hdst / prec->res );
+                        nval = -1. * prec->hdst / prec->res;
 
                     sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nR2 0\r\nMR %ld",
-                                  VI, VM, A, nval );
+                                  VI, VM, A, NINT(nval) );
                 }
                 else
                 {
