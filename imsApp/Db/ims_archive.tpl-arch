@@ -66,6 +66,7 @@ $(MOTOR).S1           86400    monitor
 $(MOTOR).S2           86400    monitor
 $(MOTOR).S3           86400    monitor
 $(MOTOR).S4           86400    monitor
+$(MOTOR).S9           86400    monitor
 
 $(MOTOR).RES          86400    monitor
 
