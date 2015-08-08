@@ -14,10 +14,7 @@ New features:
     trigger signal on IO-13 (TTL, active high) after receiving a move command.
 
  2) Implemented a mode to monitor the encoder position even when the encoder
-    is disabled.  This is for the situation where there is an encoder, but it
-    needs to be disabled so that the motor can do backlash correction properly.
-    By monitoring the encoder position, the user can see whether the motor has
-    sufficient driving power so that it will not miss steps (MISS = 1 or not).
+    is disabled.
 
  3) Support caput callback.
 
@@ -27,10 +24,15 @@ Bug fixes:
  1) When BDST was negative, it might do an unnecessary move thus using more
     time.  However the final position is correct.
 
- 2) The saved position (:SAVED_P) value was not correct.  This is only for
+ 2) Allow backlash correction even when there is an encoder and the encoder
+    is activated.  Even though the backlash correction, in this configuration,
+    may not be reliable, it is now up to the user to decide whether to use
+    it, instead of being forbidden by the software.
+
+ 3) The saved position (:SAVED_P) value was not correct.  This is only for
     display purpose.
 
- 3) When multiple control applications (screens, camonitor's or caput's) were
+ 4) When multiple control applications (screens, camonitor's or caput's) were
     involved, the motor would respond to commands sent from anywhere, but the
     applications which did not send the command would not show the new VAL or
     DVAL.

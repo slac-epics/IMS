@@ -1141,10 +1141,13 @@ static long process( dbCommon *precord )
     else if ( prec->mip == MIP_BL  )                              // do backlash
     {
         // check for miss
-        if ( (prec->me                                    == imsRBV_Encoder) &&
+        if ( (prec->ee == imsAble_Disable) && (prec->me == imsRBV_Encoder) &&
              (fabs(prec->dval - prec->bdst -
-                   (prec->rbv - prec->off)*(1 - 2*prec->dir)) >= prec->rdbd)   )
+                   (prec->rbv - prec->off)*(1-2*prec->dir)) >= prec->rdbd)    )
+        {
             prec->miss = 1;
+            log_msg( prec, 0, "Backlash correction may not be reliable !" );
+        }
 
         log_msg( prec, 0, "Move to %.6g (DVAL: %.6g), with BACC & BVEL",
                           prec->val, prec->dval );
@@ -1433,10 +1436,8 @@ static void new_move( imsRecord *prec )
     char      msg[MAX_MSG_SIZE];
     int       VI, VM, A;
 
-    if ( (prec->ee   == imsAble_Disable ) &&
-         (prec->egag == menuYesNoNO     ) &&
-         (prec->res   < fabs(prec->bdst))    )                       // backlash
-    {
+    if ( (prec->egag == menuYesNoNO) && (fabs(prec->bdst) > prec->res) )
+    {                                                                // backlash
         if ( ((prec->bdst > 0) && (prec->drbv > prec->dval))    ||
              ((prec->bdst < 0) && (prec->drbv < prec->dval))    ||
              (fabs(prec->drbv - prec->dval) > fabs(prec->bdst))    )
