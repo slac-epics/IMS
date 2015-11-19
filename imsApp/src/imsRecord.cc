@@ -1382,12 +1382,12 @@ static long process_motor_info( imsRecord *prec, status_word csr, long count )
             status = dbGetLink( &prec->erbl, DBR_DOUBLE, &prec->erbv, 0, 0 );
             if ( status != 0 )
             {
-                log_msg( prec, 0, "Failed to read the external guage" );
+                log_msg( prec, 0, "Failed to read the external gauge" );
                 msta.Bits.RA_COMM_ERR = 1;
             }
             else if ( prec->nsta == LINK_ALARM )
             {
-                log_msg( prec, 0, "External guage has problem" );
+                log_msg( prec, 0, "External gauge has problem" );
                 msta.Bits.RA_COMM_ERR = 1;
             }
             else
@@ -1400,7 +1400,7 @@ static long process_motor_info( imsRecord *prec, status_word csr, long count )
         }
         else
         {
-            log_msg( prec, 0, "External guage not connected" );
+            log_msg( prec, 0, "External gauge not connected" );
             msta.Bits.RA_COMM_ERR = 1;
         }
 
@@ -1644,7 +1644,7 @@ static long special( dbAddr *pDbAddr, int after )
                 else if ( msta.Bits.RA_POWERUP   )
                     log_msg( prec, 0, "No move/set, power cycled"      );
                 else if ( msta.Bits.RA_COMM_ERR  )
-                    log_msg( prec, 0, "No move/set, ext guage problem" );
+                    log_msg( prec, 0, "No move/set, ext gauge problem" );
                 else if ( prec->spg != imsSPG_Go )
                     log_msg( prec, 0, "No move, SPG is not Go"         );
                 else
@@ -1749,7 +1749,7 @@ static long special( dbAddr *pDbAddr, int after )
                 else if ( msta.Bits.RA_POWERUP   )
                     log_msg( prec, 0, "No move/set, power cycled"      );
                 else if ( msta.Bits.RA_COMM_ERR  )
-                    log_msg( prec, 0, "No move/set, ext guage problem" );
+                    log_msg( prec, 0, "No move/set, ext gauge problem" );
                 else if ( prec->spg != imsSPG_Go )
                     log_msg( prec, 0, "No move, SPG is not Go"         );
                 else
@@ -1946,7 +1946,7 @@ static long special( dbAddr *pDbAddr, int after )
                 else if ( msta.Bits.RA_POWERUP   )
                     log_msg( prec, 0, "No jogging, power cycled"      );
                 else if ( msta.Bits.RA_COMM_ERR  )
-                    log_msg( prec, 0, "No jogging, ext guage problem" );
+                    log_msg( prec, 0, "No jogging, ext gauge problem" );
                 else if ( prec->spg != imsSPG_Go )
                     log_msg( prec, 0, "No jogging, SPG is not Go"     );
                 else
