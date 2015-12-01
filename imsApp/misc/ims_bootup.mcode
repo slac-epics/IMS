@@ -7,7 +7,7 @@ VA Sv     ' Save flag
 VA Ns     ' Number of saves
 VA Us     ' Delay for status update
 VA Me     ' Monitor encoder or not
-VA Sk     ' Scan or not
+VA Mm     ' Mode
 VA Sr     ' Scanning and moving
 VA Os     ' Old state
 VA Xl
@@ -19,13 +19,13 @@ VA X4
 VA Pt
 VA Ui
 
-Ve 3      ' Version 3
+Ve 4      ' Version 4
 Ne 0      ' Disable numeric cmd
 p1 P      ' Start with current position
 Sd Db*4   ' Set save deadband
 Sv 0
 Me 0
-Sk 0
+Mm 0
 Us 18000
 
 PG 1
@@ -229,10 +229,21 @@ PG 1
     RT
 
   LB Tm
-    MA Pt
+    CL T1, Mm=2
+    CL T2, Mm=3
 
     R2 0
     Us 30
+    RT
+
+  LB T1
+    MA Pt
+    RT
+
+  LB T2
+    MR Pt
+
+    Te 4
     RT
 
   LB Bs
@@ -248,9 +259,8 @@ PG 1
     RT
 
   LB Rp
-    CL Ra, R1<>1&Sk
-    CL Rb, R1=1&Sk
-    CL Ra, Sk=0
+    CL Ra, Mm<>1
+    CL Rd, Mm=1
 
     R2 0            ' Reset the delay counter
     CL Re, Us=0     ' Reset the status update delay
@@ -276,6 +286,11 @@ PG 1
     X4 EE|Me
     R4 C2-C1*X4+C1
     PR "BOS", X2, ",P=", R4, "EOS"
+    RT
+
+  LB Rd
+    CL Ra, R1<>1
+    CL Rb, R1=1
     RT
 
   LB Re

@@ -66,7 +66,8 @@ menu(imsHTYP) {
 menu(imsMode) {
         choice(imsMode_Normal,        "Normal"           )
         choice(imsMode_Scan,          "Scan"             )
-        choice(imsMode_Trig,          "Trigger"          )
+        choice(imsMode_TrigMA,        "Trig MA"          )
+        choice(imsMode_TrigMR,        "Trig MR"          )
 }
 menu(imsHC) {
         choice(imsHC_Zero,            "Zero"             )
@@ -467,6 +468,7 @@ recordtype(ims) {
 	field(ACCL,DBF_DOUBLE) {
 		prompt("Seconds to Velocity")
 		promptgroup(GUI_COMMON)
+		special(SPC_MOD)
 		initial(1)
 		interest(1)
 	}
@@ -575,6 +577,7 @@ recordtype(ims) {
 	field(TWV,DBF_DOUBLE) {
 		prompt("Tweak Amount (EGU)")
 		promptgroup(GUI_COMMON)
+		special(SPC_MOD)
 		asl(ASL0)
 		interest(1)
 	}

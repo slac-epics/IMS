@@ -260,7 +260,7 @@ static long init_motor( imsRecord *prec )
 
     char            msg[MAX_MSG_SIZE], rbbuf[MAX_MSG_SIZE];
     int             s1, s2, s3, s4, s9, a1, a2, a3, a4, a9, d1, d2, d3, d4, d9;
-    int             rbve, rbby, retry, status = OK;
+    int             rbve, rbby, retry, VI, VM, A, PT, status = OK;
     epicsUInt32     old_msta = prec->msta;
     motor_status    msta;
 
@@ -668,8 +668,25 @@ static long init_motor( imsRecord *prec )
 
     epicsThreadSleep( 0.1 );
 
-    sprintf( msg, "Me %d\r\nSk %d",          prec->me,prec->mode==imsMode_Scan);
+    sprintf( msg, "Me %d\r\nMm %d",          prec->me, prec->mode           );
     send_msg( mInfo, msg );
+
+    if ( prec->mode == imsMode_TrigMR )
+    {
+        epicsThreadSleep( 0.1 );
+
+        VI = NINT( prec->vbas / prec->res );
+        VM = NINT( prec->velo / prec->res );
+        A  = NINT( (prec->velo - prec->vbas) / prec->res / prec->accl );
+        PT = NINT( (1. - 2.*prec->dir) * prec->twv / prec->res );
+
+        sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nPt %d\r\nTe 4",
+                      VI, VM, A, PT );
+
+        send_msg( mInfo, msg );
+
+        log_msg( prec, 0, "Waiting for trigger ..." );
+    }
 
     if ( prec->mres == 0. )
     {
@@ -775,6 +792,14 @@ static long process( dbCommon *precord )
     prec->pact = 1;
     log_msg( prec, 1, "Process" );
 
+    old_mip      = prec->mip ;
+    old_dmov     = prec->dmov;
+    old_rcnt     = prec->rcnt;
+    old_miss     = prec->miss;
+    old_val      = prec->val ;
+    old_dval     = prec->dval;
+    old_rval     = prec->rval;
+
     old_msta.All = prec->msta;
 
     mInfo->cMutex->lock();
@@ -821,12 +846,20 @@ static long process( dbCommon *precord )
             prec->mip &= ~MIP_TRIG;
             log_msg( prec, 0, "Triggered" );
         }
+        else if ( (prec->mode == imsMode_TrigMR) && (prec->dmov == 1) )
+        {
+            prec->smov = 1;
+            prec->dmov = 0;
+            prec->mip  = MIP_MOVE;
+            log_msg( prec, 0, "Triggered" );
+        }
 
         goto finished;
     }
     else if ( msta.Bits.RA_TE )                           // waiting for trigger
     {
-        goto finished;
+        if ( (prec->mode != imsMode_TrigMR) || (prec->dmov == 1) )
+            goto finished;
     }
 
     if ( (prec->smov ==       1) && (prec->dmov           == 0) &&
@@ -855,15 +888,8 @@ static long process( dbCommon *precord )
         goto finished;
     }
 
-    old_mip  = prec->mip ;
-    old_dmov = prec->dmov;
-    old_rcnt = prec->rcnt;
-    old_miss = prec->miss;
-    old_val  = prec->val ;
-    old_dval = prec->dval;
-    old_rval = prec->rval;
-
-    if ( (msta.Bits.RA_STALL && (! msta.Bits.RA_SM)) ||               // stalled
+    if ( (prec->mode == imsMode_TrigMR) ||                      // delta trigger
+         (msta.Bits.RA_STALL && (! msta.Bits.RA_SM)) ||               // stalled
          prec->lls || prec->hls ||                         // hit a limit switch
          (prec->mip & MIP_HOME) ||                                 // was homing
          (prec->mip & MIP_CALI) ||                            // was calibrating
@@ -871,7 +897,12 @@ static long process( dbCommon *precord )
     {
         short newval = 1;
 
-        if ( msta.Bits.RA_STALL && (! msta.Bits.RA_SM) )
+        if      ( prec->mode == imsMode_TrigMR )                // delta trigger
+        {
+            log_msg( prec, 0, "Moved to %.6g", prec->rbv );
+            log_msg( prec, 0, "Waiting for trigger ..."  );
+        }
+        else if ( msta.Bits.RA_STALL && (! msta.Bits.RA_SM) )
         {
             if ( prec->mip & MIP_JOG )                            // was jogging
             {
@@ -1210,6 +1241,7 @@ static long process( dbCommon *precord )
         reset_us   = TRUE;
     }
 
+    finished:
     if ( old_mip  != prec->mip  ) MARK( M_MIP  );
     if ( old_dmov != prec->dmov ) MARK( M_DMOV );
     if ( old_rcnt != prec->rcnt ) MARK( M_RCNT );
@@ -1218,7 +1250,6 @@ static long process( dbCommon *precord )
     if ( old_dval != prec->dval ) MARK( M_DVAL );
     if ( old_rval != prec->rval ) MARK( M_RVAL );
 
-    finished:
     prec->ocsr = csr.All;
 
     if ( reset_us ) send_msg( mInfo, "Us 18000" );
@@ -1451,7 +1482,7 @@ static void new_move( imsRecord *prec )
 
             prec->mip  = MIP_BL  ;
             prec->rval = NINT((prec->dval - prec->bdst) / prec->res);
-            if ( prec->mode == imsMode_Trig )
+            if ( prec->mode == imsMode_TrigMA )
                 sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nPt %d\r\nTe 4",
                               VI, VM, A, prec->rval );
             else
@@ -1469,7 +1500,7 @@ static void new_move( imsRecord *prec )
 
             prec->mip  = MIP_MOVE;
             prec->rval = NINT(prec->dval                / prec->res);
-            if ( prec->mode == imsMode_Trig )
+            if ( prec->mode == imsMode_TrigMA )
                 sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nPt %d\r\nTe 4",
                               VI, VM, A, prec->rval );
             else
@@ -1492,7 +1523,7 @@ static void new_move( imsRecord *prec )
         else
             prec->rval = prec->rrbv + NINT((prec->dval-prec->drbv) / prec->res);
 
-        if ( prec->mode == imsMode_Trig )
+        if ( prec->mode == imsMode_TrigMA )
             sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nPt %d\r\nTe 4",
                           VI, VM, A, prec->rval );
         else
@@ -1500,13 +1531,13 @@ static void new_move( imsRecord *prec )
                           VI, VM, A, prec->rval );
     }
 
-    if ( prec->mode == imsMode_Trig ) prec->mip |= MIP_TRIG;
+    if ( prec->mode == imsMode_TrigMA ) prec->mip |= MIP_TRIG;
 
     prec->smov = 1;
     prec->dmov = 0;
     send_msg( mInfo, msg );
 
-    if ( prec->mode == imsMode_Trig )
+    if ( prec->mode == imsMode_TrigMA )
         log_msg( prec, 0, "Waiting for trigger ..." );
     else
         send_msg( mInfo, "R2 0\r\nUs 30" );
@@ -1528,7 +1559,7 @@ static long special( dbAddr *pDbAddr, int after )
     motor_status    msta;
 
     int             dir = (prec->dir == imsDIR_Pos) ? 1 : -1;
-    int             VI, VM, A, fieldIndex = dbGetFieldIndex( pDbAddr );
+    int             VI, VM, A, PT, fieldIndex = dbGetFieldIndex( pDbAddr );
     int             status = OK;
 
     if ( after == 0 )
@@ -1833,6 +1864,21 @@ static long special( dbAddr *pDbAddr, int after )
             }
 
             new_move( prec );
+
+            break;
+        case imsRecordTWV :
+            if ( prec->mode == imsMode_TrigMR )
+            {
+                VI = NINT( prec->vbas / prec->res );
+                VM = NINT( prec->velo / prec->res );
+                A  = NINT( (prec->velo - prec->vbas) / prec->res / prec->accl );
+                PT = NINT( (1. - 2.*prec->dir) * prec->twv / prec->res );
+
+                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nPt %d",
+                              VI, VM, A, PT );
+
+                send_msg( mInfo, msg );
+            }
 
             break;
         case imsRecordTWF :
@@ -2645,6 +2691,20 @@ static long special( dbAddr *pDbAddr, int after )
             db_post_events( prec, &prec->el  , DBE_VAL_LOG );
 
             goto set_el;
+        case imsRecordACCL:
+            set_a_vi_vm:
+            if ( prec->mode == imsMode_TrigMR )
+            {
+                VI = NINT( prec->vbas / prec->res );
+                VM = NINT( prec->velo / prec->res );
+                A  = NINT( (prec->velo - prec->vbas) / prec->res / prec->accl );
+
+                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A", VI, VM, A );
+
+                send_msg( mInfo, msg );
+            }
+
+            break;
         case imsRecordSBAS:
             if ( (prec->smax > 0.) && (prec->sbas > prec->smax) )
             {
@@ -2687,11 +2747,11 @@ static long special( dbAddr *pDbAddr, int after )
             enforce_BS( prec );
             enforce_HS( prec );
 
-            break;
+            goto set_a_vi_vm;
         case imsRecordS   :
             enforce_S ( prec );
 
-            break;
+            goto set_a_vi_vm;
         case imsRecordVELO:
             if      ( (prec->velo > prec->vmax) && (prec->vmax > 0.) )
             {
@@ -2707,7 +2767,7 @@ static long special( dbAddr *pDbAddr, int after )
             prec->s    = prec->velo / prec->urev;
             db_post_events( prec, &prec->s   , DBE_VAL_LOG );
 
-            break;
+            goto set_a_vi_vm;
         case imsRecordBS  :
             enforce_BS( prec );
 
@@ -2903,9 +2963,32 @@ static long special( dbAddr *pDbAddr, int after )
 
             break;
         case imsRecordMODE:
-            if ( prec->mode == prec->oval ) break;
+            if ( prec->mode == prec->oval     ) break;
 
-            sprintf( msg, "Sk %d\r\nUs 0", prec->mode==imsMode_Scan );
+            if ( prec->mode == imsMode_TrigMR )
+            {
+                VI = NINT( prec->vbas / prec->res );
+                VM = NINT( prec->velo / prec->res );
+                A  = NINT( (prec->velo - prec->vbas) / prec->res / prec->accl );
+                PT = NINT( (1. - 2.*prec->dir) * prec->twv / prec->res );
+
+                sprintf( msg, "VI %d\r\nVM %d\r\nA %d\r\nD A\r\nPt %d\r\nTe 4",
+                              VI, VM, A, PT );
+
+                log_msg( prec, 0, "Waiting for trigger ..." );
+            }
+            else if ( prec->oval == imsMode_TrigMR )
+            {
+                sprintf( msg, "Te 0" );
+
+                log_msg( prec, 0, "Disabled trigger"        );
+            }
+
+            send_msg( mInfo, msg );
+
+            epicsThreadSleep( 0.1 );
+
+            sprintf( msg, "Mm %d\r\nUs 0", prec->mode );
             send_msg( mInfo, msg );
 
             break;
