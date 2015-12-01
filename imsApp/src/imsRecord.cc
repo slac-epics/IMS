@@ -460,7 +460,7 @@ static long init_motor( imsRecord *prec )
     }
 
     // read S9
-    if ( strncmp(prec->pn, "MFI", 3) != 0 )
+    if ( (strncmp(prec->pn, "MFI", 3) != 0) && (strstr(prec->pn, "-EE") == 0) )
     {
         retry = 1;
         do
