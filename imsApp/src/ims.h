@@ -95,7 +95,7 @@ typedef union
         unsigned int M_HLS      :1;
         unsigned int M_LVIO     :1;
         unsigned int M_MSTA     :1;
-        unsigned int M_BUTC     :1;
+        unsigned int M_MSTR     :1;
     } Bits;
 } changed_fields;
 

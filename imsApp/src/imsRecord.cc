@@ -776,7 +776,7 @@ static long process( dbCommon *precord )
 {
     imsRecord      *prec = (imsRecord *)precord;
     ims_info       *mInfo = (ims_info *)prec->dpvt;
-    char            msg[MAX_MSG_SIZE];
+    char            msg[MAX_MSG_SIZE], old_mstr[61];
     unsigned short  old_mip,  alarm_mask;
     short           old_dmov, old_rcnt, old_miss;
     double          old_val,  old_dval, old_diff, diff;
@@ -801,6 +801,8 @@ static long process( dbCommon *precord )
     old_rval     = prec->rval;
 
     old_msta.All = prec->msta;
+
+    strncpy( old_mstr, prec->mstr, 61 );
 
     mInfo->cMutex->lock();
     if ( (mInfo->newData != 1) && (mInfo->newData != 2) )
@@ -1255,52 +1257,124 @@ static long process( dbCommon *precord )
     if ( reset_us ) send_msg( mInfo, "Us 18000" );
 
     if      ( msta.Bits.RA_PROBLEM                                )  // hardware
+    {
         recGblSetSevr( (dbCommon *)prec, COMM_ALARM,  INVALID_ALARM );
-    else if ( msta.Bits.RA_NE      || msta.Bits.RA_BY0         ||// NE=1 or BY=0
-              msta.Bits.NOT_INIT   || (prec->lls && prec->hls)    )  // NOT_INIT
+
+        sprintf( prec->mstr, "HW Problem"       );
+        log_msg( prec, 0,    "Hardware problem" );
+    }
+    else if ( msta.Bits.NOT_INIT   || msta.Bits.RA_BY0         ||//NOT_INIT,BY=0
+              msta.Bits.RA_NE      || (prec->lls && prec->hls)    )      // NE=1
     {
         recGblSetSevr( (dbCommon *)prec, STATE_ALARM, MAJOR_ALARM   );
 
-        if (msta.Bits.RA_NE       ) log_msg( prec, 0, "Numeric Enable is set" );
-        if (msta.Bits.RA_BY0      ) log_msg( prec, 0, "MCode not running"     );
-        if (prec->lls && prec->hls) log_msg( prec, 0, "Both limits hit"       );
+        if      ( msta.Bits.NOT_INIT     )
+        {
+            sprintf( prec->mstr, "Not Initialized"             );
+            log_msg( prec, 0,    "Initialization not complete" );
+        }
+        else if ( msta.Bits.RA_BY0       )
+        {
+            sprintf( prec->mstr, "MCode Stopped"               );
+            log_msg( prec, 0,    "MCode not running"           );
+        }
+        else if ( msta.Bits.RA_NE        )
+        {
+            sprintf( prec->mstr, "NE = 1"                      );
+            log_msg( prec, 0,    "Numeric Enable is set"       );
+        }
+        else if ( prec->lls && prec->hls )
+        {
+            sprintf( prec->mstr, "Both Limits Hit"             );
+            log_msg( prec, 0,    "Both limits hit"             );
+        }
     }
-    else if ( msta.Bits.RA_POWERUP ||
+    else if ( prec->disp || msta.Bits.RA_POWERUP ||
               (msta.Bits.RA_STALL && (! msta.Bits.RA_SM)) ||
               msta.Bits.EA_SLIP_STALL                             )
     {
         recGblSetSevr( (dbCommon *)prec, STATE_ALARM, MINOR_ALARM   );
 
-        if      ( msta.Bits.RA_POWERUP                      )
-            log_msg( prec, 0, "Power cycled"                   );
+        if      ( prec->disp                                )
+        {
+            sprintf( prec->mstr, "Disabled"     );
+            log_msg( prec, 0,    "Disabled"     );
+        }
+        else if ( msta.Bits.RA_POWERUP                      )
+        {
+            sprintf( prec->mstr, "Power Cycled" );
+            log_msg( prec, 0,    "Power cycled" );
+        }
         else if ( msta.Bits.RA_STALL && (! msta.Bits.RA_SM) )
-            log_msg( prec, 0, "Stalled"                        );
+        {
+            sprintf( prec->mstr, "Stalled"      );
+            log_msg( prec, 0,    "Stalled"      );
+        }
+        else if ( msta.Bits.EA_SLIP_STALL                   )
+        {
+            sprintf( prec->mstr, "Slip / Stall" );
+            log_msg( prec, 0,    "Slip / Stall" );
+        }
     }
-    else if ( msta.Bits.RA_STALL                                  )   // stalled
+    else
     {
-        if ( prec->stsv > NO_ALARM )
-        recGblSetSevr( (dbCommon *)prec, STATE_ALARM, prec->stsv    );
+        if ( prec->dmov == 0 )
+        {
+            if ( msta.Bits.RA_STALL )                          // stall detected
+            {
+                if ( prec->stsv > NO_ALARM )
+                    recGblSetSevr( (dbCommon *)prec, STATE_ALARM, prec->stsv );
 
-        log_msg( prec, 0, "Stall detected"         );
-    }
-    else if ( msta.Bits.RA_ERR                                    ) // got error
-    {
-        if ( prec->ersv > NO_ALARM )
-        recGblSetSevr( (dbCommon *)prec, STATE_ALARM, prec->ersv    );
-
-        log_msg( prec, 0, "Got error %d", msta.Bits.RA_ERR );
-    }
-    else if ( ! first )
-    {
-        if ( prec->sevr > NO_ALARM )                // had alarm/warnings before
-            log_msg( prec, 0, "Alarm/warnings cleared" );
+                sprintf( prec->mstr, "Moving/Stalling" );
+                log_msg( prec, 0,    "Stall detected"  );
+            }
+            else
+                sprintf( prec->mstr, "Moving"          );
+        }
         else
         {
-            if ( old_msta.Bits.RA_STALL )
-                log_msg( prec, 0, "Stall bit cleared" );
+            if      ( prec->lvio                )
+                sprintf( prec->mstr, "Limit Violated"         );
+            else if ( prec->spg == imsSPG_Pause )
+                sprintf( prec->mstr, "Paused"                 );
+            else if ( prec->spg == imsSPG_Stop  )
+                sprintf( prec->mstr, "Stopped"                );
+            else if ( msta.Bits.RA_STALL        )              // stall detected
+                sprintf( prec->mstr, "Ready / Stall Detected" );
+            else if ( msta.Bits.RA_ERR          )                   // got error
+                sprintf( prec->mstr, "Ready / Error"          );
+            else
+                sprintf( prec->mstr, "Ready"                  );
 
-            if ( old_msta.Bits.RA_ERR   )
-                log_msg( prec, 0, "Error cleared"     );
+            if ( msta.Bits.RA_STALL )
+            {
+                if ( prec->stsv > NO_ALARM )
+                    recGblSetSevr( (dbCommon *)prec, STATE_ALARM, prec->stsv );
+
+                log_msg( prec, 0, "Stall detected"                 );
+            }
+
+            if ( msta.Bits.RA_ERR   )
+            {
+                if ( prec->ersv > NO_ALARM )
+                    recGblSetSevr( (dbCommon *)prec, STATE_ALARM, prec->ersv );
+
+                log_msg( prec, 0, "Got error %d", msta.Bits.RA_ERR );
+            }
+
+            if ( ! first )
+            {
+                if ( prec->sevr > NO_ALARM )                // had alarm/warnings before
+                    log_msg( prec, 0, "Alarm/warnings cleared" );
+                else
+                {
+                    if ( old_msta.Bits.RA_STALL )
+                        log_msg( prec, 0, "Stall bit cleared" );
+
+                    if ( old_msta.Bits.RA_ERR   )
+                        log_msg( prec, 0, "Error cleared"     );
+                }
+            }
         }
     }
 
@@ -1308,7 +1382,9 @@ static long process( dbCommon *precord )
     msta.Bits.RA_MOVING = prec->movn;
 
     prec->msta          = msta.All;
-    if ( prec->msta != old_msta.All ) MARK( M_MSTA );
+    if ( prec->msta != old_msta.All        ) MARK( M_MSTA );
+
+    if ( strcmp(prec->mstr, old_mstr) != 0 ) MARK( M_MSTR );
 
     recGblGetTimeStamp( prec );
 

@@ -718,6 +718,12 @@ recordtype(ims) {
 		special(SPC_NOMOD)
 		interest(3)
 	}
+	field(MSTR,DBF_STRING) {
+		prompt("Status String to Display")
+		size(61)
+		special(SPC_NOMOD)
+		interest(2)
+	}
 	field(OVAL,DBF_DOUBLE) {
 		prompt("Original Value")
 		promptgroup(GUI_COMMON)
