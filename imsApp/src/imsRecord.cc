@@ -1364,16 +1364,15 @@ static long process( dbCommon *precord )
 
             if ( ! first )
             {
-                if ( prec->sevr > NO_ALARM )                // had alarm/warnings before
+                if      ( old_msta.Bits.RA_POWERUP && ! msta.Bits.RA_POWERUP   )
+                    log_msg( prec, 0, "Power-cycle bit cleared" );
+                else if ( old_msta.Bits.RA_STALL   && ! msta.Bits.RA_STALL     )
+                    log_msg( prec, 0, "Stall bit cleared"       );
+                else if ( old_msta.Bits.RA_ERR     && ! msta.Bits.RA_ERR       )
+                    log_msg( prec, 0, "Error cleared"           );
+                else if ( (prec->sevr > NO_ALARM)  && (prec->nsev == NO_ALARM) )
+                                                    // had alarm/warnings before
                     log_msg( prec, 0, "Alarm/warnings cleared" );
-                else
-                {
-                    if ( old_msta.Bits.RA_STALL )
-                        log_msg( prec, 0, "Stall bit cleared" );
-
-                    if ( old_msta.Bits.RA_ERR   )
-                        log_msg( prec, 0, "Error cleared"     );
-                }
             }
         }
     }
@@ -3523,6 +3522,9 @@ static void post_fields( imsRecord *prec, unsigned short alarm_mask,
 
     if ( (field_mask = alarm_mask | (all | MARKED(M_MSTA) ? DBE_VAL_LOG : 0)) )
         db_post_events( prec, &prec->msta, field_mask );
+
+    if ( (field_mask = alarm_mask | (all | MARKED(M_MSTR) ? DBE_VAL_LOG : 0)) )
+        db_post_events( prec,  prec->mstr, field_mask );
 
     if ( (field_mask = alarm_mask | (all | MARKED(M_RLLS) ? DBE_VAL_LOG : 0)) )
         db_post_events( prec, &prec->rlls, field_mask );
