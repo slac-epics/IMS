@@ -1,10 +1,23 @@
-ims Record R2-0-0 Release Notice
+ims Record R2-1-0 Release Notice
 ================================================================================
 
 The ims dedicated record software in this release is a re-write/simplification
 based on motor record R6-4-4, without the general abstraction layers of device
 support and driver support.  It conforms to the original motor record interface,
 and is compatible with EPICS base R3-14-12.
+
+Modification Log from R2-0-0 to R2-1-0
+======================================
+
+New features:
+ 1) Implemented a triggered relative move mode.  Once activated, the motor will
+    move the TWV amount for every trigger signal.  The TWV can be negative.
+
+Bug fixes:
+ 1) Only check S9 for smart motors with internal encoder.
+
+ 2) Do not start jogging when the motor is already outside the relevant limit;
+    Stop jogging when the motor reaches the relevant limit.
 
 Modification Log from R1-0-1 to R2-0-0
 ======================================

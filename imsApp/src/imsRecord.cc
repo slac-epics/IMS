@@ -855,6 +855,22 @@ static long process( dbCommon *precord )
             prec->mip  = MIP_MOVE;
             log_msg( prec, 0, "Triggered" );
         }
+        else if ( (prec->jogr != 0) && (prec->rbv <= prec->llm) )
+        {
+            log_msg( prec, 0, "Reached low limit, stop jogging ..." );
+            prec->mip &= ~MIP_PAUSE;
+            prec->mip |=  MIP_STOP ;
+
+            send_msg( mInfo, "SL 0\r\nUs 0" );
+        }
+        else if ( (prec->jogf != 0) && (prec->rbv >= prec->hlm) )
+        {
+            log_msg( prec, 0, "Reached high limit, stop jogging ..." );
+            prec->mip &= ~MIP_PAUSE;
+            prec->mip |=  MIP_STOP ;
+
+            send_msg( mInfo, "SL 0\r\nUs 0" );
+        }
 
         goto finished;
     }
@@ -1093,6 +1109,12 @@ static long process( dbCommon *precord )
         else if ( prec->mip & MIP_STOP  )
         {
             log_msg( prec, 0, "Stopped at %.6g", prec->rbv );
+
+            if ( prec->mip & MIP_JOG )                            // was jogging
+            {
+                prec->jogf = 0;
+                prec->jogr = 0;
+            }
         }
         else if ( prec->mip == (MIP_HOMR | MIP_HOMB) )
         {
@@ -2072,6 +2094,16 @@ static long special( dbAddr *pDbAddr, int after )
                     log_msg( prec, 0, "No jogging, SPG is not Go"     );
                 else
                     log_msg( prec, 0, "No jogging, unknown alarm"     );
+
+                break;
+            }
+            else if ( ((prec->jogf != 0) && (prec->rbv >= prec->hlm)) || 
+                      ((prec->jogr != 0) && (prec->rbv <= prec->llm))    )
+            {
+                prec->jogf = 0;
+                prec->jogr = 0;
+
+                log_msg( prec, 0, "No jogging, limit violated" );
 
                 break;
             }
