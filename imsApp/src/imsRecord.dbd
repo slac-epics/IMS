@@ -788,7 +788,7 @@ recordtype(ims) {
 		interest(1)
 	}
 	field(EGAG,DBF_MENU) {
-		prompt("Use External Guage")
+		prompt("Use External Gauge")
 		promptgroup(GUI_COMMON)
 		menu(menuYesNo)
 		special(SPC_MOD)
@@ -797,19 +797,19 @@ recordtype(ims) {
 		interest(1)
 	}
 	field(ERBL,DBF_INLINK) {
-		prompt("External Guage Readback Link")
+		prompt("External Gauge Readback Link")
 		promptgroup(GUI_COMMON)
 		special(SPC_NOMOD)
 		interest(1)
 	}
 	field(ESKL,DBF_DOUBLE) {
-		prompt("External Guage Scale")
+		prompt("External Gauge Scale")
 		promptgroup(GUI_COMMON)
 		initial(1)
 		interest(1)
 	}
 	field(ERBV,DBF_DOUBLE) {
-		prompt("External Guage RBV")
+		prompt("External Gauge RBV")
 		promptgroup(GUI_COMMON)
 		special(SPC_NOMOD)
 		interest(1)
