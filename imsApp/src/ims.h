@@ -6,7 +6,7 @@ struct ims_info
     epicsEvent       *sEvent;
     epicsMutex       *cMutex;
     asynUser         *pasynUser;
-    bool              initialized;
+    int               initialized;
 
     long              csr;
     long              count;
