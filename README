@@ -6,6 +6,10 @@ based on motor record R6-4-4, without the general abstraction layers of device
 support and driver support.  It conforms to the original motor record interface,
 and is compatible with EPICS base R3-14-12.
 
+NOTE: Re R2.2.0
+Scott found there are problems w/ the R2.2.0 release so it's been deprecated
+and removed from the release area.
+
 Modification Log from R2-1-0 to R2-2-0
 ======================================
 
