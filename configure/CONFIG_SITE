@@ -14,7 +14,7 @@
 #CROSS_COMPILER_TARGET_ARCHS = RTEMS-beatnik
 #CROSS_COMPILER_TARGET_ARCHS = linux-x86
 CROSS_COMPILER_TARGET_ARCHS = linux-x86
-BUILD_FOR_HOST_ARCH =
+#BUILD_FOR_HOST_ARCH =
 
 # Set this when your IOC and the host use different paths
 # to access the application. This will be needed to boot

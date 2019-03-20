@@ -19,6 +19,7 @@
 #include <math.h>
 #include <time.h>
 #include <errlog.h>
+#include <unistd.h>
 
 #define GEN_SIZE_OFFSET
 #include "imsRecord.h"
