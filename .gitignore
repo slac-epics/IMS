@@ -10,7 +10,7 @@ O.*
 /html/
 /include/
 /lib/
-/misc/
+misc/
 /templates/
 cdCommands
 envPaths
