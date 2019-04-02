@@ -11,10 +11,12 @@
 # Set this when you only want to compile this application
 # for a subset of the cross-compiled target architectures
 # that Base is built for.
-#CROSS_COMPILER_TARGET_ARCHS = RTEMS-beatnik
-#CROSS_COMPILER_TARGET_ARCHS = linux-x86
-CROSS_COMPILER_TARGET_ARCHS = linux-x86
-#BUILD_FOR_HOST_ARCH =
+CROSS_COMPILER_TARGET_ARCHS := $(filter-out linux-arm%,         $(CROSS_COMPILER_TARGET_ARCHS))
+CROSS_COMPILER_TARGET_ARCHS := $(filter-out linuxRT-i686,       $(CROSS_COMPILER_TARGET_ARCHS))
+CROSS_COMPILER_TARGET_ARCHS := $(filter-out linuxRT_glibc-i686, $(CROSS_COMPILER_TARGET_ARCHS))
+CROSS_COMPILER_TARGET_ARCHS := $(filter-out linuxRT-arm_zynq,   $(CROSS_COMPILER_TARGET_ARCHS))
+CROSS_COMPILER_TARGET_ARCHS := $(filter-out vxWorks%,           $(CROSS_COMPILER_TARGET_ARCHS))
+CROSS_COMPILER_TARGET_ARCHS := $(filter-out RTEMS%,             $(CROSS_COMPILER_TARGET_ARCHS))
 
 # Set this when your IOC and the host use different paths
 # to access the application. This will be needed to boot
