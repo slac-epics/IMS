@@ -9,12 +9,11 @@ include $(TOP)/configure/CONFIG
 # Specify what files should be copied and where.
 
 # What protocol files should be copied as part of the build.
-COPY_FILES += ims_bootup.mcode
-COPY_FILES += report.proto
+PROTO += ims_bootup.mcode
+PROTO += report.proto
 
-# What subdirectory should hold the protcol files.  For this example,
-# $INSTALL_LOCATION/protocol will be created.
-COPY_SUBDIR = misc
+# What subdirectory should hold the protcol files.
+INSTALL_PROTO = $(INSTALL_LOCATION)/misc
 
 # Uncomment this if you only want to copy when *not* installing to
 # your development area.  Useful for iocBoot, where the source and
@@ -24,7 +23,6 @@ COPY_SUBDIR = misc
 ######################################################################
 # Don't change these.
 include $(TOP)/configure/RULES
-include $(TOP)/configure/RULES.copy
 
 ######################################################################
 # Add additional RULES files, if necessary.
