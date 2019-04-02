@@ -7,8 +7,6 @@
 # Define the version(s) of any other needed modules 
 # ===============================================================
 ASYN_MODULE_VERSION = R4.32-1.0.1
-BUSY_MODULE_VERSION = R1.6.1-0.2.7
-SEQ_MODULE_VERSION  = R2.2.4-1.0
 
 # ============================================================
 # External Support module path definitions
@@ -24,8 +22,6 @@ SEQ_MODULE_VERSION  = R2.2.4-1.0
 # If your build fails, look for these paths in your build output
 # ============================================================
 ASYN=$(EPICS_MODULES)/asyn/$(ASYN_MODULE_VERSION)
-BUSY=$(EPICS_MODULES)/busy/$(BUSY_MODULE_VERSION)
-SEQ=$(EPICS_MODULES)/seq/$(SEQ_MODULE_VERSION)
 
 # ===============================================================
 # Define the location and version of EPICS base
