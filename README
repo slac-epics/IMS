@@ -10,6 +10,14 @@ NOTE: Re R2.2.0
 Scott found there are problems w/ the R2.2.0 release so it's been deprecated
 and removed from the release area.
 
+The problematic commit is:
+6d38eae Force to "Re-initialize" when controller comes online after iocInit
+or goes offline and comes back more than a few minutes later when the automatic
+"ping" kicks in.
+
+As of 1/30/2023, this commit has been removed but the rest of the current history
+has been restored.
+
 Modification Log from R2-0-0 to R2-1-0
 ======================================
 
