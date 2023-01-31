@@ -144,29 +144,27 @@ static long init_record( dbCommon *precord, int pass )
     if ( pass > 0 ) return( status );
 
     mInfo = (ims_info *)malloc( sizeof(ims_info) );
-    mInfo->precord     = prec;
-    mInfo->pEvent      = new epicsEvent( epicsEventEmpty );
-    mInfo->sEvent      = new epicsEvent( epicsEventFull  );
-    mInfo->cMutex      = new epicsMutex();
+    mInfo->precord   = prec;
+    mInfo->pEvent    = new epicsEvent( epicsEventEmpty );
+    mInfo->sEvent    = new epicsEvent( epicsEventFull  );
+    mInfo->cMutex    = new epicsMutex();
 
-    mInfo->lMutex      = new epicsMutex();
-    mInfo->initialized = -1;
+    mInfo->lMutex    = new epicsMutex();
+    mInfo->mLength   = 61;
+    mInfo->cIndex    = 0;
+    mInfo->newMsg    = 0;
+    mInfo->sAddr     = (char *)calloc( 8*61, sizeof(char) );
 
-    mInfo->mLength     = 61;
-    mInfo->cIndex      = 0;
-    mInfo->newMsg      = 0;
-    mInfo->sAddr       = (char *)calloc( 8*61, sizeof(char) );
+    prec->loga       = mInfo->sAddr;
+    prec->logb       = mInfo->sAddr + mInfo->mLength * 1;
+    prec->logc       = mInfo->sAddr + mInfo->mLength * 2;
+    prec->logd       = mInfo->sAddr + mInfo->mLength * 3;
+    prec->loge       = mInfo->sAddr + mInfo->mLength * 4;
+    prec->logf       = mInfo->sAddr + mInfo->mLength * 5;
+    prec->logg       = mInfo->sAddr + mInfo->mLength * 6;
+    prec->logh       = mInfo->sAddr + mInfo->mLength * 7;
 
-    prec->loga         = mInfo->sAddr;
-    prec->logb         = mInfo->sAddr + mInfo->mLength * 1;
-    prec->logc         = mInfo->sAddr + mInfo->mLength * 2;
-    prec->logd         = mInfo->sAddr + mInfo->mLength * 3;
-    prec->loge         = mInfo->sAddr + mInfo->mLength * 4;
-    prec->logf         = mInfo->sAddr + mInfo->mLength * 5;
-    prec->logg         = mInfo->sAddr + mInfo->mLength * 6;
-    prec->logh         = mInfo->sAddr + mInfo->mLength * 7;
-
-    prec->dpvt         = mInfo;
+    prec->dpvt       = mInfo;
 
     gethostname( prec->host, 60                   );
     strcpy     ( prec->iocn, getenv("EPICS_NAME") );
@@ -301,6 +299,7 @@ static long init_motor( imsRecord *prec )
         log_msg( prec, 0, "Failed to read the part number" );
 
         msta.Bits.RA_PROBLEM = 1;
+        goto finished;
     }
 
     // read the serial number
@@ -331,6 +330,7 @@ static long init_motor( imsRecord *prec )
         log_msg( prec, 0, "Failed to read the serial number" );
 
         msta.Bits.RA_PROBLEM = 1;
+        goto finished;
     }
 
     // read the firmware version
@@ -361,6 +361,7 @@ static long init_motor( imsRecord *prec )
         log_msg( prec, 0, "Failed to read the firmware version" );
 
         msta.Bits.RA_PROBLEM = 1;
+        goto finished;
     }
 
     // read S1 - S4
@@ -805,43 +806,32 @@ static long process( dbCommon *precord )
     strncpy( old_mstr, prec->mstr, 61 );
 
     mInfo->cMutex->lock();
-    if ( mInfo->newData == 2 )                             // callback from ping
+    if ( (mInfo->newData != 1) && (mInfo->newData != 2) )
+    {
+        mInfo->cMutex->unlock();
+        goto exit;
+    }
+    else if ( mInfo->newData == 2 )                        // callback from ping
     {
         msta.All = prec->msta | mInfo->csr;
 
         mInfo->newData = 0;
-        if ( mInfo->initialized == -2 )               // trouble with controller
-        {
-            mInfo->cMutex->unlock();
-            goto exit;
-        }
-    }
+        mInfo->cMutex->unlock();
 
-    if ( mInfo->initialized == -1 )
-    {
-        mInfo->cMutex->unlock();
-        log_msg( prec, 0, "Please re-initialize" );
-        goto exit;
-    }
-    else if ( mInfo->newData != 1 )
-    {
-        mInfo->cMutex->unlock();
-        goto exit;
+        goto finished;
     }
 
     csr.All = mInfo->csr;
     count   = mInfo->count;
+    first   = ! mInfo->initialized;
 
-    if ( mInfo->initialized == 0 )
+    if ( first )
     {
         mInfo->initialized = 1;
         log_msg( prec, 0, "Initialization completed" );
 
-        first    = TRUE;
         reset_us = TRUE;
     }
-    else
-        first    = FALSE;
 
     mInfo->newData = 0;
     mInfo->cMutex->unlock();
@@ -3637,9 +3627,6 @@ static void ping_controller( struct ims_info *mInfo )
         }
 
         mInfo->cMutex->lock();
-
-        if ( msta.Bits.RA_PROBLEM == 1 ) mInfo->initialized = -2;
-        else                             mInfo->initialized = -1;
 
         mInfo->csr     = msta.All;
         mInfo->newData = 2;
