@@ -1,3 +1,4 @@
+#define USE_TYPED_RSET
 #define VERSION 2.0
 
 #include <algorithm>
@@ -45,7 +46,7 @@ static long process           ( dbCommon *precord                          );
 static long special           ( dbAddr   *pDbAddr, int after               );
 static long cvt_dbaddr        ( dbAddr   *pDbAddr                          );
 static long get_units         ( dbAddr   *pDbAddr, char *                  );
-static long get_precision     ( dbAddr   *pDbAddr, long *                  );
+static long get_precision     ( const dbAddr   *pDbAddr, long *            );
 static long get_graphic_double( dbAddr   *pDbAddr, struct dbr_grDouble   * );
 static long get_control_double( dbAddr   *pDbAddr, struct dbr_ctrlDouble * );
 static long get_alarm_double  ( dbAddr   *pDbAddr, struct dbr_alDouble   * );
@@ -56,21 +57,21 @@ rset imsRSET =
     RSETNUMBER,
     NULL,
     NULL,
-    (RECSUPFUN) init_record,
-    (RECSUPFUN) process,
-    (RECSUPFUN) special,
+    init_record,
+    process,
+    special,
     NULL,
-    (RECSUPFUN) cvt_dbaddr,
-    NULL,
-    NULL,
-    (RECSUPFUN) get_units,
-    (RECSUPFUN) get_precision,
+    cvt_dbaddr,
     NULL,
     NULL,
+    get_units,
+    get_precision,
     NULL,
-    (RECSUPFUN) get_graphic_double,
-    (RECSUPFUN) get_control_double,
-    (RECSUPFUN) get_alarm_double
+    NULL,
+    NULL,
+    get_graphic_double,
+    get_control_double,
+    get_alarm_double
 };
 
 extern "C" { epicsExportAddress( rset, imsRSET ); }
@@ -3301,7 +3302,7 @@ static long get_units( dbAddr *paddr, char *units )
 }
 
 /******************************************************************************/
-static long get_precision( dbAddr *paddr, long *precision )
+static long get_precision( const dbAddr *paddr, long *precision )
 {
     imsRecord *prec = (imsRecord *)paddr->precord;
     int fieldIndex = dbGetFieldIndex( paddr );
