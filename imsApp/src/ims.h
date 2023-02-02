@@ -17,6 +17,7 @@ struct ims_info
     char             *sAddr;
     int               cIndex;
     bool              newMsg;
+    bool              saving;
 };
 
 typedef union

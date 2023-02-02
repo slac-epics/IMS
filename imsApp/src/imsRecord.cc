@@ -153,6 +153,7 @@ static long init_record( dbCommon *precord, int pass )
     mInfo->mLength   = 61;
     mInfo->cIndex    = 0;
     mInfo->newMsg    = 0;
+    mInfo->saving    = 0;
     mInfo->sAddr     = (char *)calloc( 8*61, sizeof(char) );
 
     prec->loga       = mInfo->sAddr;
@@ -1736,14 +1737,25 @@ static long special( dbAddr *pDbAddr, int after )
         case imsRecordSVNG:
             if      ( strcmp(prec->svng, "Save")        == 0 )
             {
-                log_msg( prec, 0, "Saving ..." );
+		if (mInfo->saving) {
+		    log_msg( prec, 0, "Double save request, aborting!" );
 
-                mInfo->sEvent->wait();
-                send_msg( mInfo, "SV 9", 0 );
+		    mInfo->saving = 0;
+		    mInfo->sEvent->signal();
+		} else {
+		    log_msg( prec, 0, "Saving ..." );
+
+		    mInfo->sEvent->wait();
+		    mInfo->saving = 1;
+		    send_msg( mInfo, "SV 9", 0 );
+		}
             }
             else if ( sscanf(prec->svng, "%ld", &count) == 1 )
             {
-                mInfo->sEvent->signal();
+		if (mInfo->saving) {
+		    mInfo->saving = 0;
+		    mInfo->sEvent->signal();
+		}
 
                 new_dval = count * prec->res;
                 nval     = dir * new_dval + prec->off;
