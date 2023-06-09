@@ -61,7 +61,7 @@ record(scalcout, "$(MOTOR):UTC") {
 record(calcout, "$(MOTOR):BUSY_CALC") {
   field(DESC, "Invert DMOV")
   field(INPA, "$(MOTOR).DMOV NPP")
-  field(OUT,  "$(MOTOR):BUSY CPP")
+  field(OUT,  "$(MOTOR):BUSY PP")
   field(CALC, "1-A")
   field(OOPT, "On Change")
   field(DOPT, "Use CALC")
@@ -168,7 +168,7 @@ record(calcout, "$(MOTOR):CheckUpdate") {
   field(DESC, "Check Update Time")
   field(INPA, "$(MOTOR):UTC           NPP")
   field(INPB, "$(IOC):CheckUpdate:UTC NPP")
-  field(OUT,  "$(MOTOR).PING CPP"         )
+  field(OUT,  "$(MOTOR).PING PP"          )
   field(CALC, "(B-A)>450 ? 1 : 0")
   field(OOPT, "When Non-zero")
   field(DOPT, "Use CALC")
@@ -442,277 +442,277 @@ record(seq, "$(MOTOR):COPY_Seq5") {
 
 record(stringout, "$(MOTOR):COPY_TYPE") {
   field(VAL,  ".TYPE")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_EGU") {
   field(VAL,  ".EGU")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_UREV") {
   field(VAL,  ".UREV")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_FREV") {
   field(VAL,  ".FREV")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_MS") {
   field(VAL,  ".MS")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_EL") {
   field(VAL,  ".EL")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_EE") {
   field(VAL,  ".EE")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_MT") {
   field(VAL,  ".MT")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_HT") {
   field(VAL,  ".HT")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_S1") {
   field(VAL,  ".S1")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_S2") {
   field(VAL,  ".S2")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_S3") {
   field(VAL,  ".S3")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_S4") {
   field(VAL,  ".S4")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_LM") {
   field(VAL,  ".LM")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_SM") {
   field(VAL,  ".SM")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_SF") {
   field(VAL,  ".SF")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_STSV") {
   field(VAL,  ".STSV")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_ERSV") {
   field(VAL,  ".ERSV")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_BDST") {
   field(VAL,  ".BDST")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_HTYP") {
   field(VAL,  ".HTYP")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_HDST") {
   field(VAL,  ".HDST")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_RDBD") {
   field(VAL,  ".RDBD")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_PDBD") {
   field(VAL,  ".PDBD")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_RCMX") {
   field(VAL,  ".RCMX")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_RC") {
   field(VAL,  ".RC")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_HCMX") {
   field(VAL,  ".HCMX")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_HC") {
   field(VAL,  ".HC")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_HCSV") {
   field(VAL,  ".HCSV")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_SBAS") {
   field(VAL,  ".SBAS")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_SMAX") {
   field(VAL,  ".SMAX")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_BS") {
   field(VAL,  ".BS")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_HS") {
   field(VAL,  ".HS")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_S") {
   field(VAL,  ".S")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_BACC") {
   field(VAL,  ".BACC")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_HACC") {
   field(VAL,  ".HACC")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_ACCL") {
   field(VAL,  ".ACCL")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_DIR") {
   field(VAL,  ".DIR")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_OFF") {
   field(VAL,  ".OFF")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_FOFF") {
   field(VAL,  ".FOFF")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_LLM") {
   field(VAL,  ".LLM")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_HLM") {
   field(VAL,  ".HLM")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_TWV") {
   field(VAL,  ".TWV")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_ESKL") {
   field(VAL,  ".ESKL")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_FW_MEANS") {
   field(VAL,  ":FW_MEANS")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_REV_MEANS") {
   field(VAL,  ":REV_MEANS")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
 record(stringout, "$(MOTOR):COPY_MODE") {
   field(VAL,  ".MODE")
-  field(OUT,  "$(MOTOR):COPY_FIELD CPP")
+  field(OUT,  "$(MOTOR):COPY_FIELD PP)
   field(OMSL, "closed_loop")
 }
 
