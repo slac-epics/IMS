@@ -61,7 +61,7 @@ record(scalcout, "$(MOTOR):UTC") {
 record(calcout, "$(MOTOR):BUSY_CALC") {
   field(DESC, "Invert DMOV")
   field(INPA, "$(MOTOR).DMOV NPP")
-  field(OUT,  "$(MOTOR):BUSY PP")
+  field(OUT,  "$(MOTOR):BUSY  PP")
   field(CALC, "1-A")
   field(OOPT, "On Change")
   field(DOPT, "Use CALC")
@@ -712,7 +712,7 @@ record(stringout, "$(MOTOR):COPY_REV_MEANS") {
 
 record(stringout, "$(MOTOR):COPY_MODE") {
   field(VAL,  ".MODE")
-  field(OUT,  "$(MOTOR):COPY_FIELD PP)
+  field(OUT,  "$(MOTOR):COPY_FIELD PP")
   field(OMSL, "closed_loop")
 }
 
