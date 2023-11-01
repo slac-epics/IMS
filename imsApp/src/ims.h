@@ -1,11 +1,32 @@
+#define MAX_MSG_SIZE 61
+
+enum iar_state { IAR_EMPTY, IAR_SENDONLY, IAR_SEND, IAR_RESPWAIT, IAR_DONE };
+
+struct ims_asyn_req {
+    char             out[MAX_MSG_SIZE];/* To be sent. */
+    int              outsize;
+    char             exp[3];           /* First few characters of expected response. */
+    char            *rbbuf;            /* Response buffer. */
+    int              nread;            /* Length of response. */
+    epicsEvent      *rbEvent;          /* Event to signal response. */
+    int              link;             /* -1 = No next. */
+    enum iar_state   state;
+};
+
 struct ims_info
 {
     struct imsRecord *precord;
 
-    epicsEvent       *pEvent;
-    epicsEvent       *sEvent;
+    epicsEvent       *pEvent;         /* Request PING from thread */
+    epicsEvent       *sEvent;         /* Wait until SAVE OK (initially full!) */
     epicsMutex       *cMutex;
+    epicsMutex       *rMutex;
+
+#define REQ_CNT 5
+    struct ims_asyn_req req[REQ_CNT];
+    int               reqH;           /* Request head */
     asynUser         *pasynUser;
+
     bool              initialized;
 
     long              csr;
@@ -18,6 +39,13 @@ struct ims_info
     int               cIndex;
     bool              newMsg;
     bool              saving;
+
+    struct dbAddr     sstr_addr;
+    int               sstr_status;
+    struct dbAddr     svng_addr;
+    int               svng_status;
+    struct dbAddr     saved_addr;
+    int               saved_status;
 };
 
 typedef union

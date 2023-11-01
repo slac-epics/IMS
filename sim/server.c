@@ -136,7 +136,7 @@ void serve()
     int n;
     struct sigaction temp;
     int status_offset = 0;
-    int movetime = 0,
+    int movetime = 0, updatetime = 0,
 	curC1, incC1, finalC1,
 	curC2, incC2, finalC2;
 
@@ -212,9 +212,10 @@ void serve()
 	/* OK, before we get to the result of the read... anything to do? */
 	if (now % SAVE_DURATION == 0 && !getvarint("SV")) {
 	    setvar("SV", "1");
-	    fprintf(stderr, "Want2Save\n\r");
+	    printf("> Want2Save\r\n");
+	    fprintf(stderr, "Want2Save\r\n");
 	}
-	if (now % STATUS_DURATION == status_offset || movetime) {
+	if (now % STATUS_DURATION == status_offset || movetime || updatetime) {
 	    int pos;
 	    int ee = getvarint("EE");
 	    int status = ((getvarint("NE") << 16) |
@@ -242,6 +243,8 @@ void serve()
 	    } else {
 		pos = ee ? getvarint("C2") : getvarint("C1");
 	    }
+	    updatetime = 0;
+	    printf("> BOS%d,P=%dEOS\r\n", status, pos);
 	    fprintf(stderr, "BOS%d,P=%dEOS\r\n", status, pos);
 	}
 	if (n <= 0) {
@@ -254,8 +257,24 @@ void serve()
 		    *t++ = 0;
 		    t++;  /* Skip the "\n" */
 		}
+		{
+		    char *q = s;
+		    printf("< ");
+		    while (*q) {
+			if (*q == '\r')
+			    printf("\\r");
+			else if (*q == '\n')
+			    printf("\\n");
+			else
+			    putchar(*q);
+			q++;
+		    }
+		    putchar('\n');
+		}
 		if (!strncmp(s, "PR ", 3)) {
-		    fprintf(stderr, "%s\r\n", dopr(s+3));
+		    char *q = dopr(s+3);
+		    printf("> %s\n", q);
+		    fprintf(stderr, "%s\r\n", q);
 		} else if (s[0] == '\e') {
 		    setvar("BY", "0");
 		    movetime = 0; /* Abort any move! */
@@ -290,12 +309,27 @@ void serve()
 			setvar("BY", "1");
 			continue;
 		    }
+		    if (!strncmp(s, "US", 2) && !strncmp(u, "0", 2)) { /* Update now! */
+			updatetime = 1;
+			setvar(s, u);
+			continue;
+		    }
 		    if (!strncmp(s, "SV", 2)) { /* Save! */
 			/* Assume 9? */
-			setvar("SV", "0");
-			setvarint("NS", getvarint("NS")+1);
-			fprintf(stderr, "Saved %s\r\n",
-				getvarint("EE") ? getvar("C2") : getvar("C1"));
+			if (!strncmp(u, "9", 2)) {
+			    setvar("SV", "0");
+			    setvarint("NS", getvarint("NS")+1);
+			    printf("> Saved %s\r\n",
+				   getvarint("EE") ? getvar("C2") : getvar("C1"));
+			    fprintf(stderr, "Saved %s\r\n",
+				    getvarint("EE") ? getvar("C2") : getvar("C1"));
+			} else if (!strncmp(u, "1", 2)) {
+			    setvar("SV", "1");
+			    printf("> Want2Save\r\n");
+			    fprintf(stderr, "Want2Save\r\n");
+			} else {
+			    setvar(s, u);
+			}
 			continue;
 		    }
 		    setvar(s, u);
