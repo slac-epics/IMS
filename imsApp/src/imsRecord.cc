@@ -144,8 +144,7 @@ static long init_record( dbCommon *precord, int pass )
     int        i;
     char       buf[512];
 
-    if ( pass > 0 )
-	return( status );
+    if ( pass > 0 ) { return( status ); }
 
     mInfo = (ims_info *)malloc( sizeof(ims_info) );
     mInfo->precord   = prec;
@@ -244,6 +243,11 @@ static long connect_motor( imsRecord *prec )
 
     drvAsynIPPortConfigure              ( prec->asyn, serialPort, 0, 0, 0 );
     asyn_rtn = pasynOctetSyncIO->connect( prec->asyn, 0, &pasynUser, NULL );
+#if 0
+    /* Debugging from the beginning of time. */
+    pasynTrace->setTraceIOMask(pasynUser, 1);
+    pasynTrace->setTraceMask(pasynUser, 9);
+#endif
 
     if ( asyn_rtn != asynSuccess )
     {
@@ -3526,10 +3530,12 @@ static long send_recv_reply( struct ims_info *mInfo, char const *msg, char *rbbu
      * the wait with a failure, but then the event is signaled before we can
      * grab the lock.
      */
-    if (!status)
+    if (!status) {
 	status = req->rbEvent->tryWait();
-    if (status)
+    }
+    if (status) {
 	status = req->nread;
+    }
     free_request_buf(mInfo, req);
     mInfo->rMutex->unlock();
 
@@ -3650,7 +3656,7 @@ static void post_fields( imsRecord *prec, unsigned short alarm_mask,
 /******************************************************************************/
 static void io_controller ( struct ims_info *mInfo )
 {
-    char *s, *t, buf[2048];
+    char buf[2048];
     const double wtimeout = 1.0;
     const double rtimeout = 0.1;
     asynStatus status;
@@ -3700,86 +3706,72 @@ static void io_controller ( struct ims_info *mInfo )
 	}
 	putchar('\n');
 #endif
-
-	/* Is it even possible to have more than one message?!? */
-	for (s = buf, t = index(s, '\r'); s && *s; s = t) {
-	    t = index(s, '\r');
-	    if (t) {
-		*t++ = 0;
-		if (*t == '\n')
-		    t++;
-	    }
-	    /* 
-	     * OK, now s is a single message string.  Check if we
-	     * need to handle it here.
-	     */
-	    if (!strncmp(s, "BOS", 3)) {
-		/*
-		 * BOSstatus,P=positionEOS
-		 * Strip off "BOS" and pass it to $(MOTOR).SSTR.
-		 */
-		if (!mInfo->sstr_status)
-		    dbPutField(&mInfo->sstr_addr, DBR_STRING, s+3, 1);
-		continue;
-	    }
-	    if (!strncmp(s, "Want2Save", 9)) {
-		/*
-		 * Want2Save
-		 * Strip off "Want2" and pass it to $(MOTOR).SVNG.
-		 */
-		if (!mInfo->svng_status)
-		    dbPutField(&mInfo->svng_addr, DBR_STRING, s+5, 1);
-		continue;
-	    }
-	    if (!strncmp(s, "Saved ", 6)) {
-		/*
-		 * Saved position
-		 * Strip off "Saved " and pass it to $(MOTOR).SVNG and
-		 * $(MOTOR).SAVED_STR.
-		 */
-		if (!mInfo->svng_status)
-		    dbPutField(&mInfo->svng_addr, DBR_STRING, s+6, 1);
-		if (!mInfo->saved_status)
-		    dbPutField(&mInfo->saved_addr, DBR_STRING, s+6, 1);
-		continue;
-	    }
-	    mInfo->rMutex->lock();
+	if (!strncmp(buf, "BOS", 3)) {
 	    /*
-	     * Check if this is a response to something previously sent.
+	     * BOSstatus,P=positionEOS
+	     * Strip off "BOS" and pass it to $(MOTOR).SSTR.
 	     */
-	    for (wild = -1, i = 0; i < REQ_CNT; i++) {
-		struct ims_asyn_req *req = &mInfo->req[i];
-		if (req->state == IAR_RESPWAIT && !req->exp[0]) {
-		    wild = i; /* Just remember that this is our potential wildcard match. */
-		    continue;
-		}
-		if (req->state == IAR_RESPWAIT && !strncmp(s, req->exp, 2)) {
-		    req->nread = strlen(s);
-		    if (req->nread >= MAX_MSG_SIZE)
-			req->nread = MAX_MSG_SIZE-1;
-		    strncpy(req->rbbuf, s, req->nread);
-		    req->rbbuf[req->nread] = 0;
-		    req->state = IAR_DONE;
-		    req->rbEvent->signal();
-		    break;
-		}
-	    }
+	    if (!mInfo->sstr_status)
+		dbPutField(&mInfo->sstr_addr, DBR_STRING, buf+3, 1);
+	    continue;
+	}
+	if (!strncmp(buf, "Want2Save", 9)) {
 	    /*
-	     * If we didn't match anything but there is a wild card match,
-	     * match it!
+	     * Want2Save
+	     * Strip off "Want2" and pass it to $(MOTOR).SVNG.
 	     */
-	    if (i == REQ_CNT && wild >= 0) {
-		struct ims_asyn_req *req = &mInfo->req[wild];
-		req->nread = strlen(s);
+	    if (!mInfo->svng_status)
+		dbPutField(&mInfo->svng_addr, DBR_STRING, buf+5, 1);
+	    continue;
+	}
+	if (!strncmp(buf, "Saved ", 6)) {
+	    /*
+	     * Saved position
+	     * Strip off "Saved " and pass it to $(MOTOR).SVNG and
+	     * $(MOTOR).SAVED_STR.
+	     */
+	    if (!mInfo->svng_status)
+		dbPutField(&mInfo->svng_addr, DBR_STRING, buf+6, 1);
+	    if (!mInfo->saved_status)
+		dbPutField(&mInfo->saved_addr, DBR_STRING, buf+6, 1);
+	    continue;
+	}
+	mInfo->rMutex->lock();
+	/*
+	 * Check if this is a response to something previously sent.
+	 */
+	for (wild = -1, i = 0; i < REQ_CNT; i++) {
+	    struct ims_asyn_req *req = &mInfo->req[i];
+	    if (req->state == IAR_RESPWAIT && !req->exp[0]) {
+		wild = i; /* Just remember that this is our potential wildcard match. */
+		continue;
+	    }
+	    if (req->state == IAR_RESPWAIT && !strncmp(buf, req->exp, 2)) {
+		req->nread = strlen(buf);
 		if (req->nread >= MAX_MSG_SIZE)
 		    req->nread = MAX_MSG_SIZE-1;
-		strncpy(req->rbbuf, s, req->nread);
+		strncpy(req->rbbuf, buf, req->nread);
 		req->rbbuf[req->nread] = 0;
 		req->state = IAR_DONE;
 		req->rbEvent->signal();
+		break;
 	    }
-	    mInfo->rMutex->unlock();
 	}
+	/*
+	 * If we didn't match anything but there is a wild card match,
+	 * match it!
+	 */
+	if (i == REQ_CNT && wild >= 0) {
+	    struct ims_asyn_req *req = &mInfo->req[wild];
+	    req->nread = strlen(buf);
+	    if (req->nread >= MAX_MSG_SIZE)
+		req->nread = MAX_MSG_SIZE-1;
+	    strncpy(req->rbbuf, buf, req->nread);
+	    req->rbbuf[req->nread] = 0;
+	    req->state = IAR_DONE;
+	    req->rbEvent->signal();
+	}
+	mInfo->rMutex->unlock();
     }
 }
 

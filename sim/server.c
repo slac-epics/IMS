@@ -170,6 +170,7 @@ void serve()
     setvar("ME", "0");       /* Monitor encoder: status position is C2 if 1, C1 if 0 */
     setvar("EL", "512");     /* encoder lines per revolution.  C2 = 4*EL! */
     setvar("ES", "1");       /* Escape mode: Sending escape stops motion and program. */
+    setvar("DT", "0");       /* MCB - Double Test. */
     /*
       Behaviors to simulate:
       - Periodically set SV to 1 and send "Want2Save".  Actual 450s, maybe 100s?
@@ -244,8 +245,15 @@ void serve()
 		pos = ee ? getvarint("C2") : getvarint("C1");
 	    }
 	    updatetime = 0;
-	    printf("> BOS%d,P=%dEOS\r\n", status, pos);
-	    fprintf(stderr, "BOS%d,P=%dEOS\r\n", status, pos);
+	    if (getvarint("DT")) {
+		setvar("DT", "0");
+		setvar("SV", "1");
+		printf("> BOS%d,P=%dEOS\r\nWant2Save\r\n", status, pos);
+		fprintf(stderr, "BOS%d,P=%dEOS\r\nWant2Save\r\n", status, pos);
+	    } else {
+		printf("> BOS%d,P=%dEOS\r\n", status, pos);
+		fprintf(stderr, "BOS%d,P=%dEOS\r\n", status, pos);
+	    }
 	}
 	if (n <= 0) {
 	    if (errno != EINTR)
