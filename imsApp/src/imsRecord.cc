@@ -230,6 +230,7 @@ static long connect_motor( imsRecord *prec )
     ims_info          *mInfo = (ims_info *)prec->dpvt;
     asynUser          *pasynUser;
     char               serialPort[80];
+    static const char  output_terminator[] = "\n";
     static const char  input_terminator[]  = "\r\n";
     motor_status       msta;
     asynStatus         asyn_rtn;
@@ -245,7 +246,7 @@ static long connect_motor( imsRecord *prec )
     asyn_rtn = pasynOctetSyncIO->connect( prec->asyn, 0, &pasynUser, NULL );
 #if 0
     /* Debugging from the beginning of time. */
-    pasynTrace->setTraceIOMask(pasynUser, 1);
+    pasynTrace->setTraceIOMask(pasynUser, 2);
     pasynTrace->setTraceMask(pasynUser, 9);
 #endif
 
@@ -257,6 +258,8 @@ static long connect_motor( imsRecord *prec )
     }
 
     /* We will manually attach the output terminator. */
+    pasynOctetSyncIO->setOutputEos( pasynUser, output_terminator,
+                                    strlen(output_terminator)     );
     pasynOctetSyncIO->setInputEos ( pasynUser, input_terminator,
                                     strlen(input_terminator)      );
 
@@ -3475,7 +3478,7 @@ static long send_msg( struct ims_info *mInfo, char const *msg )
 	return -1;
     }
 
-    sprintf(req->out, "%s\r\n", msg);
+    sprintf(req->out, "%s\r", msg);
     req->outsize = strlen(req->out);
     req->state = IAR_SENDONLY;
     mInfo->rMutex->unlock();
@@ -3502,7 +3505,7 @@ static long send_recv_reply( struct ims_info *mInfo, char const *msg, char *rbbu
 	return 0;
     }
 
-    sprintf(req->out, "%s\r\n", msg);
+    sprintf(req->out, "%s\r", msg);
     req->outsize = strlen(req->out);
     req->state = IAR_SEND;
     /*
@@ -3742,11 +3745,24 @@ static void io_controller ( struct ims_info *mInfo )
 	 */
 	for (wild = -1, i = 0; i < REQ_CNT; i++) {
 	    struct ims_asyn_req *req = &mInfo->req[i];
-	    if (req->state == IAR_RESPWAIT && !req->exp[0]) {
+	    int explen = strlen(req->exp);
+	    if (req->state == IAR_RESPWAIT && !explen) {
 		wild = i; /* Just remember that this is our potential wildcard match. */
 		continue;
 	    }
-	    if (req->state == IAR_RESPWAIT && !strncmp(buf, req->exp, 2)) {
+	    /*
+	     * Sigh.  This is fucked up.
+	     *
+	     * The IMS motor firmware seems to have a bug in it... when you send
+	     *     PR "PN=",PN
+	     * The response can be:
+	     *     MDI3CRL23C7-EQPN=
+	     * Let's assume that our expected length is always 2, and... sigh.
+	     */
+	    if (req->state == IAR_RESPWAIT && 
+		(!strncmp(buf, req->exp, explen) ||
+		 (buf[len-1] == '=' && 
+		  !strncmp(buf+len-1-strlen(req->exp), req->exp, explen)))) {
 		req->nread = strlen(buf);
 		if (req->nread >= MAX_MSG_SIZE)
 		    req->nread = MAX_MSG_SIZE-1;
