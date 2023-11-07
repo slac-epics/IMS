@@ -1,0 +1,302 @@
+VA Ve     ' MCode version
+
+VA PU     ' Power up flag
+VA p1     ' Saved position
+VA Sd     ' Save deadband
+VA Sv     ' Save flag
+VA Ns     ' Number of saves
+VA Us     ' Delay for status update
+VA Me     ' Monitor encoder or not
+VA Mm     ' Mode
+VA Sr     ' Scanning and moving
+VA Os     ' Old state
+VA Xl
+VA Xh
+VA X1
+VA X2
+VA X3
+VA X4
+VA Pt
+VA Ui
+
+Ve 4      ' Version 4
+Ne 0      ' Disable numeric cmd
+p1 P      ' Start with current position
+Sd Db*4   ' Set save deadband
+Sv 0
+Me 0
+Mm 0
+Us 18000
+
+PG 1
+  LB SU	            ' Run at power up
+
+  H 1000            ' 1 second hold let motor boot-up
+
+  PU 1              ' Set the Power-Up flag
+  P p1         	    ' Restore last saved position
+
+  TC Tm
+  S13 60,1
+
+  R1 0              ' Reset the moving / slipping flag
+  R2 0              ' Reset the delay counter for status update
+  R3 0              ' Reset the delay counter for saving
+
+  CL Rp
+  Os X2
+
+  Us 18000
+
+  LB Lp
+    CL Ya, R1=1&Mv  ' Has been moving
+    CL Yb, R1<>1&Mv ' Started moving
+    CL Za, Mv=0	    ' Not moving
+    H  1
+    BR Lp
+
+  LB Ya
+    IC R2           ' Increment the delay counter
+    CL Rp, R2>30    ' Has been 0.3 second, update status
+    RT
+
+  LB Yb
+    R1 1            ' Set the moving flag
+    R2 1            ' Reset the delay counter
+    R3 0            ' Reset the delay counter
+    Us 30
+    RT
+
+  LB Za
+    CL Zc, R1<>1    ' Was not moving
+    CL Zb, R1=1     ' Just finished moving
+    RT
+
+  LB Zb
+    CL Rp
+
+    R1 2            ' Delay started by a move
+    RT
+
+  LB Zc
+    CL Zd, Sv=9     ' Save now
+
+    IC R2
+
+    CL Ze, R1>1     ' Delaying
+    CL Zu, R1=0     ' Check for status change or slipping
+
+    CL Zx, R3>0     ' Delay for saving
+    RT
+
+  LB Zd
+    p1 P            ' Assign P to P1
+    R3 0            ' Reset the delay counter
+    Sv 0            ' Reset the save flag
+    IC Ns           ' Increment the Save counter
+    S               ' Save to NVM
+    PR "Saved ",P1
+    RT
+
+  LB Ze
+    CL Zf, R1>2
+    CL Zs, R1=2
+    RT
+
+  LB Zf
+    CL Zg, R2>5
+    RT
+
+  LB Zg
+    CL Zh, R1=3
+    CL Zm, R1=4
+    CL Zl, R1=5
+
+    R2 1
+    RT
+
+  LB Zh
+    R1 0
+    R3 1
+    Sv 0
+    RT
+
+  LB Zl
+    R1 0
+    RT
+
+  LB Zm
+    CL Bs           ' Build the status word
+
+    CL Zn, X2=Os    ' Status did not change
+    CL Zr, X2<>Os   ' Report immediately
+
+    RT
+
+  LB Zn
+    Xl p1-Sd
+    Xh p1+Sd
+    CL Zo, P<Xl     ' Continue to slip
+    CL Zo, P>Xh     ' Continue to slip
+    CL Zp, P>=Xl    ' Stopped slipping or not
+    RT
+
+  LB Zo
+    X3 X2+MV        ' LSB is MV
+    X4 EE|Me
+    R4 C2-C1*X4+C1
+    PR "BOS", X3, ",P=", R4, "EOS"
+    p1 P
+
+    R2 1            ' Reset the delay counter
+    CL Re, Us=0     ' Reset the status update delay
+    RT
+
+  LB Zp
+    CL Zq, P<=Xh    ' Stopped slipping
+    RT
+
+  LB Zq
+    R1 0
+    R3 1
+    Sv 0
+    RT
+
+  LB Zr
+    Os X2
+
+    X3 X2+MV        ' LSB is MV
+    X4 EE|Me
+    R4 C2-C1*X4+C1
+    PR "BOS", X3, ",P=", R4, "EOS"
+
+    R1 5            ' Delay started by status change
+    R2 1            ' Reset the delay counter
+    CL Re, Us=0     ' Reset the status update delay
+    RT
+
+  LB Zs
+    CL Zt, R2>30
+    RT
+
+  LB Zt
+    CL Rp
+
+    Os X2
+    p1 P
+
+    R1 3
+    RT
+
+  LB Zu
+    CL Bs           ' Build the status word
+
+    CL Zv, X2=Os    ' Check for slipping
+    CL Zr, X2<>Os   ' Report immediately
+
+    CL Rp, R2>Us
+    RT
+
+  LB Zv
+    Xl p1-Sd
+    Xh p1+Sd
+    CL Zw, P<Xl	    ' Slipped below deadband
+    CL Zw, P>Xh	    ' Slipped above deadband
+    RT
+
+  LB Zw
+    CL Zo
+
+    R1 4            ' Delay started by slipping
+    R3 0            ' Reset the delay counter
+    RT
+
+  LB Zx
+    IC R3
+    CL Zd, R3>2000  ' Has delayed about 60 seconds
+    CL Zz, R3=1800  ' Has delayed about 55 seconds
+    CL Zz, R3=1650  ' Has delayed about 50 seconds
+    CL Zy, R3>1500  ' Has delayed about 45 seconds
+    RT
+
+  LB Zy
+    CL Zz, Sv=0
+    RT
+
+  LB Zz
+    Sv 1
+    PR "Want2Save"
+    RT
+
+  LB Tm
+    CL T1, Mm=2
+    CL T2, Mm=3
+
+    R2 0
+    Us 30
+    RT
+
+  LB T1
+    MA Pt
+    RT
+
+  LB T2
+    MR Pt
+
+    Te 4
+    RT
+
+  LB Bs
+    X2 NE*2+PU*8+TE/2+ST*128+ER*2+I4*2+I2*2+I1*2+SM*2+EE*2
+                    ' bit-17 is the numeric enable
+                    ' bit-16 is the power-up flag
+                    ' bit-15 is the trip enable
+                    ' bit-14 is stall detection
+                    ' bit-7 through 13 is the error code
+                    ' bit-6,5,4 are I4, I2, I1
+                    ' bit-3 is stall detection mode
+                    ' bit-2 is encoder enable
+    RT
+
+  LB Rp
+    CL Ra, Mm<>1
+    CL Rd, Mm=1
+
+    R2 0            ' Reset the delay counter
+    CL Re, Us=0     ' Reset the status update delay
+    RT
+
+  LB Ra
+    Sr 0
+
+    CL Bs
+    X2 X2+MV        ' LSB is MV
+
+    X4 EE|Me
+    R4 C2-C1*X4+C1
+    PR "BOS", X2, ",P=", R4, "EOS"
+    RT
+
+  LB Rb
+    Sr 1
+
+    X2 ST*8192+MV   ' bit-14 is stall detection
+                    ' LSB is MV
+
+    X4 EE|Me
+    R4 C2-C1*X4+C1
+    PR "BOS", X2, ",P=", R4, "EOS"
+    RT
+
+  LB Rd
+    CL Ra, R1<>1
+    CL Rb, R1=1
+    RT
+
+  LB Re
+    Us 18000
+    RT
+
+E
+PG
+

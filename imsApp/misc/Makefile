@@ -11,7 +11,6 @@ include $(TOP)/configure/CONFIG
 ifeq ($(BASE_MODULE_VERSION),R3.14.12-0.4.0)
 # What protocol files should be copied as part of the build.
 COPY_FILES += ims_bootup.mcode
-COPY_FILES += report.proto
 
 # What subdirectory should hold the protocol files.
 COPY_SUBDIR = misc
@@ -19,7 +18,6 @@ COPY_SUBDIR = misc
 else
 # What protocol files should be copied as part of the build.
 PROTO += ims_bootup.mcode
-PROTO += report.proto
 
 # What subdirectory should hold the protcol files.
 INSTALL_PROTO = $(INSTALL_LOCATION)/misc
