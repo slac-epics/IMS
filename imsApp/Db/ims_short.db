@@ -44,79 +44,6 @@ record(busy, "$(MOTOR):BUSY") {
   field(OMSL, "supervisory")
 }
 
-record(stringin, "$(MOTOR):STATUS") {
-  field(DESC, "Status From Controller")
-  field(DTYP, "stream")
-  field(INP,  "@report.proto STATUS $(ASYN) 1")
-  field(SCAN, "I/O Intr")
-  field(MPST, "Always")
-  field(FLNK, "$(MOTOR):UPDATE")
-}
-
-record(stringout, "$(MOTOR):UPDATE") {
-  field(DESC, "Update Motor Status")
-  field(DOL,  "$(MOTOR):STATUS")
-  field(OUT,  "$(MOTOR).SSTR NPP")
-  field(OMSL, "closed_loop")
-}
-
-record(stringin, "$(MOTOR):WANT2SAVE") {
-  field(DESC, "Want To Save Signal")
-  field(DTYP, "stream")
-  field(INP,  "@report.proto SAVING  $(ASYN) 1")
-  field(SCAN, "I/O Intr")
-  field(MPST, "Always")
-  field(FLNK, "$(MOTOR):SAVING")
-}
-
-record(stringout, "$(MOTOR):SAVING") {
-  field(DESC, "Controller To Save")
-  field(DOL,  "$(MOTOR):WANT2SAVE")
-  field(OUT,  "$(MOTOR).SVNG")
-  field(OMSL, "closed_loop")
-}
-
-record(stringin, "$(MOTOR):SAVED_STR") {
-  field(DESC, "Saved Raw Position")
-  field(DTYP, "stream")
-  field(INP,  "@report.proto SAVED_P $(ASYN) 1")
-  field(SCAN, "I/O Intr")
-  field(MPST, "Always")
-  field(FLNK, "$(MOTOR):SAVED")
-}
-
-record(stringout, "$(MOTOR):SAVED") {
-  field(DESC, "Controller Saved")
-  field(DOL,  "$(MOTOR):SAVED_STR")
-  field(OUT,  "$(MOTOR).SVNG")
-  field(OMSL, "closed_loop")
-  field(FLNK, "$(MOTOR):SAVED_RAW")
-}
-
-record(scalcout, "$(MOTOR):SAVED_RAW") {
-  field(DESC, "Saved Raw Position")
-  field(INDD, "$(MOTOR):SAVED_STR NPP")
-  field(CALC, "INT(DD)")
-  field(FLNK, "$(MOTOR):SAVED_P")
-}
-
-record(calc, "$(MOTOR):SAVED_P") {
-  field(DESC, "Saved Position")
-  field(INPA, "$(MOTOR):SAVED_RAW NPP")
-  field(INPB, "$(MOTOR).RES       NPP")
-  field(INPC, "$(MOTOR).DIR       NPP")
-  field(INPD, "$(MOTOR).OFF       NPP")
-  field(CALC, "A*B*(1-2*C)+D")
-  field(FLNK, "$(MOTOR):SAVED_TS")
-}
-
-record(stringin, "$(MOTOR):SAVED_TS") {
-  field(DESC, "Time Stamp of Last Save")
-  field(DTYP, "Soft Timestamp")
-  field(TSEL, "$(MOTOR):SAVED_RAW.TIME")
-  field(INP,  "@%R:%S %b %d %Y")
-}
-
 record(stringout, "$(MOTOR):FW_MEANS") {
   field(DESC, "Meaning of Forward")
   field(VAL,  "+")
@@ -719,3 +646,33 @@ record(ao, "$(MOTOR):COPY_ACT") {
   field(OMSL, "closed_loop")
 }
 
+record(stringout, "$(MOTOR):SAVED_STR") {
+  field(DESC, "Saved Raw Position")
+  field(SCAN, "Passive")
+  field(MPST, "Always")
+  field(FLNK, "$(MOTOR):SAVED_RAW")
+}
+
+record(scalcout, "$(MOTOR):SAVED_RAW") {
+  field(DESC, "Saved Raw Position")
+  field(INDD, "$(MOTOR):SAVED_STR NPP")
+  field(CALC, "INT(DD)")
+  field(FLNK, "$(MOTOR):SAVED_P")
+}
+
+record(calc, "$(MOTOR):SAVED_P") {
+  field(DESC, "Saved Position")
+  field(INPA, "$(MOTOR):SAVED_RAW NPP")
+  field(INPB, "$(MOTOR).RES       NPP")
+  field(INPC, "$(MOTOR).DIR       NPP")
+  field(INPD, "$(MOTOR).OFF       NPP")
+  field(CALC, "A*B*(1-2*C)+D")
+  field(FLNK, "$(MOTOR):SAVED_TS")
+}
+
+record(stringin, "$(MOTOR):SAVED_TS") {
+  field(DESC, "Time Stamp of Last Save")
+  field(DTYP, "Soft Timestamp")
+  field(TSEL, "$(MOTOR):SAVED_RAW.TIME")
+  field(INP,  "@%R:%S %b %d %Y")
+}

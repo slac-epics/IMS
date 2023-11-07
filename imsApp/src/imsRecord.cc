@@ -115,11 +115,11 @@ static void enforce_BS        ( imsRecord *precord                            );
 static void enforce_HS        ( imsRecord *precord                            );
 
 static void flush_asyn        ( struct ims_info *mInfo                        );
-static long send_msg          ( struct ims_info *mInfo, char const *msg,
-                                                        int sEvt = 1          );
-static long recv_reply        ( struct ims_info *mInfo, char *rbbuf           );
-
+static long send_msg          ( struct ims_info *mInfo, char const *msg       );
+static long send_recv_reply   ( struct ims_info *mInfo, char const *msg,
+				char *rbbuf                                   );
 static void ping_controller   ( struct ims_info *mInfo                        );
+static void io_controller     ( struct ims_info *mInfo                        );
 
 static long log_msg  ( imsRecord *prec, int dlvl, const char *fmt, ... );
 static void post_msgs( imsRecord *prec                                 );
@@ -141,14 +141,25 @@ static long init_record( dbCommon *precord, int pass )
     ims_info  *mInfo;
 
     long       status = 0;
+    int        i;
+    char       buf[512];
 
-    if ( pass > 0 ) return( status );
+    if ( pass > 0 ) { return( status ); }
 
     mInfo = (ims_info *)malloc( sizeof(ims_info) );
     mInfo->precord   = prec;
     mInfo->pEvent    = new epicsEvent( epicsEventEmpty );
     mInfo->sEvent    = new epicsEvent( epicsEventFull  );
     mInfo->cMutex    = new epicsMutex();
+    mInfo->rMutex    = new epicsMutex();
+
+    /* Organize the requests into a linked list. */
+    for (i = 0; i < REQ_CNT; i++) {
+	mInfo->req[i].state = IAR_EMPTY;
+	mInfo->req[i].link = (i==REQ_CNT-1) ? -1 : (i+1);
+	mInfo->req[i].rbEvent = new epicsEvent();
+    }
+    mInfo->reqH = 0;
 
     mInfo->lMutex    = new epicsMutex();
     mInfo->mLength   = 61;
@@ -156,6 +167,13 @@ static long init_record( dbCommon *precord, int pass )
     mInfo->newMsg    = 0;
     mInfo->saving    = 0;
     mInfo->sAddr     = (char *)calloc( 8*61, sizeof(char) );
+
+    sprintf(buf, "%s.SSTR", prec->name);
+    mInfo->sstr_status = dbNameToAddr(buf, &mInfo->sstr_addr);
+    sprintf(buf, "%s.SVNG", prec->name);
+    mInfo->svng_status = dbNameToAddr(buf, &mInfo->svng_addr);
+    sprintf(buf, "%s:SAVED_STR.VAL", prec->name);
+    mInfo->saved_status = dbNameToAddr(buf, &mInfo->saved_addr);
 
     prec->loga       = mInfo->sAddr;
     prec->logb       = mInfo->sAddr + mInfo->mLength * 1;
@@ -210,15 +228,12 @@ static long init_record( dbCommon *precord, int pass )
 static long connect_motor( imsRecord *prec )
 {
     ims_info          *mInfo = (ims_info *)prec->dpvt;
-
     asynUser          *pasynUser;
     char               serialPort[80];
     static const char  output_terminator[] = "\n";
     static const char  input_terminator[]  = "\r\n";
-
-    asynStatus         asyn_rtn;
     motor_status       msta;
-
+    asynStatus         asyn_rtn;
     int                status = 0;
 
     msta.All = 0;
@@ -229,6 +244,11 @@ static long connect_motor( imsRecord *prec )
 
     drvAsynIPPortConfigure              ( prec->asyn, serialPort, 0, 0, 0 );
     asyn_rtn = pasynOctetSyncIO->connect( prec->asyn, 0, &pasynUser, NULL );
+#if 0
+    /* Debugging from the beginning of time. */
+    pasynTrace->setTraceIOMask(pasynUser, 2);
+    pasynTrace->setTraceMask(pasynUser, 9);
+#endif
 
     if ( asyn_rtn != asynSuccess )
     {
@@ -237,13 +257,11 @@ static long connect_motor( imsRecord *prec )
         msta.Bits.RA_PROBLEM = 1;
     }
 
+    /* We will manually attach the output terminator. */
     pasynOctetSyncIO->setOutputEos( pasynUser, output_terminator,
                                     strlen(output_terminator)     );
     pasynOctetSyncIO->setInputEos ( pasynUser, input_terminator,
                                     strlen(input_terminator)      );
-
-    // flush any junk at input port - should not be any data yet
-    pasynOctetSyncIO->flush( pasynUser );
 
     mInfo->pasynUser = pasynUser;
 
@@ -251,8 +269,13 @@ static long connect_motor( imsRecord *prec )
 
     epicsThreadCreate( prec->name, epicsThreadPriorityMedium,
                        epicsThreadGetStackSize(epicsThreadStackMedium),
+                       (EPICSTHREADFUNC)io_controller, (void *)mInfo );
+
+    epicsThreadCreate( prec->name, epicsThreadPriorityMedium,
+                       epicsThreadGetStackSize(epicsThreadStackMedium),
                        (EPICSTHREADFUNC)ping_controller, (void *)mInfo );
 
+    prec->msta = msta.All;
     return( status );
 }
 
@@ -271,16 +294,15 @@ static long init_motor( imsRecord *prec )
 
     mInfo->cMutex->lock();
 
-    msta.All = 0;
+    msta.All = prec->msta; /* This might have been set in connect_motor! */
+
+    flush_asyn( mInfo );
 
     // read the part number
     retry = 1;
     do
     {
-        flush_asyn( mInfo );
-
-        send_msg( mInfo, "PR \"PN=\",PN" );
-        status = recv_reply( mInfo, rbbuf );
+        status = send_recv_reply( mInfo, "PR \"PN=\",PN", rbbuf );
         if ( (status > 0) && (strlen(rbbuf) > 3) )
         {
             if      ( strncmp(rbbuf,                   "PN=", 3) == 0 )
@@ -308,10 +330,7 @@ static long init_motor( imsRecord *prec )
     retry = 1;
     do
     {
-        flush_asyn( mInfo );
-
-        send_msg( mInfo, "PR \"SN=\",SN" );
-        status = recv_reply( mInfo, rbbuf );
+        status = send_recv_reply( mInfo, "PR \"SN=\",SN", rbbuf );
         if ( (status > 0) && (strlen(rbbuf) > 3) )
         {
             if      ( strncmp(rbbuf,                   "SN=", 3) == 0 )
@@ -339,10 +358,7 @@ static long init_motor( imsRecord *prec )
     retry = 1;
     do
     {
-        flush_asyn( mInfo );
-
-        send_msg( mInfo, "PR \"VR=\",VR" );
-        status = recv_reply( mInfo, rbbuf );
+        status = send_recv_reply( mInfo, "PR \"VR=\",VR", rbbuf );
         if ( (status > 0) && (strlen(rbbuf) > 3) )
         {
             if      ( strncmp(rbbuf,                   "VR=", 3) == 0 )
@@ -370,10 +386,9 @@ static long init_motor( imsRecord *prec )
     retry = 1;
     do
     {
-        flush_asyn( mInfo );
-
-        send_msg( mInfo, "PR \"S1=\",S1,\", S2=\",S2,\", S3=\",S3,\", S4=\",S4" );
-        status = recv_reply( mInfo, rbbuf );
+        status = send_recv_reply( mInfo, 
+				  "PR \"S1=\",S1,\", S2=\",S2,\", S3=\",S3,\", S4=\",S4",
+				  rbbuf );
         if ( status > 0 )
         {
             status = sscanf( rbbuf, "S1=%d, %d, %d, S2=%d, %d, %d, S3=%d, %d, %d, S4=%d, %d, %d",
@@ -468,10 +483,7 @@ static long init_motor( imsRecord *prec )
         retry = 1;
         do
         {
-            flush_asyn( mInfo );
-
-            send_msg( mInfo, "PR \"S9=\",S9" );
-            status = recv_reply( mInfo, rbbuf );
+            status = send_recv_reply( mInfo, "PR \"S9=\",S9", rbbuf );
             if ( status > 0 )
             {
                 status = sscanf( rbbuf, "S9=%d, %d, %d", &s9, &a9, &d9 );
@@ -514,10 +526,7 @@ static long init_motor( imsRecord *prec )
     retry = 1;
     do
     {
-        flush_asyn( mInfo );
-
-        send_msg( mInfo, "PR \"MS=\",MS,\", ES=\",ES" );
-        status = recv_reply( mInfo, rbbuf );
+        status = send_recv_reply( mInfo, "PR \"MS=\",MS,\", ES=\",ES", rbbuf );
         if ( status > 0 )
         {
             status = sscanf( rbbuf, "MS=%d, ES=%d", &s1, &s2 );
@@ -548,10 +557,7 @@ static long init_motor( imsRecord *prec )
     retry = 1;
     do
     {
-        flush_asyn( mInfo );
-
-        send_msg( mInfo, "PR \"VE=\",VE,\", BY=\",BY" );
-        status = recv_reply( mInfo, rbbuf );
+        status = send_recv_reply( mInfo, "PR \"VE=\",VE,\", BY=\",BY", rbbuf );
         if ( status > 0 )
         {
             status = sscanf( rbbuf, "VE=%d, BY=%d", &rbve, &rbby );
@@ -620,10 +626,7 @@ static long init_motor( imsRecord *prec )
             send_msg( mInfo, "EX 1" );
             epicsThreadSleep( 1 );
 
-            flush_asyn( mInfo );
-
-            send_msg( mInfo, "PR \"BY=\",BY" );
-            status = recv_reply( mInfo, rbbuf );
+            status = send_recv_reply( mInfo, "PR \"BY=\",BY", rbbuf );
             if ( status > 0 )
             {
                 status = sscanf( rbbuf, "BY=%d", &rbby );
@@ -808,6 +811,7 @@ static long process( dbCommon *precord )
     strncpy( old_mstr, prec->mstr, 61 );
 
     mInfo->cMutex->lock();
+    csr.All = mInfo->csr;
     if ( (mInfo->newData != 1) && (mInfo->newData != 2) )
     {
         mInfo->cMutex->unlock();
@@ -1748,7 +1752,7 @@ static long special( dbAddr *pDbAddr, int after )
 
 		    mInfo->sEvent->wait();
 		    mInfo->saving = 1;
-		    send_msg( mInfo, "SV 9", 0 );
+		    send_msg( mInfo, "SV 9" );
 		}
             }
             else if ( sscanf(prec->svng, "%ld", &count) == 1 )
@@ -2510,7 +2514,7 @@ static long special( dbAddr *pDbAddr, int after )
                         epicsThreadSleep( 0.5 );
                     }
 
-                    sprintf( prec->cmd, "PR C2" );
+                    sprintf( prec->cmd, "PR \"C2=\",C2" );
                     goto cmd_and_response;
                 }
             }
@@ -2537,7 +2541,7 @@ static long special( dbAddr *pDbAddr, int after )
                         epicsThreadSleep( 0.5 );
                     }
 
-                    sprintf( prec->cmd, "PR C2" );
+                    sprintf( prec->cmd, "PR \"C2=\",C2" );
                     goto cmd_and_response;
                 }
             }
@@ -3115,16 +3119,16 @@ static long special( dbAddr *pDbAddr, int after )
             break;
         case imsRecordCMD :
             cmd_and_response:
-            send_msg( mInfo, prec->cmd );
 
             if ( strstr(prec->cmd, "PR ") || strstr(prec->cmd, "pr ") ||
-                 strstr(prec->cmd, "Pr ") || strstr(prec->cmd, "pR ")    )
-            {
-                status = recv_reply( mInfo, rbbuf );
+                 strstr(prec->cmd, "Pr ") || strstr(prec->cmd, "pR ")    ) {
+		status = send_recv_reply( mInfo, prec->cmd, rbbuf );
                 if ( status > 0 ) strncpy( prec->resp, rbbuf, 61 );
                 else              strncpy( prec->resp, "",    61 );
+            } else {
+		send_msg( mInfo, prec->cmd );
+		strncpy( prec->resp, "", 61 );
             }
-            else strncpy( prec->resp, "", 61 );
 
             db_post_events( prec,  prec->resp, DBE_VAL_LOG );
 
@@ -3137,6 +3141,7 @@ static long special( dbAddr *pDbAddr, int after )
             log_msg( prec, 0, "Re-initialize ..." );
             post_msgs ( prec );
 
+	    prec->msta = 0;
             init_motor( prec );
 
             prec->rini = 0;
@@ -3440,42 +3445,104 @@ static void flush_asyn( struct ims_info *mInfo )
 }
 
 /******************************************************************************/
-static long send_msg( struct ims_info *mInfo, char const *msg, int sEvt )
+/* Assume rMutex is locked! */
+static struct ims_asyn_req *get_request_buf( struct ims_info *mInfo )
 {
-    char         local_buf[MAX_MSG_SIZE];
-    const double timeout = 1.0;
-    size_t       nwrite;
+    int r = mInfo->reqH;
+    struct ims_asyn_req *req;
 
-    sprintf( local_buf, "%s\r", msg );
+    if (r == -1) /* This should never happen.  Famous last... */
+        return NULL;
+    req = &mInfo->req[r];
+    mInfo->reqH = req->link;
+    return req;
+}
 
-    if ( sEvt == 1 ) mInfo->sEvent->wait( 1.5 );
+/* Assume rMutex is locked! */
+static void free_request_buf ( struct ims_info *mInfo, struct ims_asyn_req *req )
+{
+    int r = req - &mInfo->req[0];
+    req->state = IAR_EMPTY;
+    req->link = mInfo->reqH;
+    mInfo->reqH = r;
+}
 
-    pasynOctetSyncIO->write( mInfo->pasynUser, local_buf, strlen(local_buf),
-                             timeout, &nwrite );
+static long send_msg( struct ims_info *mInfo, char const *msg )
+{
+    struct ims_asyn_req *req;
 
-    if ( sEvt == 1 ) mInfo->sEvent->signal();
+    mInfo->rMutex->lock();
+    req = get_request_buf(mInfo);
+    if (!req) {
+	mInfo->rMutex->unlock();
+	return -1;
+    }
 
+    sprintf(req->out, "%s\r", msg);
+    req->outsize = strlen(req->out);
+    req->state = IAR_SENDONLY;
+    mInfo->rMutex->unlock();
     return( 0 );
 }
 
 /******************************************************************************/
-static long recv_reply( struct ims_info *mInfo, char *rbbuf )
+/*
+ * The new regime: all of our PR statements in *code* start 'PR "XY=",' for some
+ * unique characters XY.  However... since we allow users to just send arbitrary
+ * commands, we can't really count on *all* of the commands looking like this.
+ * But if it *doesn't* look like this, we know it has to be a user command!
+ */
+static long send_recv_reply( struct ims_info *mInfo, char const *msg, char *rbbuf)
 {
-    const double timeout  = 1.0;
-    size_t       nread    = 0;
-    asynStatus   asyn_rtn = asynError;
-    int          eomReason;
+    struct ims_asyn_req *req;
+    int status;
 
-    asyn_rtn = pasynOctetSyncIO->read( mInfo->pasynUser, rbbuf, MAX_MSG_SIZE,
-                                       timeout, &nread, &eomReason );
-
-    if ( (asyn_rtn != asynSuccess) || (nread <= 0) )
-    {
-        rbbuf[0] = '\0';
-        nread    = 0;
+    mInfo->rMutex->lock();
+    req = get_request_buf(mInfo);
+    if (!req) {
+	mInfo->rMutex->unlock();
+	*rbbuf = 0;
+	return 0;
     }
 
-    return( nread );
+    sprintf(req->out, "%s\r", msg);
+    req->outsize = strlen(req->out);
+    req->state = IAR_SEND;
+    /*
+     * We wouldn't be here if msg didn't start "PR ". Only question is
+     * if we are printing a literal string after this.
+     *
+     * We're trying to be safe here in case the user types something
+     * like 'PR ""' or 'PR "X"'.
+     */
+    if (msg[3] == '"') {
+	req->exp[0] = msg[4] == '"' ? 0 : msg[4];
+	req->exp[1] = msg[5] == '"' ? 0 : msg[5];
+	req->exp[2] = 0;
+    } else {
+	req->exp[0] = 0;
+    }
+    req->rbbuf = rbbuf;
+    req->state = IAR_SEND;
+    mInfo->rMutex->unlock();
+
+    status = req->rbEvent->wait(1.0);
+    mInfo->rMutex->lock();
+    /*
+     * This is pure paranoia.  There might be a race here, if we return from
+     * the wait with a failure, but then the event is signaled before we can
+     * grab the lock.
+     */
+    if (!status) {
+	status = req->rbEvent->tryWait();
+    }
+    if (status) {
+	status = req->nread;
+    }
+    free_request_buf(mInfo, req);
+    mInfo->rMutex->unlock();
+
+    return( status );
 }
 
 /******************************************************************************/
@@ -3590,6 +3657,141 @@ static void post_fields( imsRecord *prec, unsigned short alarm_mask,
 }
 
 /******************************************************************************/
+static void io_controller ( struct ims_info *mInfo )
+{
+    char buf[2048];
+    const double wtimeout = 1.0;
+    const double rtimeout = 0.1;
+    asynStatus status;
+    int i, eomReason, wild;
+    size_t len;
+
+    for (;;) {
+	/* Check for new work */
+	mInfo->rMutex->lock();
+	for (i = 0; i < REQ_CNT; i++) {
+	    struct ims_asyn_req *req = &mInfo->req[i];
+
+	    if (req->state == IAR_SENDONLY) {
+		pasynOctetSyncIO->write( mInfo->pasynUser, req->out, 
+					 req->outsize, wtimeout, &len );
+		free_request_buf(mInfo, req);
+		continue;
+	    }
+	    if (req->state == IAR_SEND) {
+		pasynOctetSyncIO->write( mInfo->pasynUser, req->out, 
+					 req->outsize, wtimeout, &len );
+		req->state = IAR_RESPWAIT;
+		continue;
+	    }
+	}
+	mInfo->rMutex->unlock();
+
+	/* Try to read a message */
+	status = pasynOctetSyncIO->read( mInfo->pasynUser, buf, sizeof(buf) - 1,
+					 rtimeout, &len, &eomReason );
+	if (status != asynSuccess || len <= 0)
+	    continue;
+
+	if (len < sizeof(buf))
+	    buf[len] = 0;
+
+#if 0
+	/* Debug print. */
+	printf("< ");
+	for (size_t ii = 0; ii < len; ii++) {
+	    if (buf[ii] == '\r')
+		printf("\\r");
+	    else if (buf[ii] == '\n')
+		printf("\\n");
+	    else
+		putchar(buf[ii]);
+	}
+	putchar('\n');
+#endif
+	if (!strncmp(buf, "BOS", 3)) {
+	    /*
+	     * BOSstatus,P=positionEOS
+	     * Strip off "BOS" and pass it to $(MOTOR).SSTR.
+	     */
+	    if (!mInfo->sstr_status)
+		dbPutField(&mInfo->sstr_addr, DBR_STRING, buf+3, 1);
+	    continue;
+	}
+	if (!strncmp(buf, "Want2Save", 9)) {
+	    /*
+	     * Want2Save
+	     * Strip off "Want2" and pass it to $(MOTOR).SVNG.
+	     */
+	    if (!mInfo->svng_status)
+		dbPutField(&mInfo->svng_addr, DBR_STRING, buf+5, 1);
+	    continue;
+	}
+	if (!strncmp(buf, "Saved ", 6)) {
+	    /*
+	     * Saved position
+	     * Strip off "Saved " and pass it to $(MOTOR).SVNG and
+	     * $(MOTOR).SAVED_STR.
+	     */
+	    if (!mInfo->svng_status)
+		dbPutField(&mInfo->svng_addr, DBR_STRING, buf+6, 1);
+	    if (!mInfo->saved_status)
+		dbPutField(&mInfo->saved_addr, DBR_STRING, buf+6, 1);
+	    continue;
+	}
+	mInfo->rMutex->lock();
+	/*
+	 * Check if this is a response to something previously sent.
+	 */
+	for (wild = -1, i = 0; i < REQ_CNT; i++) {
+	    struct ims_asyn_req *req = &mInfo->req[i];
+	    int explen = strlen(req->exp);
+	    if (req->state == IAR_RESPWAIT && !explen) {
+		wild = i; /* Just remember that this is our potential wildcard match. */
+		continue;
+	    }
+	    /*
+	     * Sigh.  This is fucked up.
+	     *
+	     * The IMS motor firmware seems to have a bug in it... when you send
+	     *     PR "PN=",PN
+	     * The response can be:
+	     *     MDI3CRL23C7-EQPN=
+	     * Let's assume that our expected length is always 2, and... sigh.
+	     */
+	    if (req->state == IAR_RESPWAIT && 
+		(!strncmp(buf, req->exp, explen) ||
+		 (buf[len-1] == '=' && 
+		  !strncmp(buf+len-1-strlen(req->exp), req->exp, explen)))) {
+		req->nread = strlen(buf);
+		if (req->nread >= MAX_MSG_SIZE)
+		    req->nread = MAX_MSG_SIZE-1;
+		strncpy(req->rbbuf, buf, req->nread);
+		req->rbbuf[req->nread] = 0;
+		req->state = IAR_DONE;
+		req->rbEvent->signal();
+		break;
+	    }
+	}
+	/*
+	 * If we didn't match anything but there is a wild card match,
+	 * match it!
+	 */
+	if (i == REQ_CNT && wild >= 0) {
+	    struct ims_asyn_req *req = &mInfo->req[wild];
+	    req->nread = strlen(buf);
+	    if (req->nread >= MAX_MSG_SIZE)
+		req->nread = MAX_MSG_SIZE-1;
+	    strncpy(req->rbbuf, buf, req->nread);
+	    req->rbbuf[req->nread] = 0;
+	    req->state = IAR_DONE;
+	    req->rbEvent->signal();
+	}
+	mInfo->rMutex->unlock();
+    }
+}
+
+/******************************************************************************/
 static void ping_controller( struct ims_info *mInfo )
 {
     imsRecord    *prec = mInfo->precord;
@@ -3608,13 +3810,10 @@ static void ping_controller( struct ims_info *mInfo )
         retry = 1;
         do
         {
-            flush_asyn( mInfo );
-
-            send_msg( mInfo, "PR \"BY=\",BY" );
-            status = recv_reply( mInfo, msg );
+	    status = send_recv_reply( mInfo, "PR \"PI=\",BY", msg );
             if ( status > 0 )
             {
-                status = sscanf( msg, "BY=%d", &rbby );
+                status = sscanf( msg, "PI=%d", &rbby );
                 if ( status == 1 ) break;
             }
 
@@ -3797,4 +3996,3 @@ static void enforce_HS( imsRecord *prec )
 
     return;
 }
-

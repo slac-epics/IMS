@@ -16,3 +16,5 @@ cdCommands
 envPaths
 RELEASE_SITE
 tags
+sim/client
+sim/server
