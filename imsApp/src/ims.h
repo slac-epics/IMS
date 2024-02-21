@@ -13,6 +13,11 @@ struct ims_asyn_req {
     enum iar_state   state;
 };
 
+struct pf_asyn_req {
+    struct dbAddr   *addr;
+    char             out[MAX_MSG_SIZE];/* To be sent */
+};
+
 struct ims_info
 {
     struct imsRecord *precord;
@@ -21,6 +26,7 @@ struct ims_info
     epicsEvent       *sEvent;         /* Wait until SAVE OK (initially full!) */
     epicsMutex       *cMutex;
     epicsMutex       *rMutex;
+    epicsMessageQueue *pfq;
 
 #define REQ_CNT 5
     struct ims_asyn_req req[REQ_CNT];

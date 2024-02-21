@@ -1,3 +1,4 @@
+#undef DEBUG
 #define USE_TYPED_RSET
 #define VERSION 2.0
 
@@ -32,6 +33,7 @@
 #include "asynOctetSyncIO.h"
 
 #include "epicsExport.h"
+#include "epicsMessageQueue.h"
 
 #include "ims.h"
 
@@ -114,12 +116,12 @@ static void enforce_S         ( imsRecord *precord                            );
 static void enforce_BS        ( imsRecord *precord                            );
 static void enforce_HS        ( imsRecord *precord                            );
 
-static void flush_asyn        ( struct ims_info *mInfo                        );
 static long send_msg          ( struct ims_info *mInfo, char const *msg       );
 static long send_recv_reply   ( struct ims_info *mInfo, char const *msg,
 				char *rbbuf                                   );
 static void ping_controller   ( struct ims_info *mInfo                        );
 static void io_controller     ( struct ims_info *mInfo                        );
+static void pf_controller     ( struct ims_info *mInfo                        );
 
 static long log_msg  ( imsRecord *prec, int dlvl, const char *fmt, ... );
 static void post_msgs( imsRecord *prec                                 );
@@ -152,6 +154,7 @@ static long init_record( dbCommon *precord, int pass )
     mInfo->sEvent    = new epicsEvent( epicsEventFull  );
     mInfo->cMutex    = new epicsMutex();
     mInfo->rMutex    = new epicsMutex();
+    mInfo->pfq       = new epicsMessageQueue(20, sizeof(struct pf_asyn_req));
 
     /* Organize the requests into a linked list. */
     for (i = 0; i < REQ_CNT; i++) {
@@ -244,7 +247,7 @@ static long connect_motor( imsRecord *prec )
 
     drvAsynIPPortConfigure              ( prec->asyn, serialPort, 0, 0, 0 );
     asyn_rtn = pasynOctetSyncIO->connect( prec->asyn, 0, &pasynUser, NULL );
-#if 0
+#ifdef DEBUG
     /* Debugging from the beginning of time. */
     pasynTrace->setTraceIOMask(pasynUser, 2);
     pasynTrace->setTraceMask(pasynUser, 9);
@@ -273,6 +276,10 @@ static long connect_motor( imsRecord *prec )
 
     epicsThreadCreate( prec->name, epicsThreadPriorityMedium,
                        epicsThreadGetStackSize(epicsThreadStackMedium),
+                       (EPICSTHREADFUNC)pf_controller, (void *)mInfo );
+
+    epicsThreadCreate( prec->name, epicsThreadPriorityMedium,
+                       epicsThreadGetStackSize(epicsThreadStackMedium),
                        (EPICSTHREADFUNC)ping_controller, (void *)mInfo );
 
     prec->msta = msta.All;
@@ -295,8 +302,6 @@ static long init_motor( imsRecord *prec )
     mInfo->cMutex->lock();
 
     msta.All = prec->msta; /* This might have been set in connect_motor! */
-
-    flush_asyn( mInfo );
 
     // read the part number
     retry = 1;
@@ -3438,13 +3443,6 @@ static long get_alarm_double( dbAddr *paddr, struct dbr_alDouble *pad )
 }
 
 /******************************************************************************/
-static void flush_asyn( struct ims_info *mInfo )
-{
-    pasynOctetSyncIO->flush( mInfo->pasynUser );
-    return;
-}
-
-/******************************************************************************/
 /* Assume rMutex is locked! */
 static struct ims_asyn_req *get_request_buf( struct ims_info *mInfo )
 {
@@ -3657,6 +3655,49 @@ static void post_fields( imsRecord *prec, unsigned short alarm_mask,
 }
 
 /******************************************************************************/
+/* Debug routine */
+#ifdef DEBUG
+static void print_string(char *prefix, char *buf, size_t len)
+{
+    printf(prefix);
+    for (size_t ii = 0; ii < len; ii++) {
+	if (buf[ii] == '\r')
+	    printf("\\r");
+	else if (buf[ii] == '\n')
+	    printf("\\n");
+	else
+	    putchar(buf[ii]);
+    }
+    putchar('\n');
+}
+#endif
+
+/******************************************************************************/
+/* Queue a dbPutField request.  This is understood to be a single string. */
+static void queue_pf_req(struct ims_info *mInfo, struct dbAddr *addr, char *msg)
+{
+    struct pf_asyn_req req;
+    req.addr = addr;
+    strncpy(req.out, msg, sizeof(req.out));
+    mInfo->pfq->send((void *)&req, sizeof(struct pf_asyn_req));
+}
+
+/******************************************************************************/
+static void pf_controller ( struct ims_info *mInfo )
+{
+    struct pf_asyn_req req;
+
+    for (;;) {
+	if (mInfo->pfq->receive(&req, sizeof(req)) != sizeof(req)) {
+	    /* This should never happen, but if it does, let's not just spin. */
+	    epicsThreadSleep( 0.2 );
+	    continue;
+	}
+	dbPutField(req.addr, DBR_STRING, req.out, 1);
+    }
+}
+
+/******************************************************************************/
 static void io_controller ( struct ims_info *mInfo )
 {
     char buf[2048];
@@ -3696,26 +3737,17 @@ static void io_controller ( struct ims_info *mInfo )
 	if (len < sizeof(buf))
 	    buf[len] = 0;
 
-#if 0
-	/* Debug print. */
-	printf("< ");
-	for (size_t ii = 0; ii < len; ii++) {
-	    if (buf[ii] == '\r')
-		printf("\\r");
-	    else if (buf[ii] == '\n')
-		printf("\\n");
-	    else
-		putchar(buf[ii]);
-	}
-	putchar('\n');
+#ifdef DEBUG
+	print_string((char *)"< ", buf, len);
 #endif
 	if (!strncmp(buf, "BOS", 3)) {
 	    /*
 	     * BOSstatus,P=positionEOS
 	     * Strip off "BOS" and pass it to $(MOTOR).SSTR.
 	     */
-	    if (!mInfo->sstr_status)
-		dbPutField(&mInfo->sstr_addr, DBR_STRING, buf+3, 1);
+	    if (!mInfo->sstr_status) {
+		queue_pf_req(mInfo, &mInfo->sstr_addr, buf+3);
+	    }
 	    continue;
 	}
 	if (!strncmp(buf, "Want2Save", 9)) {
@@ -3723,8 +3755,9 @@ static void io_controller ( struct ims_info *mInfo )
 	     * Want2Save
 	     * Strip off "Want2" and pass it to $(MOTOR).SVNG.
 	     */
-	    if (!mInfo->svng_status)
-		dbPutField(&mInfo->svng_addr, DBR_STRING, buf+5, 1);
+	    if (!mInfo->svng_status) {
+		queue_pf_req(mInfo, &mInfo->svng_addr, buf+5);
+	    }
 	    continue;
 	}
 	if (!strncmp(buf, "Saved ", 6)) {
@@ -3733,10 +3766,12 @@ static void io_controller ( struct ims_info *mInfo )
 	     * Strip off "Saved " and pass it to $(MOTOR).SVNG and
 	     * $(MOTOR).SAVED_STR.
 	     */
-	    if (!mInfo->svng_status)
-		dbPutField(&mInfo->svng_addr, DBR_STRING, buf+6, 1);
-	    if (!mInfo->saved_status)
-		dbPutField(&mInfo->saved_addr, DBR_STRING, buf+6, 1);
+	    if (!mInfo->svng_status) {
+		queue_pf_req(mInfo, &mInfo->svng_addr, buf+6);
+	    }
+	    if (!mInfo->saved_status) {
+		queue_pf_req(mInfo, &mInfo->saved_addr, buf+6);
+	    }
 	    continue;
 	}
 	mInfo->rMutex->lock();
